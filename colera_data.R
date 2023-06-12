@@ -47,8 +47,8 @@ df_colera$año <- NULL
 
 # divide dataset for "invasiones" and "defunciones"
 rows_odd <- seq_len(nrow(df_colera)) %% 2
-df_colera_invasiones <- df_colera[rows_odd == 0,]
-df_colera_defunciones <- df_colera[rows_odd == 1,]
+df_colera_invasiones <- df_colera[rows_odd == 1,]
+df_colera_defunciones <- df_colera[rows_odd == 0,]
 
 # create columns with number of "invasiones" and "defunciones" 
 colnames(df_colera_invasiones)[4] = INVASIONES_STR
@@ -69,11 +69,13 @@ df_colera_defunciones$`Causa (Invasion, Defuncion)` <- NULL
 # group "invasiones" and "defunciones" by "Fecha"
 df_colera_invasiones.grouped <- df_colera_invasiones %>%
   group_by(Fecha) %>%
-  summarize(Total_invasiones = sum(invasiones))
+  summarize(Total_invasiones = sum(invasiones)) %>%
+  na.omit(df_colera_invasiones)
 
 df_colera_defunciones.grouped <- df_colera_defunciones %>%
   group_by(Fecha) %>%
-  summarize(Total_defunciones = sum(defunciones))
+  summarize(Total_defunciones = sum(defunciones)) %>%
+  na.omit(df_colera_defunciones)
 
 # merge grouped "invasiones" and "defunciones" as df_colera.grouped
 df_colera.grouped <- merge(df_colera_invasiones.grouped, df_colera_defunciones.grouped)
