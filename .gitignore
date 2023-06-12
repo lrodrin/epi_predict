@@ -50,3 +50,7 @@ rsconnect/
 
 # project data folder
 data/
+
+# project plots folder
+plots/
+
