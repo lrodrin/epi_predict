@@ -8,6 +8,7 @@ library(dplyr)
 
 
 DATA_DIR <- "data"
+PLOTS_DIR <- "plots"
 CODIGO_INE_STR <- "Codigo Ine"
 FECHA_STR <- "Fecha"
 INVASIONES_STR <- "invasiones"
@@ -94,8 +95,8 @@ ggplot(df_colera.grouped, aes(Fecha)) +
   theme(axis.text.x = element_text(angle = 60, hjust = 1), legend.position = "bottom")
 
 # save the plot
-# ggsave("colera_total_invasiones&defunciones.png",
-#        width = 14,
-#        height = 4.5,
-#        dpi = 300,
-#        limitsize = TRUE)
+ggsave(paste(PLOTS_DIR, "colera_total_invasiones&defunciones.png", sep = "/"),
+       width = 14,
+       height = 4.5,
+       dpi = 300,
+       limitsize = TRUE)
