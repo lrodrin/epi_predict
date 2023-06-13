@@ -13,7 +13,7 @@ CODIGO_INE_STR <- "Codigo Ine"
 FECHA_STR <- "Fecha"
 INVASIONES_STR <- "invasiones"
 DEFUNCIONES_STR <- "defunciones"
-AÑO_STR <- "1885"
+ANO_STR <- "1885"
 
 
 # main --------------------------------------------------------------------
@@ -36,14 +36,14 @@ df_colera <-
       !(df_colera[,CODIGO_INE_STR] == "9999")
   ), ]
 
-# add column "año"
-df_colera$año <- AÑO_STR
+# add column "ano"
+df_colera$ano <- ANO_STR
 
 # format "Fecha" as year-month-day
-df_colera$Fecha <- as.Date(with(df_colera, paste(año, mes, dia, sep = "-")), "%Y-%m-%d")
+df_colera$Fecha <- as.Date(with(df_colera, paste(ano, mes, dia, sep = "-")), "%Y-%m-%d")
 df_colera$dia <- NULL
 df_colera$mes <- NULL
-df_colera$año <- NULL
+df_colera$ano <- NULL
 
 # divide dataset for "invasiones" and "defunciones"
 rows_odd <- seq_len(nrow(df_colera)) %% 2
@@ -87,7 +87,7 @@ ggplot(df_colera.grouped, aes(Fecha)) +
   scale_color_discrete(name = "causa") +
   ylab("número") +
   xlab("día-mes") +
-  ggtitle(paste0("total ", INVASIONES_STR, "/", DEFUNCIONES_STR, ", ", AÑO_STR)) +
+  ggtitle(paste0("total ", INVASIONES_STR, "/", DEFUNCIONES_STR, ", ", ANO_STR)) +
   scale_y_continuous(breaks=seq(0, 7000, 1000), limits=c(0, 7000)) +
   scale_x_continuous(
     breaks = as.numeric(df_colera.grouped[, FECHA_STR]),
