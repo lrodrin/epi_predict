@@ -83,6 +83,10 @@ df_colera_defunciones.groupByFecha <- df_colera_defunciones %>%
     fill = list(Total_defunciones = 0)
   ) # add missing dates
 
+# save total "invasiones" and "defunciones" by Fecha" 
+write.csv(df_colera_invasiones.groupByFecha, paste(DATA_DIR, "colera_total_invasiones.csv", sep = "/"), row.names = FALSE)
+write.csv(df_colera_defunciones.groupByFecha, paste(DATA_DIR, "colera_total_defunciones.csv", sep = "/"), row.names = FALSE)
+
 # merge grouped "invasiones" and "defunciones" as df_colera.groupByFecha
 df_colera.groupByFecha <- merge(df_colera_invasiones.groupByFecha, df_colera_defunciones.groupByFecha)
 
@@ -132,6 +136,10 @@ df_colera_defunciones.groupByProvinciaFecha <- df_colera_defunciones %>%
     fill = list(Total_defunciones = 0)
   ) # add missing dates
 
+# save total "invasiones" and "defunciones" by "Provincia" and "Fecha" 
+write.csv(df_colera_invasiones.groupByProvinciaFecha, paste(DATA_DIR, "colera_total_invasionesXprovincia.csv", sep = "/"), row.names = FALSE)
+write.csv(df_colera_defunciones.groupByProvinciaFecha, paste(DATA_DIR, "colera_total_defuncionesXprovincia.csv", sep = "/"), row.names = FALSE)
+
 # merge grouped "invasiones" and "defunciones" as df_colera.groupByProvinciaFecha
 df_colera.groupByProvinciaFecha <- merge(df_colera_invasiones.groupByProvinciaFecha, df_colera_defunciones.groupByProvinciaFecha)
 
@@ -178,3 +186,22 @@ ggsave(paste(PLOTS_DIR, "colera_total_defuncionesXprovincia.png", sep = "/"),
        height = 7,
        dpi = 300,
        limitsize = TRUE)
+
+# bar plots total "invasiones" and "defunciones" by "Provincia" and "Fecha" 
+ggplot(df_colera.groupByProvinciaFecha, aes(x = Total_invasiones, y = Provincia, fill = Provincia)) +
+  geom_bar(stat = "identity") + 
+  ylab(PROVINCIA_STR) +
+  xlab("número invasiones") +
+  theme(legend.position="none")
+
+# save the bar plot
+ggsave(paste(PLOTS_DIR, "barplot.colera_total_invasionesXprovincia.png", sep = "/"), dpi = 300, limitsize = TRUE)
+
+ggplot(df_colera.groupByProvinciaFecha, aes(x = Total_defunciones, y = Provincia, fill = Provincia)) +
+  geom_bar(stat = "identity") + 
+  ylab(PROVINCIA_STR) +
+  xlab("número defunciones") +
+  theme(legend.position="none")
+
+# save the plot
+ggsave(paste(PLOTS_DIR, "barplot.colera_total_defuncionesXprovincia.png", sep = "/"), dpi = 300, limitsize = TRUE)
