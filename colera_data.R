@@ -12,6 +12,7 @@ DATA_DIR <- "data"
 PLOTS_DIR <- "plots"
 CODIGO_INE_STR <- "Codigo Ine"
 FECHA_STR <- "Fecha"
+MUNICIPIO_STR <- "Municipio"
 INVASIONES_STR <- "invasiones"
 DEFUNCIONES_STR <- "defunciones"
 PROVINCIA_STR <- "provincia"
@@ -114,7 +115,7 @@ ggsave(paste(PLOTS_DIR, "colera_total_invasiones&defunciones.png", sep = "/"),
        limitsize = TRUE)
 
 
-# PROVINCIA ---------------------------------------------------------------
+# TOTALES - PROVINCIA -----------------------------------------------------
 
 
 # group "invasiones" and "defunciones" by "Provincia" and "Fecha" 
@@ -148,15 +149,17 @@ ggplot(df_colera.groupByProvinciaFecha, aes(x = Fecha, y = Total_invasiones, gro
   geom_line() +
   scale_color_discrete(name = PROVINCIA_STR) +
   ylab("número") +
-  xlab("día-mes") +
+  xlab("") +
   ggtitle(paste0("total ", INVASIONES_STR, " por ", PROVINCIA_STR, ", ", ANO_STR)) +
-  scale_y_continuous(breaks=seq(0, 2000, 200), limits=c(0, 2000)) +
-  scale_x_continuous(
-    breaks = as.numeric(df_colera.groupByProvinciaFecha[, FECHA_STR]),
-    labels = format(df_colera.groupByProvinciaFecha[, FECHA_STR], "%d - %m"),
-    expand = c(0,0)
-  ) +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1), legend.position = "bottom")
+  scale_y_continuous(breaks=seq(0, 1500, 350), limits=c(0, 1500)) +
+  # scale_x_continuous(
+  #   breaks = as.numeric(df_colera.groupByProvinciaFecha[, FECHA_STR]),
+  #   labels = format(df_colera.groupByProvinciaFecha[, FECHA_STR], "%d - %m"),
+  #   expand = c(0,0)
+  # ) +
+  # theme(axis.text.x = element_text(angle = 60, hjust = 1), legend.position = "none") +
+  theme(legend.position = "none") +
+  facet_wrap(~ Provincia, scales = 'free_x', ncol = 4)
 
 # save the plot
 ggsave(paste(PLOTS_DIR, "colera_total_invasionesXprovincia.png", sep = "/"),
@@ -170,15 +173,17 @@ ggplot(df_colera.groupByProvinciaFecha, aes(x = Fecha, y = Total_defunciones, gr
   geom_line() +
   scale_color_discrete(name = PROVINCIA_STR) +
   ylab("número") +
-  xlab("día-mes") +
+  xlab("") +
   ggtitle(paste0("total ", DEFUNCIONES_STR, " por ", PROVINCIA_STR, ", ", ANO_STR)) +
-  scale_y_continuous(breaks=seq(0, 700, 100), limits=c(0, 700)) +
-  scale_x_continuous(
-    breaks = as.numeric(df_colera.groupByProvinciaFecha[, FECHA_STR]),
-    labels = format(df_colera.groupByProvinciaFecha[, FECHA_STR], "%d - %m"),
-    expand = c(0,0)
-  ) +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1), legend.position = "bottom")
+  scale_y_continuous(breaks=seq(0, 600, 150), limits=c(0, 600)) +
+  # scale_x_continuous(
+  #   breaks = as.numeric(df_colera.groupByProvinciaFecha[, FECHA_STR]),
+  #   labels = format(df_colera.groupByProvinciaFecha[, FECHA_STR], "%d - %m"),
+  #   expand = c(0,0)
+  # ) +
+  # theme(axis.text.x = element_text(angle = 60, hjust = 1), legend.position = "bottom")
+  theme(legend.position = "none") +
+  facet_wrap(~ Provincia, scales = 'free_x', ncol = 4)
 
 # save the plot
 ggsave(paste(PLOTS_DIR, "colera_total_defuncionesXprovincia.png", sep = "/"),
@@ -205,3 +210,30 @@ ggplot(df_colera.groupByProvinciaFecha, aes(x = Total_defunciones, y = Provincia
 
 # save the plot
 ggsave(paste(PLOTS_DIR, "barplot.colera_total_defuncionesXprovincia.png", sep = "/"), dpi = 300, limitsize = TRUE)
+
+
+# TOTALES - MUNICIPIOS ----------------------------------------------------
+
+
+# group "invasiones" and "defunciones" by "Provincia", "Fecha" and "Municipio" 
+df_colera_invasiones.groupByProvinciaFechaMunicipio <- df_colera_invasiones %>%
+  group_by(Provincia, Municipio, Fecha) %>%
+  summarize(Total_invasiones = sum(invasiones)) %>%
+  na.omit(df_colera_invasiones) %>%
+  complete(
+    Fecha = seq.Date(as.Date(START_DATE), as.Date(END_DATE), by = "day"),
+    fill = list(Total_invasiones = 0)
+  ) # add missing dates
+
+df_colera_defunciones.groupByProvinciaFechaMunicipio <- df_colera_defunciones %>%
+  group_by(Provincia, Municipio, Fecha) %>%
+  summarize(Total_defunciones = sum(defunciones)) %>%
+  na.omit(df_colera_defunciones) %>%
+  complete(
+    Fecha = seq.Date(as.Date(START_DATE), as.Date(END_DATE), by = "day"),
+    fill = list(Total_defunciones = 0)
+  ) # add missing dates
+
+# save total "invasiones" and "defunciones" by "Provincia", "Fecha" and "Municipio"  
+write.csv(df_colera_invasiones.groupByProvinciaFechaMunicipio, paste(DATA_DIR, "colera_total_invasionesXmunicipio.csv", sep = "/"), row.names = FALSE)
+write.csv(df_colera_defunciones.groupByProvinciaFechaMunicipio, paste(DATA_DIR, "colera_total_defuncionesXmunicipio.csv", sep = "/"), row.names = FALSE)
