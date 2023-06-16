@@ -9,7 +9,7 @@ library(tidyverse)
 
 
 DATA_DIR <- "data"
-PLOTS_DIR <- "plots"
+COLERA_PLOTS_DIR <- "colera_plots"
 CODIGO_INE_STR <- "Codigo Ine"
 FECHA_STR <- "Fecha"
 MUNICIPIO_STR <- "Municipio"
@@ -108,7 +108,7 @@ ggplot(df_colera.groupByFecha, aes(Fecha)) +
   theme(axis.text.x = element_text(angle = 60, hjust = 1), legend.position = "bottom")
 
 # save the plot
-ggsave(paste(PLOTS_DIR, "colera_total_invasiones&defunciones.png", sep = "/"),
+ggsave(paste(COLERA_PLOTS_DIR, "colera_total_invasiones&defunciones.png", sep = "/"),
        width = 14,
        height = 4.5,
        dpi = 300,
@@ -162,9 +162,9 @@ ggplot(df_colera.groupByProvinciaFecha, aes(x = Fecha, y = Total_invasiones, gro
   facet_wrap(~ Provincia, scales = 'free_x', ncol = 4)
 
 # save the plot
-ggsave(paste(PLOTS_DIR, "colera_total_invasionesXprovincia.png", sep = "/"),
+ggsave(paste(COLERA_PLOTS_DIR, "colera_total_invasionesXprovincia.png", sep = "/"),
        width = 14,
-       height = 7,
+       height = 9,
        dpi = 300,
        limitsize = TRUE)
 
@@ -186,9 +186,9 @@ ggplot(df_colera.groupByProvinciaFecha, aes(x = Fecha, y = Total_defunciones, gr
   facet_wrap(~ Provincia, scales = 'free_x', ncol = 4)
 
 # save the plot
-ggsave(paste(PLOTS_DIR, "colera_total_defuncionesXprovincia.png", sep = "/"),
+ggsave(paste(COLERA_PLOTS_DIR, "colera_total_defuncionesXprovincia.png", sep = "/"),
        width = 14,
-       height = 7,
+       height = 9,
        dpi = 300,
        limitsize = TRUE)
 
@@ -200,7 +200,7 @@ ggplot(df_colera.groupByProvinciaFecha, aes(x = Total_invasiones, y = Provincia,
   theme(legend.position="none")
 
 # save the bar plot
-ggsave(paste(PLOTS_DIR, "barplot.colera_total_invasionesXprovincia.png", sep = "/"), dpi = 300, limitsize = TRUE)
+ggsave(paste(COLERA_PLOTS_DIR, "barplot.colera_total_invasionesXprovincia.png", sep = "/"), dpi = 300, limitsize = TRUE)
 
 ggplot(df_colera.groupByProvinciaFecha, aes(x = Total_defunciones, y = Provincia, fill = Provincia)) +
   geom_bar(stat = "identity") + 
@@ -209,7 +209,7 @@ ggplot(df_colera.groupByProvinciaFecha, aes(x = Total_defunciones, y = Provincia
   theme(legend.position="none")
 
 # save the plot
-ggsave(paste(PLOTS_DIR, "barplot.colera_total_defuncionesXprovincia.png", sep = "/"), dpi = 300, limitsize = TRUE)
+ggsave(paste(COLERA_PLOTS_DIR, "barplot.colera_total_defuncionesXprovincia.png", sep = "/"), dpi = 300, limitsize = TRUE)
 
 
 # TOTALES - MUNICIPIOS ----------------------------------------------------

@@ -48,7 +48,7 @@ create_tempeTS <- function(df_temperatures, location) {
       )
   # )
     
-    ggsave(paste0(TEMPE_PLOT_DIR, "/ts.temperatures_", location, ".png"))
+    ggsave(paste0(TEMPE_PLOTS_DIR, "/ts.temperatures_", location, ".png"))
   
 }
 
