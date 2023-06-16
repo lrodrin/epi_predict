@@ -7,7 +7,7 @@ library(zoo)
 
 
 DATA_DIR <- "data"
-TEMPE_PLOT_DIR <- "tempe_plots"
+TEMPE_PLOTS_DIR <- "tempe_plots"
 TEMPERATURA_STR <- "temperatura"
 LOCALIDAD_STR <- "localidad"
 MES_STR <- "mes"
