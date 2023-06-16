@@ -9,7 +9,7 @@ library(tidyverse)
 
 
 DATA_DIR <- "data"
-PLOTS_DIR <- "plots"
+TEMPE_PLOTS_DIR <- "tempe_plots"
 CODIGO_INE_STR <- "Codigo Ine"
 FECHA_STR <- "Fecha"
 MUNICIPIO_STR <- "Municipio"

@@ -5,7 +5,9 @@ packages <-
     "readxl",
     "dplyr",
     "lubridate",
-    "tidyverse"
+    "tidyverse",
+    "data.table",
+    "zoo"
     
   )
 

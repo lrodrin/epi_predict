@@ -51,6 +51,7 @@ rsconnect/
 # project data folder
 data/
 
-# project plots folder
-plots/
+# project plots folders
+colera_plots/
+tempe_plots/
 
