@@ -15,7 +15,7 @@ FECHA_STR <- "Fecha"
 MUNICIPIO_STR <- "Municipio"
 INVASIONES_STR <- "invasiones"
 DEFUNCIONES_STR <- "defunciones"
-PROVINCIA_STR <- "provincia"
+PROVINCIA_STR <- "Provincia"
 ANO_STR <- "1885"
 START_DATE <- "1885-06-18"
 END_DATE <- "1885-11-18"
@@ -25,7 +25,8 @@ END_DATE <- "1885-11-18"
 
 
 # read "colera" dataset
-df_colera <- read_excel(paste(DATA_DIR, "Base colera harmo_codigos CCAA.xlsx", sep = "/"),
+df_colera <-
+  read_excel(paste(DATA_DIR, "Base colera harmo_codigos CCAA.xlsx", sep = "/"),
              sheet = "Capitales_Pueblos")
 
 # remove columns "observaciones_1", "observaciones_2" and "Fichero"
@@ -144,6 +145,31 @@ write.csv(df_colera_defunciones.groupByProvinciaFecha, paste(DATA_DIR, "colera_t
 # merge grouped "invasiones" and "defunciones" as df_colera.groupByProvinciaFecha
 df_colera.groupByProvinciaFecha <- merge(df_colera_invasiones.groupByProvinciaFecha, df_colera_defunciones.groupByProvinciaFecha)
 
+#
+# TODO: improve this method using other data frame
+#
+
+# add CCAA names in df_colera.groupByProvinciaFecha to order plots by CCAA
+df_colera.groupByProvinciaFecha <- df_colera.groupByProvinciaFecha %>% mutate(ccaa = case_when(
+    (Provincia %in% c("almeria", "cadiz", "cordoba", "granada", "jaen", "malaga")) ~ "andalucia",
+    (Provincia %in% c("huesca", "teruel", "zaragoza")) ~ "aragon",
+    (Provincia %in% c("burgos", "palencia", "salamanca", "segovia", "soria", "valladolid", "zamora")) ~ "castilla-y-leon",
+    (Provincia %in% c("albacete", "ciudad real", "cuenca", "guadalajara", "toledo")) ~ "castilla-la-mancha", 
+    (Provincia %in% c("barcelona", "gerona", "lerida", "tarragona"))  ~ "cataluña",
+    (Provincia %in% c("alicante", "castellon", "valencia")) ~ "comunitat-valenciana",
+    (Provincia %in% "badajoz") ~ "extrenadura",
+    (Provincia %in% "madrid") ~ "madrid",
+    (Provincia %in% "murcia") ~ "murcia",
+    (Provincia %in% "navarra") ~ "navarra",
+    (Provincia %in% "santander") ~ "cantabria",
+    (Provincia %in% "logroño") ~ "la-rioja"))
+
+# order df_colera.groupByProvinciaFecha by CCAA
+df_colera.groupByProvinciaFecha <- with(df_colera.groupByProvinciaFecha, df_colera.groupByProvinciaFecha[order(ccaa),])
+
+# assign "Provincia" as factor with defined levels
+df_colera.groupByProvinciaFecha$Provincia <- with(df_colera.groupByProvinciaFecha, factor(as.character(Provincia), levels = unique(Provincia)))
+
 # plot total "invasiones" for "Provincia"
 ggplot(df_colera.groupByProvinciaFecha, aes(x = Fecha, y = Total_invasiones, group = Provincia, colour = Provincia)) + 
   geom_line() +
@@ -159,7 +185,7 @@ ggplot(df_colera.groupByProvinciaFecha, aes(x = Fecha, y = Total_invasiones, gro
   # ) +
   # theme(axis.text.x = element_text(angle = 60, hjust = 1), legend.position = "none") +
   theme(legend.position = "none") +
-  facet_wrap(~ Provincia, scales = 'free_x', ncol = 4)
+  facet_wrap(~ Provincia, scales = 'free_x', ncol = 4) 
 
 # save the plot
 ggsave(paste(COLERA_PLOTS_DIR, "colera_total_invasionesXprovincia.png", sep = "/"),
