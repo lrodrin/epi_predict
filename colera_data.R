@@ -18,14 +18,14 @@ DEFUNCIONES_STR <- "defunciones"
 PROVINCIA_STR <- "provincia"
 ANO_STR <- "1885"
 START_DATE <- "1885-06-18"
-END_DATE <- "1885-11-09"
+END_DATE <- "1885-11-18"
 
 
 # main --------------------------------------------------------------------
 
 
 # read "colera" dataset
-df_colera <- read_excel(paste(DATA_DIR, "Base colera harmo_codigos.xlsx", sep = "/"),
+df_colera <- read_excel(paste(DATA_DIR, "Base colera harmo_codigos CCAA.xlsx", sep = "/"),
              sheet = "Capitales_Pueblos")
 
 # remove columns "observaciones_1", "observaciones_2" and "Fichero"
@@ -36,9 +36,9 @@ df_colera$Fichero <- NULL
 # remove "Codigo Ine" 99999, 99998 and 9999
 df_colera <-
   df_colera[(
-    !(df_colera[,CODIGO_INE_STR] == "99999") &
-      !(df_colera[,CODIGO_INE_STR] == "99998") &
-      !(df_colera[,CODIGO_INE_STR] == "9999")
+    !(df_colera[,CODIGO_INE_STR] == "99999.0") &
+      !(df_colera[,CODIGO_INE_STR] == "99998.0") &
+      !(df_colera[,CODIGO_INE_STR] == "9999.0")
   ), ]
 
 # add column "ano"
@@ -151,7 +151,7 @@ ggplot(df_colera.groupByProvinciaFecha, aes(x = Fecha, y = Total_invasiones, gro
   ylab("número") +
   xlab("") +
   ggtitle(paste0("total ", INVASIONES_STR, " por ", PROVINCIA_STR, ", ", ANO_STR)) +
-  scale_y_continuous(breaks=seq(0, 1500, 350), limits=c(0, 1500)) +
+  scale_y_continuous(breaks=seq(0, 2000, 350), limits=c(0, 2000)) +
   # scale_x_continuous(
   #   breaks = as.numeric(df_colera.groupByProvinciaFecha[, FECHA_STR]),
   #   labels = format(df_colera.groupByProvinciaFecha[, FECHA_STR], "%d - %m"),
