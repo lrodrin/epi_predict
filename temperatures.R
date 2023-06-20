@@ -7,7 +7,10 @@ library(zoo)
 
 
 DATA_DIR <- "data"
+dir.create(DATA_DIR, showWarnings = FALSE)
 TEMPE_PLOTS_DIR <- "tempe_plots"
+dir.create(TEMPE_PLOTS_DIR, showWarnings = FALSE)
+
 TEMPERATURA_STR <- "temperatura"
 LOCALIDAD_STR <- "localidad"
 MES_STR <- "mes"
@@ -35,20 +38,25 @@ NUMMONTHS_LIST <- c("01", "02", "03", "04", "05", "06", "07", "08", "09", "10", 
 
 create_tempeTS <- function(df_temperatures, location) {
   
-  df_temperatures.parsed <- subset(df_temperatures, localidad == location)
+  df_temperatures.tmp <- subset(df_temperatures, localidad == location)
+  
+  #
+  # TODO: create ts
+  #
   
   # print(
-    ggplot(df_temperatures.parsed, aes(x = mes, y = temperatura)) + 
-      geom_line() + 
-      ggtitle(paste0("temperatura mensual ", location, ", ", ANO_STR)) +
-      theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
-      scale_x_continuous(
-        breaks = as.numeric(df_temperatures.parsed$mes),
-        labels = format(df_temperatures.parsed$mes, "%b %Y")
-      )
+  ggplot(df_temperatures.tmp, aes(x = mes, y = temperatura)) + 
+    geom_line() + 
+    ylab("grados (ºC)") + 
+    ggtitle(paste0("temperatura mensual ", location, ", ", ANO_STR)) +
+    theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+    scale_x_continuous(
+      breaks = as.numeric(df_temperatures.tmp$mes),
+      labels = format(df_temperatures.tmp$mes, "%b")
+    )
   # )
     
-    ggsave(paste0(TEMPE_PLOTS_DIR, "/ts.temperatures_", location, ".png"))
+  ggsave(paste0(TEMPE_PLOTS_DIR, "/ts.temperatures_", location, ".png"), dpi = 300, limitsize = TRUE)
   
 }
 
@@ -121,9 +129,9 @@ df_temperatures.parsed$mes <- as.yearmon(df_temperatures.parsed$mes)
 write.csv(df_temperatures.parsed, paste(DATA_DIR, "temperatures.csv", sep = "/"))
 
 # generate all time series of each "localidad"
-list_localidades <- unique(df_temperatures.parsed$localidad)
+tempe_localidades <- unique(df_temperatures.parsed$localidad)
 
-for (localidad in list_localidades) {
+for (localidad in tempe_localidades) {
   
   create_tempeTS(df_temperatures.parsed, localidad)
   

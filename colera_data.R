@@ -9,7 +9,10 @@ library(tidyverse)
 
 
 DATA_DIR <- "data"
+dir.create(DATA_DIR, showWarnings = FALSE)
 COLERA_PLOTS_DIR <- "colera_plots"
+dir.create(COLERA_PLOTS_DIR, showWarnings = FALSE)
+
 CODIGO_INE_STR <- "Codigo Ine"
 FECHA_STR <- "Fecha"
 MUNICIPIO_STR <- "Municipio"
@@ -106,7 +109,7 @@ ggplot(df_colera.groupByFecha, aes(Fecha)) +
     labels = format(df_colera.groupByFecha[, FECHA_STR], "%d - %m"),
     expand = c(0,0)
   ) +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1), legend.position = "bottom")
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.position = "bottom")
 
 # save the plot
 ggsave(paste(COLERA_PLOTS_DIR, "colera_total_invasiones&defunciones.png", sep = "/"),
@@ -145,10 +148,6 @@ write.csv(df_colera_defunciones.groupByProvinciaFecha, paste(DATA_DIR, "colera_t
 # merge grouped "invasiones" and "defunciones" as df_colera.groupByProvinciaFecha
 df_colera.groupByProvinciaFecha <- merge(df_colera_invasiones.groupByProvinciaFecha, df_colera_defunciones.groupByProvinciaFecha)
 
-#
-# TODO: improve this method
-#
-
 # add CCAA names in df_colera.groupByProvinciaFecha to order plots by CCAA
 df_colera.groupByProvinciaFecha <- df_colera.groupByProvinciaFecha %>% mutate(ccaa = case_when(
     (Provincia %in% c("almeria", "cadiz", "cordoba", "granada", "jaen", "malaga")) ~ "andalucia",
@@ -157,12 +156,12 @@ df_colera.groupByProvinciaFecha <- df_colera.groupByProvinciaFecha %>% mutate(cc
     (Provincia %in% c("albacete", "ciudad real", "cuenca", "guadalajara", "toledo")) ~ "castilla-la-mancha", 
     (Provincia %in% c("barcelona", "gerona", "lerida", "tarragona"))  ~ "cataluña",
     (Provincia %in% c("alicante", "castellon", "valencia")) ~ "comunitat-valenciana",
-    (Provincia %in% "badajoz") ~ "extrenadura",
-    (Provincia %in% "madrid") ~ "madrid",
-    (Provincia %in% "murcia") ~ "murcia",
-    (Provincia %in% "navarra") ~ "navarra",
-    (Provincia %in% "santander") ~ "cantabria",
-    (Provincia %in% "logroño") ~ "la-rioja"))
+    (Provincia == "badajoz") ~ "extrenadura",
+    (Provincia == "madrid") ~ "madrid",
+    (Provincia == "murcia") ~ "murcia",
+    (Provincia == "navarra") ~ "navarra",
+    (Provincia == "santander") ~ "cantabria",
+    (Provincia == "logroño") ~ "la-rioja"))
 
 # order df_colera.groupByProvinciaFecha by CCAA
 df_colera.groupByProvinciaFecha <- with(df_colera.groupByProvinciaFecha, df_colera.groupByProvinciaFecha[order(ccaa),])
@@ -236,6 +235,9 @@ ggplot(df_colera.groupByProvinciaFecha, aes(x = Total_defunciones, y = Provincia
 
 # save the plot
 ggsave(paste(COLERA_PLOTS_DIR, "barplot.colera_total_defuncionesXprovincia.png", sep = "/"), dpi = 300, limitsize = TRUE)
+
+# remove column "ccaa"
+df_colera.groupByProvinciaFecha$ccaa <- NULL
 
 
 # # TOTALES - MUNICIPIOS ----------------------------------------------------
