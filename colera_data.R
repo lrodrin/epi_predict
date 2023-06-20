@@ -240,28 +240,31 @@ ggsave(paste(COLERA_PLOTS_DIR, "barplot.colera_total_defuncionesXprovincia.png",
 df_colera.groupByProvinciaFecha$ccaa <- NULL
 
 
-# # TOTALES - MUNICIPIOS ----------------------------------------------------
-# 
-# 
-# # group "invasiones" and "defunciones" by "Provincia", "Fecha" and "Municipio" 
-# df_colera_invasiones.groupByProvinciaFechaMunicipio <- df_colera_invasiones %>%
-#   group_by(Provincia, Municipio, Fecha) %>%
-#   summarize(Total_invasiones = sum(invasiones)) %>%
-#   na.omit(df_colera_invasiones) %>%
-#   complete(
-#     Fecha = seq.Date(as.Date(START_DATE), as.Date(END_DATE), by = "day"),
-#     fill = list(Total_invasiones = 0)
-#   ) # add missing dates
-# 
-# df_colera_defunciones.groupByProvinciaFechaMunicipio <- df_colera_defunciones %>%
-#   group_by(Provincia, Municipio, Fecha) %>%
-#   summarize(Total_defunciones = sum(defunciones)) %>%
-#   na.omit(df_colera_defunciones) %>%
-#   complete(
-#     Fecha = seq.Date(as.Date(START_DATE), as.Date(END_DATE), by = "day"),
-#     fill = list(Total_defunciones = 0)
-#   ) # add missing dates
-# 
-# # save total "invasiones" and "defunciones" by "Provincia", "Fecha" and "Municipio"  
-# write.csv(df_colera_invasiones.groupByProvinciaFechaMunicipio, paste(DATA_DIR, "colera_total_invasionesXmunicipio.csv", sep = "/"), row.names = FALSE)
-# write.csv(df_colera_defunciones.groupByProvinciaFechaMunicipio, paste(DATA_DIR, "colera_total_defuncionesXmunicipio.csv", sep = "/"), row.names = FALSE)
+# TOTALES - MUNICIPIOS ----------------------------------------------------
+
+
+# group "invasiones" and "defunciones" by "Provincia", "Fecha" and "Municipio"
+df_colera_invasiones.groupByProvinciaFechaMunicipio <- df_colera_invasiones %>%
+  group_by(Provincia, Municipio, Fecha) %>%
+  summarize(Total_invasiones = sum(invasiones)) %>%
+  na.omit(df_colera_invasiones) %>%
+  complete(
+    Fecha = seq.Date(as.Date(START_DATE), as.Date(END_DATE), by = "day"),
+    fill = list(Total_invasiones = 0)
+  ) # add missing dates
+
+df_colera_defunciones.groupByProvinciaFechaMunicipio <- df_colera_defunciones %>%
+  group_by(Provincia, Municipio, Fecha) %>%
+  summarize(Total_defunciones = sum(defunciones)) %>%
+  na.omit(df_colera_defunciones) %>%
+  complete(
+    Fecha = seq.Date(as.Date(START_DATE), as.Date(END_DATE), by = "day"),
+    fill = list(Total_defunciones = 0)
+  ) # add missing dates
+
+# save total "invasiones" and "defunciones" by "Provincia", "Fecha" and "Municipio"
+write.csv(df_colera_invasiones.groupByProvinciaFechaMunicipio, paste(DATA_DIR, "colera_total_invasionesXmunicipio.csv", sep = "/"), row.names = FALSE)
+write.csv(df_colera_defunciones.groupByProvinciaFechaMunicipio, paste(DATA_DIR, "colera_total_defuncionesXmunicipio.csv", sep = "/"), row.names = FALSE)
+
+# merge grouped "invasiones" and "defunciones" as df_colera.groupByProvinciaFechaMunicipio
+df_colera.groupByProvinciaFechaMunicipo <- merge(df_colera_invasiones.groupByProvinciaFechaMunicipio, df_colera_defunciones.groupByProvinciaFechaMunicipio)
