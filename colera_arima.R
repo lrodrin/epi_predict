@@ -11,7 +11,10 @@ source("colera_data.R")
 colera_provincias <- unique(df_colera.groupByProvinciaFecha$Provincia)
 colera_municipios <- as.factor(unique(df_colera.groupByProvinciaFechaMunicipo$Municipio))
 
-EPICENTRE_MAX <- 100
+EPICENTRE_MAX <- 100 # more than 100 invasiones/defunciones
+EPICENTRE_LIMIT <- 13 # number of rows corresponding to the first month
+PERIOD <- 7 # weekly
+HORIZON <- 30
 
 
 # functions ---------------------------------------------------------------
@@ -32,16 +35,16 @@ colera_epicentres <- function(df_colera, cause, county=NULL, city=NULL) {
   
   if (cause == INVASIONES_STR) {
     
-    if (sum(df_colera.tmp$Total_invasiones[1:13]) > EPICENTRE_MAX && !is.na(sum(df_colera.tmp$Total_invasiones[1:13]))) { # is epicentre (more than 100 invasiones)
+    if (sum(df_colera.tmp$Total_invasiones[1:EPICENTRE_LIMIT]) > EPICENTRE_MAX && !is.na(sum(df_colera.tmp$Total_invasiones[1:EPICENTRE_LIMIT]))) { # is epicentre (more than 100 invasiones)
       
-      print(paste(INVASIONES_STR, "en", c, ":", sum(df_colera.tmp$Total_invasiones[1:13]), sep = " "))
+      print(paste(INVASIONES_STR, "en", c, ":", sum(df_colera.tmp$Total_invasiones[1:EPICENTRE_LIMIT]), sep = " "))
     }
     
   } else if (cause == DEFUNCIONES_STR) {
     
-    if (sum(df_colera.tmp$Total_defunciones[1:13]) > EPICENTRE_MAX && !is.na(sum(df_colera.tmp$Total_defunciones[1:13]))) { # is epicentre (more than 100 defunciones)
+    if (sum(df_colera.tmp$Total_defunciones[1:EPICENTRE_LIMIT]) > EPICENTRE_MAX && !is.na(sum(df_colera.tmp$Total_defunciones[1:EPICENTRE_LIMIT]))) { # is epicentre (more than 100 defunciones)
       
-      print(paste(DEFUNCIONES_STR, "en", c, ":", sum(df_colera.tmp$Total_defunciones[1:13]), sep = " "))
+      print(paste(DEFUNCIONES_STR, "en", c, ":", sum(df_colera.tmp$Total_defunciones[1:EPICENTRE_LIMIT]), sep = " "))
     }
   }
 }
@@ -60,7 +63,7 @@ coleraTSbyCounty <- function(df_colera, cause, county) {
     aes <- aes(x = Fecha, y = Total_defunciones)
   }
   
-  print(
+  # print(
   ggplot(df_colera.tmp, aes) + 
     geom_line() +
     xlab("día-mes") +
@@ -71,14 +74,14 @@ coleraTSbyCounty <- function(df_colera, cause, county) {
       breaks = as.numeric(df_colera.tmp$Fecha),
       labels = format(df_colera.tmp$Fecha, "%d - %m")
     )
-  )
+  # )
   
-  # ggsave(paste0(COLERA_PLOTS_DIR, "/ts.colera_", cause, "_", county, ".png"),
-  #   width = 15.7,
-  #   height = 4.5,
-  #   dpi = 300,
-  #   limitsize = TRUE)
-  
+  ggsave(paste0(COLERA_PLOTS_DIR, "/ts.colera_", cause, "_", county, ".png"),
+    width = 15.7,
+    height = 4.5,
+    dpi = 300,
+    limitsize = TRUE)
+
   return(df_colera.tmp)
   
 }
@@ -90,7 +93,7 @@ coleraTSbyCounty <- function(df_colera, cause, county) {
 # epicentres & plots ------------------------------------------------------
 
 
-for (provincia in colera_provincias) { # for each Provincia"
+for (provincia in colera_provincias) { # for each "Provincia"
   
   # invasiones by county
   colera_epicentres(df_colera.groupByProvinciaFecha, INVASIONES_STR, provincia, NULL)
@@ -99,6 +102,7 @@ for (provincia in colera_provincias) { # for each Provincia"
   # defunciones by county
   colera_epicentres(df_colera.groupByProvinciaFecha, DEFUNCIONES_STR, provincia, NULL)
   coleraTSbyCounty(df_colera.groupByProvinciaFecha, DEFUNCIONES_STR, provincia)
+  
 }
 
 
@@ -109,6 +113,9 @@ for (municipio in colera_municipios) { # for each "Municipio"
   
   # defunciones by city
   colera_epicentres(df_colera.groupByProvinciaFechaMunicipo, DEFUNCIONES_STR, NULL, municipio)
+  
+  # TODO: coleraTSbyCity
+  
 }
 
 
@@ -117,69 +124,71 @@ for (municipio in colera_municipios) { # for each "Municipio"
 
 # original data
 ts_invasiones.valencia <- coleraTSbyCounty(df_colera.groupByProvinciaFecha, INVASIONES_STR, "valencia")
-# ts_defunciones.valencia <- coleraTSbyCounty(df_colera.groupByProvinciaFecha, DEFUNCIONES_STR, "valencia")
-
 rownames(ts_invasiones.valencia) <- 1:nrow(ts_invasiones.valencia)
-# rownames(ts_defunciones.valencia) <- 1:nrow(ts_defunciones.valencia)
 
 # minimal data
-ts_invasiones.valencia.min <- ts_invasiones.valencia[1:44,]
+ts_invasiones.valencia.min <- ts_invasiones.valencia[1:44,] 
 ggplot(ts_invasiones.valencia.min, aes(Fecha, Total_invasiones)) + 
   geom_line() + 
-  scale_x_date('day') + 
-  ylab("número invasiones") +
-  xlab("")
+  xlab("día-mes") +
+  ylab("número") +
+  ggtitle(paste0("colera ", INVASIONES_STR, " en valencia, junio-julio del ", ANO_STR))
 
-# tomar la media móvil semanal, suavizando la serie en algo más estable y, por lo tanto, más predecible.
-# ts_invasiones.valencia.min$Total_invasiones_ma = ma(ts_invasiones.valencia.min$Total_invasiones, order=7) # using the clean count with no outliers
-# ggplot() +
-#   geom_line(data = ts_invasiones.valencia.min, aes(x = Fecha, y = Total_invasiones, colour = "Counts")) +
-#   geom_line(data = ts_invasiones.valencia.min, aes(x = Fecha, y = Total_invasiones_ma, colour = "Weekly Moving Average"))  +
-#   ylab("número invasiones")
-
-# calculamos el componente estacional del uso de datos stl(). A continuación,hallamos el 
-# componente estacional de la serie mediante suavizado y ajusta la serie original restando la estacionalidad.
-count_ma = ts(na.omit(ts_invasiones.valencia.min$Total_invasiones), frequency=7)
-decomp = stl(count_ma, s.window="periodic")
-deseasonal_apartamento <- seasadj(decomp)
+# calculation of the seasonal component  
+# by smoothing and adjust the original series by subtracting the seasonality
+count_ts <- ts(ts_invasiones.valencia.min$Total_invasiones, frequency = PERIOD)
+# autoplot(count_ts)
+decomp <- stl(count_ts, s.window = "periodic")
+deseasonal_invasiones <- seasadj(decomp)
 plot(decomp)
 
-# no estacionaria
-adf.test(count_ma, alternative = "stationary") 
-acf(count_ma, main = "")
-pacf(count_ma, main = "")
+# not stationary p-value = 0.4225
+adf.test(count_ts, alternative = "stationary") 
+acf(count_ts, main = "Autocorrelación con estacionalidad")
+pacf(count_ts, main = "Autocorrelación parcial con estacionalidad")
 
-# diferenciación
-count_d1 <- diff(deseasonal_apartamento, differences=1)
-plot(count_d1)
+# differentiation
+count_ts.d1 <- diff(deseasonal_invasiones, differences = 1)
+# autoplot(count_ts.d1)
+plot(count_ts.d1)
 
-# estacionaria 
-adf.test(count_d1, alternative = "stationary") 
-acf(count_d1, main = "ACF for Differenced Series")
-pacf(count_d1, main = "PACF for Differenced Series")
+# stationary p-value = 0.01
+adf.test(count_ts.d1, alternative = "stationary") 
+acf(count_ts.d1, main = "Autocorrelación sin estacionalidad")
+pacf(count_ts.d1, main = "Autocorrelación parcial sin estacionalidad")
 
-# ts_invasiones.valencia.train <- ts(
-#   ts_invasiones.valencia$Total_invasiones,
-#   start = decimal_date(as.Date("1885-06-18")),
-#   end = decimal_date(as.Date("1885-07-31")),
-#   frequency = 365
-# )
-# ts_invasiones.valencia.test <- ts(
-#   ts_invasiones.valencia$Total_invasiones,
-#   start = decimal_date(as.Date("1885-08-01")),
-#   end = decimal_date(as.Date("1885-11-18")),
-#   frequency = 365
-# )
+# fit the model
+fitARIMA <- auto.arima(deseasonal_invasiones, D = 1)
 
-# ajustamos el modelo
-fitARIMA <- auto.arima(deseasonal_apartamento, D=1)
+# ACF y PACF for the residuals of the model
+checkresiduals(fitARIMA)
+tsdisplay(residuals(fitARIMA), lag.max = 10, main = "Model Residuals")
 
-# examinamos los gráficos ACF y PACF para los residuos del modelo
-tsdisplay(residuals(fitARIMA), lag.max=10, main="Model Residuals")
+# Ljung-Box test on the residuals of the model, p-value = 0.4102
+Box.test(fitARIMA$residuals, type = "Ljung-Box") 
 
-# Box.test(fitARIMA$residuals, type = "Ljung-Box") 
-
-# prediccion
-forecastARIMA <- forecast(fitARIMA, h=30)
+# prediction
+forecastARIMA <- forecast(fitARIMA, h = HORIZON)
 plot(forecastARIMA)
 grid()
+
+fitARIMA %>% forecast(h = 30) %>% autoplot()
+
+
+plot(deseasonal_invasiones, type = "l")
+lines(fitARIMA[["fitted"]], type = "l", col = "darkorange")
+
+
+# train and test ----------------------------------------------------------
+
+
+trainset <- subset(count_ts.d1, end = length(count_ts.d1) - PERIOD)
+testset <- subset(count_ts.d1, start = length(count_ts.d1) - PERIOD + 1)
+
+fitARIMA <- auto.arima(trainset)
+forecastARIMA <- forecast(fitARIMA)
+
+autoplot(trainset, xlab = "día-mes", ylab = "número invasiones") +
+  autolayer(testset) +
+  autolayer(forecastARIMA, series = "ARIMA(3,1,0)(2,1,0)[7]", PI = FALSE) +
+  ggtitle("Predicción obtenida del modelo ARIMA")

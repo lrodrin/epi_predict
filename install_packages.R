@@ -7,7 +7,9 @@ packages <-
     "lubridate",
     "tidyverse",
     "data.table",
-    "zoo"
+    "zoo",
+    "forecast",
+    "tseries"
     
   )
 
