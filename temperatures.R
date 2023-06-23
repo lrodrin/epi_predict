@@ -126,7 +126,7 @@ df_temperatures.parsed$temperatura[is.na(df_temperatures.parsed$temperatura)] <-
 df_temperatures.parsed$mes <- as.yearmon(df_temperatures.parsed$mes) 
 
 # save temperatures 
-write.csv(df_temperatures.parsed, paste(DATA_DIR, "temperatures.csv", sep = "/"))
+write.csv(df_temperatures.parsed, "temperatures.csv")
 
 # generate all time series of each "localidad"
 tempe_localidades <- unique(df_temperatures.parsed$localidad)

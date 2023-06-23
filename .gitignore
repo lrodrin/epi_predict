@@ -50,8 +50,11 @@ rsconnect/
 
 # project data folder
 data/
+colera_data/
 
 # project plots folders
 colera_plots/
 tempe_plots/
 
+# project data files
+*.csv
