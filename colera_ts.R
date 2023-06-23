@@ -7,7 +7,7 @@ source("colera_data.R")
 colera_provincias <- unique(df_colera.groupByProvinciaFecha$Provincia)
 colera_municipios <- as.factor(unique(df_colera.groupByProvinciaFechaMunicipo$Municipio))
 
-EPICENTRE_MAX <- 1000 # more than 100 invasiones/defunciones
+EPICENTRE_MAX <- 1000 # more than 1000 invasiones/defunciones
 EPICENTRE_LIMIT <- 30 # 30 days after the first case
 
 
@@ -29,16 +29,21 @@ colera_epicentres <- function(df_colera, cause, county=NULL, city=NULL) {
     last_case <- first_case + EPICENTRE_LIMIT
   }
   
-  if (cause == INVASIONES_STR) {
-    if (sum(df_colera.tmp[first_case:last_case,]$Total_invasiones) >= EPICENTRE_MAX) { # is epicentre (more than 100 invasiones)
+  if (!is.na(first_case)) {
+  
+    if (cause == INVASIONES_STR) {
+      if (!is.na(sum(df_colera.tmp[first_case:last_case,]$Total_invasiones)) &&
+        sum(df_colera.tmp[first_case:last_case,]$Total_invasiones) >= EPICENTRE_MAX) { # is epicentre (more than 100 invasiones)
+        
+        print(paste(INVASIONES_STR, "en", agg_level, ":", sum(df_colera.tmp[first_case:last_case,]$Total_invasiones), sep = " "))
+      }
       
-      print(paste(INVASIONES_STR, "en", agg_level, ":", sum(df_colera.tmp[first_case:last_case,]$Total_invasiones), sep = " "))
-    }
-    
-  } else if (cause == DEFUNCIONES_STR) {
-    if (sum(df_colera.tmp[first_case:last_case,]$Total_defunciones) >= EPICENTRE_MAX) { # is epicentre (more than 100 defunciones)
-      
-      print(paste(DEFUNCIONES_STR, "en", agg_level, ":", sum(df_colera.tmp[first_case:last_case,]$Total_defunciones), sep = " "))
+    } else if (cause == DEFUNCIONES_STR) {
+      if (!is.na(sum(df_colera.tmp[first_case:last_case,]$Total_defunciones)) &&
+        sum(df_colera.tmp[first_case:last_case,]$Total_defunciones) >= EPICENTRE_MAX) { # is epicentre (more than 100 defunciones)
+        
+        print(paste(DEFUNCIONES_STR, "en", agg_level, ":", sum(df_colera.tmp[first_case:last_case,]$Total_defunciones), sep = " "))
+      }
     }
   }
 }
