@@ -9,10 +9,8 @@ source("colera_ts.R")
 # constants ---------------------------------------------------------------
 
 
-df_colera.groupByProvinciaFechaAV <- unique(subset(
-  df_colera.groupByProvinciaFecha,
-  Provincia %in% c("zaragoza", "teruel", "huesca", "alicante", "castellon", "valencia")
-))
+df_colera.groupByProvinciaFechaAV <- subset(df_colera.groupByProvinciaFecha,
+  Provincia %in% c("zaragoza", "teruel", "huesca", "alicante", "castellon", "valencia"))
 
 PERIOD <- 7 # weekly frequency 
 HORIZON <- 30 # 30 days to predict
