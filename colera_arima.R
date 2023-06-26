@@ -34,9 +34,9 @@ plot_coleraTS <- function(df_colera, county) {
 }
 
 
-arima_sampleData <- function(df_dolera, county) {
+arima_sampleData <- function(df_colera, county) {
   
-  ts_invasiones.tmp <- colera_ts(df_dolera, INVASIONES_STR, county, NULL) # original data
+  ts_invasiones.tmp <- colera_ts(df_colera, INVASIONES_STR, county, NULL) # original data
   rownames(ts_invasiones.tmp) <- 1:nrow(ts_invasiones.tmp)
   
   first_case.tmp <- which(ts_invasiones.tmp$Total_invasiones!=0)[1] # row of first_case
