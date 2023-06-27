@@ -21,17 +21,6 @@ STATIONARY_STR <- "stationary"
 # functions ---------------------------------------------------------------
 
 
-plot_coleraTS <- function(df_colera, county) {
-  
-  ggplot(df_colera, aes(Fecha, Total_invasiones)) + 
-    geom_line() + 
-    xlab("día-mes") +
-    ylab("número") +
-    ggtitle(paste0("colera ", INVASIONES_STR, " ", county, ",", ANO_STR))
-  
-}
-
-
 arima_sampleData <- function(df_colera, county) {
   
   ts_invasiones.tmp <- colera_ts(df_colera, INVASIONES_STR, county, NULL) # original data
@@ -111,13 +100,6 @@ ts_invasiones.huesca <- arima_sampleData(df_colera.groupByProvinciaFechaAV, "hue
 ts_invasiones.alicante <- arima_sampleData(df_colera.groupByProvinciaFechaAV, "alicante")
 ts_invasiones.castellon <- arima_sampleData(df_colera.groupByProvinciaFechaAV, "castellon")
 ts_invasiones.valencia <- arima_sampleData(df_colera.groupByProvinciaFechaAV, "valencia")
-
-plot_coleraTS(ts_invasiones.zaragoza, "zaragoza")
-plot_coleraTS(ts_invasiones.teruel, "teruel")
-plot_coleraTS(ts_invasiones.huesca, "huesca")
-plot_coleraTS(ts_invasiones.alicante, "alicante")
-plot_coleraTS(ts_invasiones.castellon, "castellon")
-plot_coleraTS(ts_invasiones.valencia, "valencia")
 
 run_arima(ts_invasiones.zaragoza, "zaragoza")
 run_arima(ts_invasiones.teruel, "teruel")

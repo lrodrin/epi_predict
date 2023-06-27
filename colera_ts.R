@@ -33,14 +33,14 @@ colera_epicentres <- function(df_colera, cause, county=NULL, city=NULL) {
   
     if (cause == INVASIONES_STR) {
       if (!is.na(sum(df_colera.tmp[first_case:last_case,]$Total_invasiones)) &&
-        sum(df_colera.tmp[first_case:last_case,]$Total_invasiones) >= EPICENTRE_MAX) { # is epicentre (more than 100 invasiones)
+        sum(df_colera.tmp[first_case:last_case,]$Total_invasiones) >= EPICENTRE_MAX) { # is epicentre (more than 1000 invasiones)
         
         print(paste(INVASIONES_STR, "en", agg_level, ":", sum(df_colera.tmp[first_case:last_case,]$Total_invasiones), sep = " "))
       }
       
     } else if (cause == DEFUNCIONES_STR) {
       if (!is.na(sum(df_colera.tmp[first_case:last_case,]$Total_defunciones)) &&
-        sum(df_colera.tmp[first_case:last_case,]$Total_defunciones) >= EPICENTRE_MAX) { # is epicentre (more than 100 defunciones)
+        sum(df_colera.tmp[first_case:last_case,]$Total_defunciones) >= EPICENTRE_MAX) { # is epicentre (more than 1000 defunciones)
         
         print(paste(DEFUNCIONES_STR, "en", agg_level, ":", sum(df_colera.tmp[first_case:last_case,]$Total_defunciones), sep = " "))
       }
@@ -51,15 +51,17 @@ colera_epicentres <- function(df_colera, cause, county=NULL, city=NULL) {
 
 colera_ts <- function(df_colera, cause, county=NULL, city=NULL) {
   
-  if (is.null(city)) {
+  if (is.null(city)) { # provincias
     df_colera.tmp <- subset(df_colera, Provincia == county)
     agg_level <- county
-    plotnamefile <- paste0(COLERA_PLOTS_DIR, "/ts.colera_total_", cause, "Xprovincia_", agg_level, ".png")
+    outputfilename <-  paste0(COLERA_DATA_DIR, "/ts.colera_total_", cause, "Xprovincia_", agg_level, ".csv")
+    plot_outputfilename <- paste0(COLERA_PLOTS_DIR, "/ts.colera_total_", cause, "Xprovincia_", agg_level, ".png")
     
-  } else if (is.null(county)) {
+  } else if (is.null(county)) { # municipios
     df_colera.tmp <- subset(df_colera, Municipio == city)
     agg_level <- city
-    plotnamefile <- paste0(COLERA_PLOTS_DIR, "/ts.colera_total_", cause, "Xmunicipio_", agg_level, ".png")
+    outputfile <-  paste0(COLERA_DATA_DIR, "/ts.colera_total_", cause, "Xmunicipio_", agg_level, ".csv")
+    plot_outputfile <- paste0(COLERA_PLOTS_DIR, "/ts.colera_total_", cause, "Xmunicipio_", agg_level, ".png")
   }
   
   if (cause == INVASIONES_STR) {
@@ -82,8 +84,9 @@ colera_ts <- function(df_colera, cause, county=NULL, city=NULL) {
     )
   # )
   
-  ggsave(plotnamefile, width = 15.7, height = 4.5, dpi = 300, limitsize = TRUE)
+  ggsave(plot_outputfilename, width = 15.7, height = 4.5, dpi = 300, limitsize = TRUE)
   
+  write.csv(df_colera.tmp, outputfilename, row.names = FALSE)
   return(df_colera.tmp)
   
 }

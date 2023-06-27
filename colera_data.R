@@ -178,12 +178,6 @@ ggplot(df_colera.groupByProvinciaFecha, aes(x = Fecha, y = Total_invasiones, gro
   xlab("") +
   ggtitle(paste0("total ", INVASIONES_STR, " por ", PROVINCIA_STR, ", ", ANO_STR)) +
   scale_y_continuous(breaks=seq(0, 2000, 350), limits=c(0, 2000)) +
-  # scale_x_continuous(
-  #   breaks = as.numeric(df_colera.groupByProvinciaFecha[, FECHA_STR]),
-  #   labels = format(df_colera.groupByProvinciaFecha[, FECHA_STR], "%d - %m"),
-  #   expand = c(0,0)
-  # ) +
-  # theme(axis.text.x = element_text(angle = 60, hjust = 1), legend.position = "none") +
   theme(legend.position = "none") +
   facet_wrap(~ Provincia, scales = 'free_x', ncol = 4) 
 
@@ -202,12 +196,6 @@ ggplot(df_colera.groupByProvinciaFecha, aes(x = Fecha, y = Total_defunciones, gr
   xlab("") +
   ggtitle(paste0("total ", DEFUNCIONES_STR, " por ", PROVINCIA_STR, ", ", ANO_STR)) +
   scale_y_continuous(breaks=seq(0, 600, 150), limits=c(0, 600)) +
-  # scale_x_continuous(
-  #   breaks = as.numeric(df_colera.groupByProvinciaFecha[, FECHA_STR]),
-  #   labels = format(df_colera.groupByProvinciaFecha[, FECHA_STR], "%d - %m"),
-  #   expand = c(0,0)
-  # ) +
-  # theme(axis.text.x = element_text(angle = 60, hjust = 1), legend.position = "bottom") +
   theme(legend.position = "none") +
   facet_wrap(~ Provincia, scales = 'free_x', ncol = 4)
 
