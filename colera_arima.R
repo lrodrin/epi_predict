@@ -2,7 +2,6 @@ library(forecast)
 library(tseries)
 
 
-source("colera_data.R")
 source("colera_ts.R")
 
 
