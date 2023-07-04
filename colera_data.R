@@ -30,7 +30,7 @@ END_DATE <- "1885-11-18"
 
 # read "colera" dataset
 df_colera <-
-  read_excel(paste(DATA_DIR, "Base colera harmo_codigos CCAA.xlsx", sep = "/"),
+  read_excel(paste(DATA_DIR, "Base colera harmo_codigos_newlatitudlongitud.xlsx", sep = "/"),
              sheet = "Capitales_Pueblos")
 
 # remove columns "observaciones_1", "observaciones_2" and "Fichero"
@@ -41,9 +41,9 @@ df_colera$Fichero <- NULL
 # remove "Codigo Ine" 99999, 99998 and 9999
 df_colera <-
   df_colera[(
-    !(df_colera[,CODIGO_INE_STR] == "99999.0") &
-      !(df_colera[,CODIGO_INE_STR] == "99998.0") &
-      !(df_colera[,CODIGO_INE_STR] == "9999.0")
+    !(df_colera[,CODIGO_INE_STR] == "99999") &
+      !(df_colera[,CODIGO_INE_STR] == "99998") &
+      !(df_colera[,CODIGO_INE_STR] == "9999")
   ), ]
 
 # add column "ano"

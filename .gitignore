@@ -58,3 +58,7 @@ tempe_plots/
 
 # project data files
 *.csv
+
+# GADM files
+*.rds
+
