@@ -3,7 +3,6 @@
 
 
 library(lwgeom)
-# library(raster)
 library(sf)
 library(viridis)
 library(foreach)
@@ -13,6 +12,7 @@ library(reshape2)
 
 
 # map Spain ---------------------------------------------------------------
+
 
 # GADM which is the database of global administrative boundaries, country equal to Spain, 
 # and level equal to 0 which corresponds to the level of administrative subdivision country
@@ -30,6 +30,7 @@ mapS <- mapS %>%
 
 
 # data --------------------------------------------------------------------
+
 
 # format column "Fecha" as POSIXlt
 df_colera_invasiones$Fecha <- month(as.POSIXlt(df_colera_invasiones$Fecha, format = "%Y-%m-d%"))
@@ -85,6 +86,7 @@ ggplot(dataCi, aes(x = month, y = invasiones, group = id, color = id)) +
 
 # model -------------------------------------------------------------------
 
+
 # mesh construction
 # construct a triangulated mesh on top of which the GMRF representation is built
 coo <- cbind(dataCi$x, dataCi$y) # matrix with the coordinates as initial mesh vertices
@@ -106,8 +108,6 @@ spde <- inla.spde2.pcmatern(
   prior.range = c(10000, 0.01), # P(range < 10000) = 0.01 / probability that the range is less than 10 km is very small
   prior.sigma = c(3, 0.01) # P(sigma > 3) = 0.01 / variability of the data 
 )
-
-# TODO: check prior.range and prior.sigma
 
 # index set for the latent spatio-temporal Gaussian model 
 timesn <- length(unique(dataCi$month))
