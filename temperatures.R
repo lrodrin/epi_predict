@@ -122,11 +122,17 @@ df_temperatures.parsed$mes[df_temperatures.parsed$mes == NAMEMONTHS_LIST[12]] <-
 # convert NA values to 0
 df_temperatures.parsed$temperatura[is.na(df_temperatures.parsed$temperatura)] <- 0 
 
+if(.Platform$OS.type == "windows") {
+  Sys.setlocale("LC_TIME", "English")
+} else {
+  Sys.setlocale("LC_TIME", "C")
+}
+
 # format as yearmon "mes" column
 df_temperatures.parsed$mes <- as.yearmon(df_temperatures.parsed$mes) 
 
 # save temperatures 
-write.csv(df_temperatures.parsed, "temperatures.csv")
+write.csv(df_temperatures.parsed, "temperatures.csv", fileEncoding = "UTF-8")
 
 # generate all time series of each "localidad"
 tempe_localidades <- unique(df_temperatures.parsed$localidad)
@@ -135,4 +141,10 @@ for (localidad in tempe_localidades) {
   
   create_tempeTS(df_temperatures.parsed, localidad)
   
+}
+
+if(.Platform$OS.type == "windows") {
+  Sys.setlocale("LC_TIME", "Catalan_Spain.1252")
+} else {
+  Sys.setlocale("LC_TIME", "ca_ES.UTF-8")
 }
