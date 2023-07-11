@@ -62,3 +62,7 @@ tempe_plots/
 # GADM files
 *.rds
 
+# macOS files
+.DS_Store
+
+

@@ -1,16 +1,37 @@
 # https://www.paulamoraga.com/book-geospatial/index.html
 # https://inla.r-inla-download.org/R/stable/bin/windows/contrib/4.0/
 
+# macOS install.packages("INLA_21.02.23.tar", repos = NULL, type = "source")
+
 
 library(lwgeom)
 library(sf)
 library(viridis)
 library(foreach)
 library(INLA)
-library(geodata)
+library(splancs)
+library(raster)
 library(reshape2)
+library(doParallel)
 
 
+# load("~/epi_predict/colera_data.RData")
+
+
+# constants ---------------------------------------------------------------
+
+
+ESPG_CODE <- 25830 # ESPG code of Spain which is code 25830 and corresponds to UTM zone 30 North
+MONTH_STR <- "month"
+LONG_STR <- "long"
+LAT_STR <- "lat"
+X_STR <- "x"
+Y_STR <- "y"
+
+
+# main --------------------------------------------------------------------
+
+  
 # map Spain ---------------------------------------------------------------
 
 
@@ -19,21 +40,18 @@ library(reshape2)
 mapS <- getData(name = "GADM", country = "Spain", level = 0)
 mapS <- mapS %>%
   st_as_sf() %>%
-  st_cast("POLYGON") %>% # remove the islands from the map (main territory of Sapin)
+  st_cast("POLYGON") %>% # remove the islands from the map (main territory of Spain)
   mutate(area = st_area(.)) %>%
   arrange(desc(area)) %>%
   slice(1) %>%
-  st_transform(25830) # UTM transformation
-  # ESPG code of Spain which is code 25830 and corresponds to UTM zone 30 North
-
-# ggplot(mapS) + geom_sf() + theme_bw() + coord_sf(datum = st_crs(mapS))
+  st_transform(ESPG_CODE) # UTM transformation
 
 
 # data --------------------------------------------------------------------
 
 
 # format column "Fecha" as POSIXlt
-df_colera_invasiones$Fecha <- month(as.POSIXlt(df_colera_invasiones$Fecha, format = "%Y-%m-d%"))
+df_colera_invasiones$Fecha <- month(as.POSIXlt(df_colera_invasiones$Fecha, format = DATA_FORMAT))
 
 # select columns "Fecha", "Codigo Ine", "LNG_POB_new_num", "LAT_POB_new_num", "invasiones"
 dataCi <- df_colera_invasiones[, c(
@@ -44,16 +62,16 @@ dataCi <- df_colera_invasiones[, c(
 )]
 
 # rename column names
-names(dataCi) <- c("month", "id", "long", "lat", "invasiones")
+names(dataCi) <- c(MONTH_STR, "id", LONG_STR, LAT_STR, INVASIONES_STR)
 
 # remove NA
 dataCi <- na.omit(dataCi) 
 
 # transform long and lat to UTM coordinates
-p <- st_as_sf(data.frame(long = dataCi$long, lat = dataCi$lat), coords = c("long", "lat"))
+p <- st_as_sf(data.frame(long = dataCi$long, lat = dataCi$lat), coords = c(LONG_STR, LAT_STR))
 st_crs(p) <- st_crs(4326) # EPSG code 4326 
-p <- p %>% st_transform(25830) # EPSG code 25830
-dataCi[, c("x", "y")] <- st_coordinates(p)
+p <- p %>% st_transform(ESPG_CODE) # EPSG code 25830
+dataCi[, c(X_STR, Y_STR)] <- st_coordinates(p)
 
 # invasiones located within the main territory of Spain and remove from the islands
 ind <- st_intersects(mapS, p)
@@ -61,17 +79,17 @@ dataCi <- dataCi[ind[[1]], ]
 head(dataCi)
 
 ggplot(mapS) + geom_sf() + coord_sf(datum = st_crs(mapS)) +
-  geom_point(data = dataCi, aes(x = x, y = y)) + ggtitle("invasiones de colera, 1885") + theme_bw()
-
-# ggplot(dataCi) + geom_histogram(mapping = aes(x = value)) +
-#   facet_wrap(~month, ncol = 1) + ggtitle("invasiones de colera por mes, 1885") + theme_bw()
+  geom_point(data = dataCi, aes(x = x, y = y)) + 
+  xlab("") + ylab("") +
+  ggtitle(paste0(INVASIONES_STR, " de colera, ", ANO_STR)) + 
+  theme_bw()
 
 ggplot(mapS) + geom_sf() + coord_sf(datum = NA) +
   geom_point(
     data = dataCi, aes(x = x, y = y, color = invasiones)
   ) +
   labs(x = "", y = "") +
-  ggtitle("invasiones de colera por mes, 1885") +
+  ggtitle(paste0(INVASIONES_STR, " de colera por mes, ", ANO_STR)) +
   scale_color_viridis() +
   facet_wrap(~month) +
   theme_bw()
@@ -132,11 +150,11 @@ dp <- as.matrix(expand.grid(x, y))
 plot(dp, asp = 1, main = "grid locations for prediction")
 
 # only the locations that lie within the map of Spain
-p <- st_as_sf(data.frame(x = dp[, 1], y = dp[, 2]), coords = c("x", "y"))
+p <- st_as_sf(data.frame(x = dp[, 1], y = dp[, 2]), coords = c(X_STR, Y_STR))
 st_crs(p) <- st_crs(25830)
 ind <- st_intersects(mapS, p)
 dp <- dp[ind[[1]], ]
-plot(dp, asp = 1, main = "locations for prediction in Spain")
+plot(dp, asp = 1, main = "locations for prediction")
 
 
 # forecasting -------------------------------------------------------------
@@ -180,12 +198,17 @@ formula <- y ~ 0 + b0 + f(s,
 ) # specified that across time, the process evolves according to an AR(1) process where the prior for the autocorrelation
 # remove intercept (adding 0) and add it as a covariate term (adding b0)
 
+cl <- makePSOCKcluster(4, setup_strategy = "sequential")
+registerDoParallel(cl)
+
 # inla() call
 res <- inla(
   formula,
   data = inla.stack.data(stk.full),
   control.predictor = list(compute = TRUE, A = inla.stack.A(stk.full))
 )
+
+stopCluster(cl)
 
 # results
 summary(res)
@@ -213,32 +236,22 @@ ggplot(marginals, aes(x = x, y = y)) + geom_line() +
 # mapping invasiones predictions
 index <- inla.stack.index(stack = stk.full, tag = "pred")$data
 dp <- data.frame(dp)
-names(dp) <- c("x", "y", "month")
+names(dp) <- c(X_STR, Y_STR, MONTH_STR)
 
 dp$pred_mean <- res$summary.fitted.values[index, "mean"]
 dp$pred_ll <- res$summary.fitted.values[index, "0.025quant"]
 dp$pred_ul <- res$summary.fitted.values[index, "0.975quant"]
 dpm <- melt(dp,
-            id.vars = c("x", "y", "month"),
+            id.vars = c(X_STR, Y_STR, MONTH_STR),
             measure.vars = c("pred_mean", "pred_ll", "pred_ul")
 )
-colnames(dpm)[5] <- "invasiones"
+colnames(dpm)[5] <- INVASIONES_STR
 head(dpm)
 
-# plot predictions and lower and upper limits of 95% CI in Spain in month 6, 7, 8, 9, 10 and 11
+# plot predictions and lower and upper limits of 95% CI in Spain for month 6, 7, 8, 9, 10 and 11
 ggplot(mapS) + geom_sf() + coord_sf(datum = NA) +
   geom_tile(data = dpm, aes(x = x, y = y, fill = invasiones)) +
   labs(x = "", y = "") +
   facet_wrap(variable ~ month, ncol = 6) +
-  scale_fill_viridis("invasiones") +
+  scale_fill_viridis(INVASIONES_STR) +
   theme_bw()
-
-# ggplot(mapS) + geom_sf() + coord_sf(datum = NA) +
-#   geom_point(
-#     data = dpm, aes(x = x, y = y, color = invasiones),
-#     size = 2
-#   ) +
-#   labs(x = "", y = "") +
-#   scale_color_viridis() +
-#   facet_wrap(~month) +
-#   theme_bw()
