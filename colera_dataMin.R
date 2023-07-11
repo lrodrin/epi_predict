@@ -4,16 +4,31 @@ library(viridis)
 library(tidyr)
 library(gghighlight)
 library(plotly)
-library(gganimate)
 library(zoo)
+library(gganimate)
 library(transformr)
 library(gifski)
-
 
 # remove.packages("gganimate")
 # remove.packages("transformr")
 # install.packages("https://cran.r-project.org/src/contrib/Archive/gganimate/gganimate_1.0.7.tar.gz", repos = NULL, type = "source")
 # install.packages("https://cran.r-project.org/src/contrib/Archive/transformr/transformr_0.1.3.tar.gz", repos = NULL, type = "source")
+
+source("colera_data.R")
+
+
+# constants ---------------------------------------------------------------
+
+
+SHAPES_DATA_DIR <- "shapes"
+dir.create(SHAPES_DATA_DIR, showWarnings = FALSE)
+
+TOTAL_POBLACION_STR <- "Total_poblacion"
+TOTAL_INVASIONES_STR <- paste("Total", INVASIONES_STR, sep = "_")
+TOTAL_DEFUNCIONES_STR <- paste("Total", DEFUNCIONES_STR, sep = "_")
+
+
+# main --------------------------------------------------------------------
 
 
 # data --------------------------------------------------------------------
@@ -22,7 +37,7 @@ library(gifski)
 Pob_Arago_PaisValencia_Murcia <- read_excel(paste(DATA_DIR, "Pob_Arago_PaisValencia_Murcia.xlsx", sep = "/"))
 Pob_Arago_PaisValencia_Murcia1887 <- Pob_Arago_PaisValencia_Murcia[, c("Codi INE", "Municipi", "1887")]
 Pob_Arago_PaisValencia_Murcia1887 <- na.omit(Pob_Arago_PaisValencia_Murcia1887) # remove NA
-names(Pob_Arago_PaisValencia_Murcia1887) <- c(CODIGO_INE_STR, MUNICIPIO_STR, "Total_poblacion") # change column names
+names(Pob_Arago_PaisValencia_Murcia1887) <- c(CODIGO_INE_STR, MUNICIPIO_STR, TOTAL_POBLACION_STR) # change column names
 
 # group "invasiones" and "defunciones" by "Provincia", "Fecha" and "Codigo Ine"
 df_colera_invasiones.groupByProvinciaFechaCodigoINE <- df_colera_invasiones %>%
@@ -30,7 +45,7 @@ df_colera_invasiones.groupByProvinciaFechaCodigoINE <- df_colera_invasiones %>%
   summarize(Total_invasiones = sum(invasiones)) %>%
   na.omit(df_colera_invasiones) %>%
   complete(
-    Fecha = seq.Date(as.Date(START_DATE), as.Date(END_DATE), by = "day"),
+    Fecha = seq.Date(as.Date(START_DATE), as.Date(END_DATE), by = DAY_STR),
     fill = list(Total_invasiones = 0)
   ) # add missing dates
 
@@ -39,7 +54,7 @@ df_colera_defunciones.groupByProvinciaFechaCodigoINE <- df_colera_defunciones %>
   summarize(Total_defunciones = sum(defunciones)) %>%
   na.omit(df_colera_defunciones) %>%
   complete(
-    Fecha = seq.Date(as.Date(START_DATE), as.Date(END_DATE), by = "day"),
+    Fecha = seq.Date(as.Date(START_DATE), as.Date(END_DATE), by = DAY_STR),
     fill = list(Total_defunciones = 0)
   ) # add missing dates
 
@@ -48,7 +63,16 @@ df_colera.groupByProvinciaFechaCodigoINE <- merge(df_colera_invasiones.groupByPr
 
 # merge df_colera.groupByProvinciaFechaCodigoINE with Pob_Arago_PaisValencia_Murcia1887
 df_colera.merged <- merge(df_colera.groupByProvinciaFechaCodigoINE, Pob_Arago_PaisValencia_Murcia1887, by = CODIGO_INE_STR)
-df_colera.merged <- df_colera.merged[, c(CODIGO_INE_STR, MUNICIPIO_STR, PROVINCIA_STR, "Total_invasiones", "Total_defunciones", "Total_poblacion", FECHA_STR)]
+df_colera.merged <-
+  df_colera.merged[, c(
+    CODIGO_INE_STR,
+    MUNICIPIO_STR,
+    PROVINCIA_STR,
+    TOTAL_INVASIONES_STR,
+    TOTAL_DEFUNCIONES_STR,
+    TOTAL_POBLACION_STR,
+    FECHA_STR
+  )]
 
 # unique(df_colera.merged$Provincia)
 
@@ -64,21 +88,12 @@ codigosINE.CCAAmurcia <- unique(df_colera.merged.CCAAmurcia$`Codigo Ine`)
 # map ---------------------------------------------------------------------
 
 
-# GADM
-# mapsfile <- getData(name = "GADM", country = "Spain", level = 4)
-# map_municipios <- read_rds("gadm36_ESP_4_sp.rds")
-
-# shapefile
-# map <- readOGR("shapes/MUNICIPIOS_IGN.shp", verbose = FALSE)
-map_municipios <- st_read("shapes/MUNICIPIOS_IGN.shp", quiet = TRUE)
+map_municipios <- st_read(paste(SHAPES_DATA_DIR, "MUNICIPIOS_IGN.shp", sep = "/"), quiet = TRUE)
 summary(map_municipios)
 
 map_valencia <- map_municipios[map_municipios$CODIGOINE %in% codigosINE.CCAAvalencia,]
 map_aragon <- map_municipios[map_municipios$CODIGOINE %in% codigosINE.CCAAaragon,]
 map_murcia <- map_municipios[map_municipios$CODIGOINE %in% codigosINE.CCAAmurcia,]
-
-# map_valencia <- map_municipios[map_municipios$NAME_1 == "Comunidad Valenciana",]
-# map_valencia@data
 
 map_valencia$CODIGOINE <- as.numeric(map_valencia$CODIGOINE)
 map_aragon$CODIGOINE <- as.numeric(map_aragon$CODIGOINE)
@@ -103,10 +118,12 @@ df_colera_invasiones.merged.CCAAmurcia.agg <- aggregate(
   FUN = sum
 )
 
-names(df_colera_invasiones.merged.CCAAmurcia.agg) <- c(CODIGO_INE_STR, "Total_poblacion", FECHA_STR, "Total_invasiones")
+names(df_colera_invasiones.merged.CCAAmurcia.agg) <- c(CODIGO_INE_STR, TOTAL_POBLACION_STR, FECHA_STR, TOTAL_INVASIONES_STR)
 df_colera_invasiones.merged.CCAAmurcia.agg <- df_colera_invasiones.merged.CCAAmurcia.agg[order(df_colera_invasiones.merged.CCAAmurcia.agg$`Codigo Ine`, df_colera_invasiones.merged.CCAAmurcia.agg$Fecha),]
-df_colera_invasiones.merged.CCAAmurcia.agg$Fecha <- month(as.POSIXlt(df_colera_invasiones.merged.CCAAmurcia.agg$Fecha, format = "%Y-%m-d%"))
+df_colera_invasiones.merged.CCAAmurcia.agg$Fecha <- month(as.POSIXlt(df_colera_invasiones.merged.CCAAmurcia.agg$Fecha, format = DATA_FORMAT))
 head(df_colera_invasiones.merged.CCAAmurcia.agg)
+
+# write.csv(df_colera_invasiones.merged.CCAAmurcia.agg, "data.csv", row.names = FALSE)
 
 # adding df_colera_invasiones.merged.CCAAmurcia.agg to map_murcia
 df_colera_invasiones.merged.CCAAmurcia.aggw <-
@@ -125,25 +142,26 @@ map_murcia.merged <- merge(map_murcia, df_colera_invasiones.merged.CCAAmurcia.ag
 map_murcia.merged[1:2, ]
 
 mapsf_murcia.merged <- st_as_sf(map_murcia.merged)
-mapsf_murcia.merged <- gather(mapsf_murcia.merged, Fecha, Total_invasiones, paste0("Total_invasiones.", 6:11))
+mapsf_murcia.merged <- gather(mapsf_murcia.merged, Fecha, Total_invasiones, paste0(TOTAL_INVASIONES_STR, ".", 6:11))
 # mapsf_murcia.merged <-
 #   gather(mapsf_murcia.merged,
 #          Fecha,
 #          Total_invasiones,
-#          paste0("Total_invasiones.", seq(
+#          paste0(TOTAL_INVASIONES_STR, ".", seq(
 #            as.Date('1885-06-18'), as.Date('1885-11-18'), by = 1
 #          )))
 
-# plots -------------------------------------------------------------------
+
+# invasiones murcia plots -------------------------------------------------
 
 
-# mapsf_murcia.merged$Fecha <- as.Date(substring(mapsf_murcia.merged$Fecha, 18, 30), format = "%Y-%m-%d")
+# mapsf_murcia.merged$Fecha <- as.Date(substring(mapsf_murcia.merged$Fecha, 18, 30), format = DATA_FORMAT)
 mapsf_murcia.merged$Fecha <- as.integer(substring(mapsf_murcia.merged$Fecha, 18, 19))
 mapsf_murcia.merged[1:2, ]
 
 ggplot(mapsf_murcia.merged) + geom_sf(aes(fill = Total_invasiones)) +
   facet_wrap(~Fecha, ncol = 6) +
-  ggtitle("total invasiones murcia, 1885") + theme_bw() +
+  ggtitle(paste0(TOTAL_INVASIONES_STR, " murcia, ", ANO_STR)) + theme_bw() +
   theme(
     axis.text.x = element_blank(),
     axis.text.y = element_blank(),
@@ -161,7 +179,7 @@ g <- ggplot(
     group = `Codigo Ine`,
     color = `Codigo Ine`
   )
-) +
+  ) +
   geom_line() + geom_point(size = 2) + theme_bw()
 
 g
@@ -169,9 +187,8 @@ g + theme(legend.position = "none")
 g + gghighlight(`Codigo Ine` == "30030")
 ggplotly(g)
 
-
-p <- 
-  ggplot(mapsf_murcia.merged) + geom_sf(aes(fill = Total_invasiones)) +
+p <- ggplot(mapsf_murcia.merged) + 
+  geom_sf(aes(fill = Total_invasiones)) +
   theme_bw() +
   theme(
     axis.text.x = element_blank(),
@@ -185,7 +202,7 @@ p <-
     high = "red"
   ) +
   transition_time(Fecha) +
-  labs(title = "Month: {round(frame_time, 0)}")
+  labs(title = "Mes: {round(frame_time, 0)}")
 
 animate(p, render = gifski_renderer())
-anim_save("murcia.gif")
+anim_save("murcia_invasiones.gif")
