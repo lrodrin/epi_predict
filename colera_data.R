@@ -24,7 +24,7 @@ DAY_STR <- "day"
 ANO_STR <- "1885"
 START_DATE <- "1885-06-18"
 END_DATE <- "1885-11-18"
-DATA_FORMAT <- "%Y-%m-%d"
+DATE_FORMAT <- "%Y-%m-%d"
 
 
 # main --------------------------------------------------------------------
@@ -52,7 +52,7 @@ df_colera <-
 df_colera$ano <- ANO_STR
 
 # format "Fecha" as year-month-day
-df_colera$Fecha <- as.Date(with(df_colera, paste(ano, mes, dia, sep = "-")), DATA_FORMAT)
+df_colera$Fecha <- as.Date(with(df_colera, paste(ano, mes, dia, sep = "-")), DATE_FORMAT)
 df_colera$dia <- NULL
 df_colera$mes <- NULL
 df_colera$ano <- NULL

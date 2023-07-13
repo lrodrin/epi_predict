@@ -51,7 +51,7 @@ mapS <- mapS %>%
 
 
 # format column "Fecha" as POSIXlt
-df_colera_invasiones$Fecha <- month(as.POSIXlt(df_colera_invasiones$Fecha, format = DATA_FORMAT))
+df_colera_invasiones$Fecha <- month(as.POSIXlt(df_colera_invasiones$Fecha, format = DATE_FORMAT))
 
 # select columns "Fecha", "Codigo Ine", "LNG_POB_new_num", "LAT_POB_new_num", "invasiones"
 dataCi <- df_colera_invasiones[, c(
