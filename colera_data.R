@@ -159,7 +159,7 @@ df_colera.groupByProvinciaFecha <- df_colera.groupByProvinciaFecha %>% mutate(cc
     (Provincia %in% c("albacete", "ciudad real", "cuenca", "guadalajara", "toledo")) ~ "castilla-la-mancha", 
     (Provincia %in% c("barcelona", "gerona", "lerida", "tarragona"))  ~ "cataluña",
     (Provincia %in% c("alicante", "castellon", "valencia")) ~ "comunitat-valenciana",
-    (Provincia == "badajoz") ~ "extrenadura",
+    (Provincia == "badajoz") ~ "extremadura",
     (Provincia == "madrid") ~ "madrid",
     (Provincia == "murcia") ~ "murcia",
     (Provincia == "navarra") ~ "navarra",
