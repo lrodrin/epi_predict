@@ -1,7 +1,7 @@
 # https://www.paulamoraga.com/book-geospatial/index.html
 # https://inla.r-inla-download.org/R/stable/bin/windows/contrib/4.0/
 
-# macOS install.packages("INLA_21.02.23.tar", repos = NULL, type = "source")
+# install.packages("INLA_21.02.23.tar", repos = NULL, type = "source")
 
 
 library(lwgeom)

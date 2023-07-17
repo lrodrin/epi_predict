@@ -9,7 +9,20 @@ packages <-
     "data.table",
     "zoo",
     "forecast",
-    "tseries"
+    "tseries",
+    "lwgeom",
+    "sf",
+    "viridis",
+    "foreach",
+    "spdep",
+    "splancs",
+    "raster",
+    "reshape2",
+    "doParallel",
+    "SpatialEpi",
+    "plotly",
+    "gghighlight",
+    "gganimate"
     
   )
 

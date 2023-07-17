@@ -1,7 +1,7 @@
 # https://www.paulamoraga.com/book-geospatial/index.html
 # https://inla.r-inla-download.org/R/stable/bin/windows/contrib/4.0/
 
-# macOS install.packages("INLA_21.02.23.tar", repos = NULL, type = "source")
+# install.packages("INLA_21.02.23.tar", repos = NULL, type = "source")
 
 
 library(lwgeom)
@@ -9,6 +9,7 @@ library(sf)
 library(viridis)
 library(foreach)
 library(INLA)
+library(spdep)
 library(splancs)
 library(raster)
 library(reshape2)
@@ -16,6 +17,14 @@ library(doParallel)
 library(SpatialEpi)
 library(plotly)
 library(gghighlight)
+library(gganimate)
+library(transformr)
+library(gifski)
+
+# remove.packages("gganimate")
+# remove.packages("transformr")
+# install.packages("https://cran.r-project.org/src/contrib/Archive/gganimate/gganimate_1.0.7.tar.gz", repos = NULL, type = "source")
+# install.packages("https://cran.r-project.org/src/contrib/Archive/transformr/transformr_0.1.3.tar.gz", repos = NULL, type = "source")
 
 
 # load("~/epi_predict/colera_data.RData")
@@ -57,14 +66,14 @@ split_dfByCCAA <- function(df, provincias) {
 
 agg_invasionesByCCAA <- function(df, nameCCAA) {
   
-  # aggregate df
+  # aggregate df by "Codigo Ine", "Total_poblacion" and "Fecha"
   df_colera_invasiones.agg <- aggregate(
     x = df$Total_invasiones,
     by = list(
       `Codigo Ine` = df$`Codigo Ine`, 
       Total_poblacion = df$Total_poblacion,
       Fecha = df$Fecha),
-    FUN = sum
+    FUN = "sum"
   )
   names(df_colera_invasiones.agg) <- c(CODIGO_INE_STR, TOTAL_POBLACION_STR, FECHA_STR, TOTAL_INVASIONES_STR)
   
@@ -87,7 +96,24 @@ agg_invasionesByCCAA <- function(df, nameCCAA) {
 
 invasiones_expectedCasesAndSIRs <- function(df) {
   
-  Total_invasionesE <- expected(
+  # calculate observed cases
+  observados <-
+    aggregate(
+      x = df$Total_invasiones,
+      by = list(time = df$Fecha, id = df$`Codigo Ine`),
+      FUN = "sum"
+    )[, "x"]
+  
+  # calculate population
+  poblacion <-
+    aggregate(
+      x = df$Total_poblacion,
+      by = list(time = df$Fecha, id = df$`Codigo Ine`),
+      FUN = "sum"
+    )[, "x"]
+  
+  # calculate expected cases
+  esperados <- expected(
     population = df$Total_poblacion,
     cases = df$Total_invasiones,
     n.strata = 1
@@ -103,11 +129,12 @@ invasiones_expectedCasesAndSIRs <- function(df) {
   # create new data frame dfE with the expected counts for each "Codigo Ine" and "Fecha"
   dfE <- expand.grid(`Codigo Ine` = vecid, Fecha = vectime)
   dfE <- dfE[ with(dfE, order(`Codigo Ine`, Fecha)), ] # order by "Codigo Ine" and "Fecha"
-  dfE$Total_poblacion <- df$Total_poblacion
-  dfE$Total_invasiones <- df$Total_invasiones
-  dfE$Total_invasionesE <- Total_invasionesE
+  rownames(dfE) <- 1:nrow(dfE) # change the index numbers
+  dfE$Total_poblacion <- poblacion
+  dfE$Total_invasiones <- observados
+  dfE$Total_invasionesE <- esperados
   dfE$SIR <- dfE$Total_invasiones/dfE$Total_invasionesE
-  head(dfE)
+  print(head(dfE))
   
   return(dfE)
   
@@ -179,6 +206,47 @@ timeplot_SIRByCCAAxMonth <- function(df) {
   ggplotly(g)
   
   # return(g)
+  
+}
+
+
+neighbourhood_matrix <- function(mapsf, county) {
+  
+  nb <- poly2nb(mapsf)
+  print(head(nb))
+  
+  outputfilename <- paste0("map_", county, ".adj")
+  nb2INLA(outputfilename, nb)
+  g <- inla.read.graph(filename = outputfilename)
+  
+  return(g)
+  
+}
+
+
+inference_inla <- function(df, g) {
+  
+  # create the index vectors for the municipalities and days
+  df$idarea <- as.numeric(as.factor(df$`Codigo Ine`)) # vector with the indices of municipalities 
+  df$idarea1 <- df$idarea # second index vector for municipalities (idarea1) by replicating idarea
+  df$idtime <- 1 + df$Fecha - min(df$Fecha) # vector with the indices of days 
+  
+  # formula of the Bernardinelli model
+  formula <- Total_invasiones ~ f(idarea, model = "bym", graph = g) +
+    f(idarea1, idtime, model = "iid") + idtime
+  
+  cl <- makePSOCKcluster(4, setup_strategy = "sequential")
+  registerDoParallel(cl)
+  
+  # inla() call
+  res <- inla(formula,
+              family = "poisson", data = df, E = Total_invasionesE,
+              control.predictor = list(compute = TRUE), verbose = TRUE
+  )
+  
+  stopCluster(cl)
+  
+  return(res)
   
 }
 
@@ -282,6 +350,10 @@ df_colera_invasiones.CCAAvalencia <- invasiones_expectedCasesAndSIRs(df_colera_i
 df_colera_invasiones.CCAAaragon <- invasiones_expectedCasesAndSIRs(df_colera_invasiones.CCAAaragon.agg)
 df_colera_invasiones.CCAAmurcia <- invasiones_expectedCasesAndSIRs(df_colera_invasiones.CCAAmurcia.agg)
 
+head(df_colera_invasiones.CCAAvalencia)
+head(df_colera_invasiones.CCAAaragon)
+head(df_colera_invasiones.CCAAmurcia)
+
 
 # adding to map -----------------------------------------------------------
 
@@ -321,3 +393,74 @@ timeplot_SIRByCCAAxMonth(df_colera_invasiones.CCAAaragon)
 timeplot_SIRByCCAAxMonth(df_colera_invasiones.CCAAmurcia)
 
 # TODO: g + gghighlight(`Codigo Ine` == "30030")
+
+
+# model -------------------------------------------------------------------
+
+
+# neighbourhood matrix
+graph_valencia <- neighbourhood_matrix(mapsf_valencia, VALENCIA_STR)
+graph_aragon <- neighbourhood_matrix(mapsf_aragon, ARAGON_STR)
+graph_murcia <- neighbourhood_matrix(mapsf_murcia, MURCIA_STR)
+
+# inference using INLA
+# inference_valencia <- inference_inla(df_colera_invasiones.CCAAvalencia, graph_valencia)
+# inference_aragon <- inference_inla(df_colera_invasiones.CCAAaragon, graph_aragon)
+inference_murcia <- inference_inla(df_colera_invasiones.CCAAmurcia, graph_murcia)
+
+# TODO: inference for "valencia" and "aragon"
+
+
+# mapping relative risks --------------------------------------------------
+
+
+# add the relative risk estimates and the lower and upper limits of the 95% credible intervals to df_colera_invasiones.CCAAmurcia
+df_colera_invasiones.CCAAmurcia$RR <- inference_murcia$summary.fitted.values[, "mean"]
+df_colera_invasiones.CCAAmurcia$LL <- inference_murcia$summary.fitted.values[, "0.025quant"]
+df_colera_invasiones.CCAAmurcia$UL <- inference_murcia$summary.fitted.values[, "0.975quant"]
+head(df_colera_invasiones.CCAAmurcia)
+
+# format column "Fecha" as POSIXlt
+df_colera_invasiones.CCAAmurcia$Fecha <- month(as.POSIXlt(df_colera_invasiones.CCAAmurcia$Fecha, format = DATE_FORMAT))
+head(df_colera_invasiones.CCAAmurcia)
+
+# maps showing the relative risks and lower and upper limits of 95% credible intervals for each month
+mapsf_murcia.RR <- merge(
+  mapsf_murcia, df_colera_invasiones.CCAAmurcia,
+  by.x = c("CODIGOINE", FECHA_STR),
+  by.y = c(CODIGO_INE_STR, FECHA_STR)
+)
+
+# plot of cholera relative risk in Murcia municipalities from June to November
+ggplot(mapsf_murcia.RR) + geom_sf(aes(fill = RR)) +
+  facet_wrap(~Fecha, dir = "h", ncol = 6) +
+  ggtitle("RR") + theme_bw() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  scale_fill_gradient2(
+    midpoint = 23, low = "blue", mid = "white", high = "red"
+  )
+
+# animation of cholera relative risk in Murcia municipalities from June to November
+# p <- ggplot(mapsf_murcia.RR) + 
+#   geom_sf(aes(fill = RR)) +
+#   theme_bw() +
+#   theme(
+#     axis.text.x = element_blank(),
+#     axis.text.y = element_blank(),
+#     axis.ticks = element_blank()
+#   ) +
+#   scale_fill_gradient2(
+#     midpoint = 23,
+#     low = "blue",
+#     mid = "white",
+#     high = "red"
+#   ) +
+#   transition_time(Fecha) +
+#   labs(title = "Mes: {round(frame_time, 0)}")
+# 
+# animate(p, render = gifski_renderer())
+# anim_save(paste0(COLERA_PLOTS_DIR, "/colera_total_invasionesXCCAA_", nameCCAA, ".RR.gif"))
