@@ -55,6 +55,7 @@ colera_data/
 # project plots folders
 colera_plots/
 tempe_plots/
+rain_plots/
 
 # project data files
 *.csv

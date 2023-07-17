@@ -13,8 +13,6 @@ TEMPE_PLOTS_DIR <- "tempe_plots"
 dir.create(TEMPE_PLOTS_DIR, showWarnings = FALSE)
 
 TEMPERATURA_STR <- "temperatura"
-LOCALIDAD_STR <- "localidad"
-MES_STR <- "mes"
 ANO_STR <- "1885"
 NAMEMONTHS_LIST <-
   c("Enero",
@@ -49,7 +47,7 @@ create_tempeTS <- function(df_temperatures, location) {
   ggplot(df_temperatures.tmp, aes(x = mes, y = temperatura)) + 
     geom_line() + 
     ylab("grados (ºC)") + 
-    ggtitle(paste0("temperatura mensual ", location, ", ", ANO_STR)) +
+    ggtitle(paste0(TEMPERATURA_STR, " mensual ", location, ", ", ANO_STR)) +
     theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
     scale_x_continuous(
       breaks = as.numeric(df_temperatures.tmp$mes),
@@ -82,9 +80,9 @@ df_temperatures[, 2:13] <- sapply(df_temperatures[, 2:13], as.numeric)
 # create new column "mes"
 df_temperatures.parsed <-
   melt(
-    setDT(df_temperatures[, 1:13]),
-    id.vars = c(LOCALIDAD_STR),
-    variable.name = MES_STR,
+    setDT(df_temperatures[, 1:16]),
+    id.vars = c("localidad", "longitud", "latitud", "codigo ine"),
+    variable.name = "mes",
     value.name = TEMPERATURA_STR
   )
 
