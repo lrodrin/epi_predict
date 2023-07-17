@@ -1,6 +1,7 @@
 library(readxl)
 library(data.table)
 library(zoo)
+library(ggplot2)
 
 
 # constants ---------------------------------------------------------------
@@ -119,8 +120,8 @@ df_temperatures.parsed$mes[df_temperatures.parsed$mes == NAMEMONTHS_LIST[11]] <-
 df_temperatures.parsed$mes[df_temperatures.parsed$mes == NAMEMONTHS_LIST[12]] <-
   paste(ANO_STR, NUMMONTHS_LIST[12], sep = "-")
 
-# convert NA values to 0
-df_temperatures.parsed$temperatura[is.na(df_temperatures.parsed$temperatura)] <- 0 
+# remove NA values
+df_temperatures.parsed <- na.omit(df_temperatures.parsed)
 
 if(.Platform$OS.type == "windows") {
   Sys.setlocale("LC_TIME", "English")
