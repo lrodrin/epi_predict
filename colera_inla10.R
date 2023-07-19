@@ -2,6 +2,7 @@
 # https://inla.r-inla-download.org/R/stable/bin/windows/contrib/4.0/
 
 # install.packages("INLA_21.02.23.tar", repos = NULL, type = "source")
+# install.packages("INLA", repos = c(getOption("repos"), INLA = "https://inla.r-inla-download.org/R/stable"), dep = TRUE)
 
 
 library(lwgeom)

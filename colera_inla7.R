@@ -2,6 +2,7 @@
 # https://inla.r-inla-download.org/R/stable/bin/windows/contrib/4.0/
 
 # install.packages("INLA_21.02.23.tar", repos = NULL, type = "source")
+# install.packages("INLA", repos = c(getOption("repos"), INLA = "https://inla.r-inla-download.org/R/stable"), dep = TRUE)
 
 
 library(lwgeom)
@@ -40,31 +41,34 @@ TOTAL_POBLACION_STR <- "Total_poblacion"
 TOTAL_INVASIONES_STR <- paste("Total", INVASIONES_STR, sep = "_")
 TOTAL_DEFUNCIONES_STR <- paste("Total", DEFUNCIONES_STR, sep = "_")
 VALENCIA_STR <- "valencia"
-ARAGON_STR <- "aragon"
+# ARAGON_STR <- "aragon"
+ZARAGOZA_STR <- "zaragoza"
 MURCIA_STR <- "murcia"
 SIR_STR <- "SIR"
 MINPOS_SUBSTR <- 5
 MAXPOS_SUBSTR <- 6
+MINPOS_GATHER <- 6
+MAXPOS_GATHER <- 11
 
 
 # functions ---------------------------------------------------------------
 
 
-split_dfByCCAA <- function(df, provincias) {
+split_df <- function(df, provincias) {
   
   if (is.vector(provincias)) { # more than one county
-    df_ByCCAA <- subset(df, Provincia %in% provincias)
+    df <- subset(df, Provincia %in% provincias)
   }
   else {
-    df_ByCCAA <- subset(df, Provincia == provincias) # one county
+    df <- subset(df, Provincia == provincias) # one county
   }
   
-  return(df_ByCCAA)
+  return(df)
   
 }
 
 
-agg_invasionesByCCAA <- function(df, nameCCAA) {
+agg_invasiones <- function(df, name) {
   
   # aggregate df by "Codigo Ine", "Total_poblacion" and "Fecha"
   df_colera_invasiones.agg <- aggregate(
@@ -85,7 +89,7 @@ agg_invasionesByCCAA <- function(df, nameCCAA) {
   # save aggregated df for Shiny SpatialEpiApp
   write.csv(
     df_colera_invasiones.agg,
-    paste0(COLERA_DATA_DIR, "/webapp.colera_total_", INVASIONES_STR, "XCCAA.", nameCCAA, ".csv"),
+    paste0(COLERA_DATA_DIR, "/webapp.colera_total_", INVASIONES_STR, "X.", name, ".csv"),
     row.names = FALSE
   )
   
@@ -170,11 +174,11 @@ adding_dfToMap <- function(df, map) {
 }
 
 
-plot_SIRByCCAAxMonth <- function(mapsf, nameCCAA, invasiones_midpoint) {
+plot_SIRByMonth <- function(mapsf, name, invasiones_midpoint) {
   
   ggplot(mapsf) + geom_sf(aes(fill = SIR)) +
     facet_wrap(~Fecha, ncol = 6) +
-    ggtitle(paste0(SIR_STR, " ", nameCCAA, ", ", ANO_STR)) + theme_bw() +
+    ggtitle(paste0(SIR_STR, " ", name, ", ", ANO_STR)) + theme_bw() +
     theme(
       axis.text.x = element_blank(),
       axis.text.y = element_blank(),
@@ -184,12 +188,12 @@ plot_SIRByCCAAxMonth <- function(mapsf, nameCCAA, invasiones_midpoint) {
       midpoint = invasiones_midpoint, low = "blue", mid = "white", high = "red"
     )
   
-  # TODO: save plot as paste0(COLERA_PLOTS_DIR, "/colera_total_SIRXCCAA_", nameCCAA, ".png")
+  # TODO: save plot as paste0(COLERA_PLOTS_DIR, "/colera_total_SIRX_", name, ".png")
   
 }
 
 
-timeplot_SIRByCCAAxMonth <- function(df) {
+timeplot_SIRByMonth <- function(df) {
   
   g <- ggplot(
     df,
@@ -251,6 +255,53 @@ inference_inla <- function(df, g) {
 }
 
 
+map_RR <- function(df, inference, mapsf) {
+  
+  # add the relative risk estimates and the lower and upper limits of the 95% credible intervals to df
+  df$RR <- inference$summary.fitted.values[, "mean"]
+  df$LL <- inference$summary.fitted.values[, "0.025quant"]
+  df$UL <- inference$summary.fitted.values[, "0.975quant"]
+  print(head(df))
+  
+  # format column "Fecha" as POSIXlt
+  df$Fecha <- month(as.POSIXlt(df$Fecha, format = DATE_FORMAT))
+  print(head(df))
+  
+  # maps showing the relative risks and lower and upper limits of 95% credible intervals for each month
+  mapsf.RR <- merge(
+    mapsf, df,
+    by.x = c("CODIGOINE", FECHA_STR),
+    by.y = c(CODIGO_INE_STR, FECHA_STR)
+  )
+  
+  return(mapsf.RR)
+  
+  
+}
+
+
+plot_RRByMonth <- function(mapsf, name, RR_midpoint) {
+  
+  ggplot(mapsf) + geom_sf(aes(fill = RR)) +
+    facet_wrap( ~ Fecha, dir = "h", ncol = 6) +
+    ggtitle(paste0("RR ", name, ", ", ANO_STR)) + theme_bw() +
+    theme(
+      axis.text.x = element_blank(),
+      axis.text.y = element_blank(),
+      axis.ticks = element_blank()
+    ) +
+    scale_fill_gradient2(
+      midpoint = RR_midpoint,
+      low = "blue",
+      mid = "white",
+      high = "red"
+    )
+  
+  # TODO: save plot as paste0(COLERA_PLOTS_DIR, "/colera_total_RRX_", name, ".png")
+  
+}
+
+
 # main --------------------------------------------------------------------
 
 
@@ -298,77 +349,95 @@ df_colera.merged <-
   )] # select columns "Codigo Ine", "Municipio", "Provincia", "Total_invasiones", "Total_defunciones", "Total_poblacion" and "Fecha" 
 
 # split df_colera.merged for CCAA 
-df_colera.split.CCAAvalencia <- split_dfByCCAA(df_colera.merged, c("castellon", VALENCIA_STR))
-df_colera.split.CCAAaragon <- split_dfByCCAA(df_colera.merged, c("huesca", "teruel", "zaragoza"))
-df_colera.split.CCAAmurcia <- split_dfByCCAA(df_colera.merged, MURCIA_STR)
+# df_colera.split.valencia <- split_df(df_colera.merged, c("castellon", VALENCIA_STR))
+# df_colera.split.aragon <- split_df(df_colera.merged, c("huesca", "teruel", "zaragoza"))
+# df_colera.split.murcia <- split_df(df_colera.merged, MURCIA_STR)
 
-head(df_colera.split.CCAAvalencia)
-head(df_colera.split.CCAAaragon)
-head(df_colera.split.CCAAmurcia)
+# split df_colera.merged for "Provincia" 
+df_colera.split.valencia <- split_df(df_colera.merged, VALENCIA_STR)
+df_colera.split.zaragoza <- split_df(df_colera.merged, ZARAGOZA_STR)
+df_colera.split.murcia <- split_df(df_colera.merged, MURCIA_STR)
 
-codigosINE.CCAAvalencia <- unique(df_colera.split.CCAAvalencia$`Codigo Ine`)
-codigosINE.CCAAaragon <- unique(df_colera.split.CCAAaragon$`Codigo Ine`)
-codigosINE.CCAAmurcia <- unique(df_colera.split.CCAAmurcia$`Codigo Ine`)
+head(df_colera.split.valencia)
+# head(df_colera.split.aragon)
+head(df_colera.split.zaragoza)
+head(df_colera.split.murcia)
+
+codigosINE.valencia <- unique(df_colera.split.valencia$`Codigo Ine`)
+# codigosINE.aragon <- unique(df_colera.split.aragon$`Codigo Ine`)
+codigosINE.zaragoza <- unique(df_colera.split.zaragoza$`Codigo Ine`)
+codigosINE.murcia <- unique(df_colera.split.murcia$`Codigo Ine`)
+
+# TODO: move code to colera_data.R
 
 
 # map ---------------------------------------------------------------------
 
 
-map_municipios <- st_read(paste(SHAPES_DATA_DIR, "MUNICIPIOS_IGN.shp", sep = "/"), quiet = TRUE)
+map_municipios <- st_read(paste(SHAPES_DATA_DIR, "Municipios_IGN.shp", sep = "/"), quiet = TRUE)
 summary(map_municipios)
 
-# split map_municipios of Spain for CCAA (only "codigosINE" presents in data) 
-map_valencia <- map_municipios[map_municipios$CODIGOINE %in% codigosINE.CCAAvalencia,]
-map_aragon <- map_municipios[map_municipios$CODIGOINE %in% codigosINE.CCAAaragon,]
-map_murcia <- map_municipios[map_municipios$CODIGOINE %in% codigosINE.CCAAmurcia,]
+# split map_municipios of Spain for "Provincia" (only "codigosINE" presents in data) 
+map_valencia <- map_municipios[map_municipios$CODIGOINE %in% codigosINE.valencia,]
+# map_aragon <- map_municipios[map_municipios$CODIGOINE %in% codigosINE.aragon,]
+map_zaragoza <- map_municipios[map_municipios$CODIGOINE %in% codigosINE.zaragoza,]
+map_murcia <- map_municipios[map_municipios$CODIGOINE %in% codigosINE.murcia,]
 
 map_valencia$CODIGOINE <- as.numeric(map_valencia$CODIGOINE)
-map_aragon$CODIGOINE <- as.numeric(map_aragon$CODIGOINE)
+# map_aragon$CODIGOINE <- as.numeric(map_aragon$CODIGOINE)
+map_zaragoza$CODIGOINE <- as.numeric(map_zaragoza$CODIGOINE)
 map_murcia$CODIGOINE <- as.numeric(map_murcia$CODIGOINE)
 
 plot(map_valencia)
-plot(map_aragon)
+# plot(map_aragon)
+plot(map_zaragoza)
 plot(map_murcia)
 
 
-# invasiones agg by CCAA --------------------------------------------------
+# invasiones agg by "Provincia" -------------------------------------------
 
 
-df_colera_invasiones.CCAAvalencia.agg <- agg_invasionesByCCAA(df_colera.split.CCAAvalencia, VALENCIA_STR)
-df_colera_invasiones.CCAAaragon.agg <- agg_invasionesByCCAA(df_colera.split.CCAAaragon, ARAGON_STR)
-df_colera_invasiones.CCAAmurcia.agg <- agg_invasionesByCCAA(df_colera.split.CCAAmurcia, MURCIA_STR)
+df_colera_invasiones.valencia.agg <- agg_invasiones(df_colera.split.valencia, VALENCIA_STR)
+# df_colera_invasiones.aragon.agg <- agg_invasiones(df_colera.split.aragon, ARAGON_STR)
+df_colera_invasiones.zaragoza.agg <- agg_invasiones(df_colera.split.zaragoza, ZARAGOZA_STR)
+df_colera_invasiones.murcia.agg <- agg_invasiones(df_colera.split.murcia, MURCIA_STR)
 
-head(df_colera_invasiones.CCAAvalencia.agg)
-head(df_colera_invasiones.CCAAaragon.agg)
-head(df_colera_invasiones.CCAAmurcia.agg)
+head(df_colera_invasiones.valencia.agg)
+# head(df_colera_invasiones.aragon.agg)
+head(df_colera_invasiones.zaragoza.agg)
+head(df_colera_invasiones.murcia.agg)
 
 
-# calculation of expected cases and SIRs by CCAA --------------------------
+# calculation of expected cases and SIRs by "Provincia" -------------------
 
 
-df_colera_invasiones.CCAAvalencia <- invasiones_expectedCasesAndSIRs(df_colera_invasiones.CCAAvalencia.agg)
-df_colera_invasiones.CCAAaragon <- invasiones_expectedCasesAndSIRs(df_colera_invasiones.CCAAaragon.agg)
-df_colera_invasiones.CCAAmurcia <- invasiones_expectedCasesAndSIRs(df_colera_invasiones.CCAAmurcia.agg)
+df_colera_invasiones.valencia <- invasiones_expectedCasesAndSIRs(df_colera_invasiones.valencia.agg)
+# df_colera_invasiones.aragon <- invasiones_expectedCasesAndSIRs(df_colera_invasiones.aragon.agg)
+df_colera_invasiones.zaragoza <- invasiones_expectedCasesAndSIRs(df_colera_invasiones.zaragoza.agg)
+df_colera_invasiones.murcia <- invasiones_expectedCasesAndSIRs(df_colera_invasiones.murcia.agg)
 
-head(df_colera_invasiones.CCAAvalencia)
-head(df_colera_invasiones.CCAAaragon)
-head(df_colera_invasiones.CCAAmurcia)
+head(df_colera_invasiones.valencia)
+# head(df_colera_invasiones.aragon)
+head(df_colera_invasiones.zaragoza)
+head(df_colera_invasiones.murcia)
 
 
 # adding to map -----------------------------------------------------------
 
 
-mapsf_valencia <- adding_dfToMap(df_colera_invasiones.CCAAvalencia, map_valencia)
-mapsf_aragon <- adding_dfToMap(df_colera_invasiones.CCAAaragon, map_aragon)
-mapsf_murcia <- adding_dfToMap(df_colera_invasiones.CCAAmurcia, map_murcia)
+mapsf_valencia <- adding_dfToMap(df_colera_invasiones.valencia, map_valencia)
+# mapsf_aragon <- adding_dfToMap(df_colera_invasiones.aragon, map_aragon)
+mapsf_zaragoza <- adding_dfToMap(df_colera_invasiones.zaragoza, map_zaragoza)
+mapsf_murcia <- adding_dfToMap(df_colera_invasiones.murcia, map_murcia)
 
 
 # SIR plots ---------------------------------------------------------------
 
 
-mapsf_valencia <- gather(mapsf_valencia, Fecha, SIR, paste0(SIR_STR, ".", 6:11))
-mapsf_aragon <- gather(mapsf_aragon, Fecha, SIR, paste0(SIR_STR, ".", 6:11))
-mapsf_murcia <- gather(mapsf_murcia, Fecha, SIR, paste0(SIR_STR, ".", 6:11))
+mapsf_valencia <- gather(mapsf_valencia, Fecha, SIR, paste0(SIR_STR, ".", MINPOS_GATHER:MAXPOS_GATHER))
+# mapsf_aragon <- gather(mapsf_aragon, Fecha, SIR, paste0(SIR_STR, ".", 6:11))
+mapsf_zaragoza <- gather(mapsf_zaragoza, Fecha, SIR, paste0(SIR_STR, ".", MINPOS_GATHER:MAXPOS_GATHER))
+mapsf_murcia <- gather(mapsf_murcia, Fecha, SIR, paste0(SIR_STR, ".", MINPOS_GATHER:MAXPOS_GATHER))
 # mapsf_murcia <-
 #   gather(mapsf_murcia,
 #          Fecha,
@@ -379,18 +448,21 @@ mapsf_murcia <- gather(mapsf_murcia, Fecha, SIR, paste0(SIR_STR, ".", 6:11))
 
 # keep integer month in each column like "Total_SIR_6" in Fecha column
 mapsf_valencia$Fecha <- as.integer(substring(mapsf_valencia$Fecha, MINPOS_SUBSTR, MAXPOS_SUBSTR))
-mapsf_aragon$Fecha <- as.integer(substring(mapsf_aragon$Fecha, MINPOS_SUBSTR, MAXPOS_SUBSTR))
+# mapsf_aragon$Fecha <- as.integer(substring(mapsf_aragon$Fecha, MINPOS_SUBSTR, MAXPOS_SUBSTR))
+mapsf_zaragoza$Fecha <- as.integer(substring(mapsf_zaragoza$Fecha, MINPOS_SUBSTR, MAXPOS_SUBSTR))
 mapsf_murcia$Fecha <- as.integer(substring(mapsf_murcia$Fecha, MINPOS_SUBSTR, MAXPOS_SUBSTR))
 
 # plots by month
-plot_SIRByCCAAxMonth(mapsf_valencia, VALENCIA_STR, 30)
-plot_SIRByCCAAxMonth(mapsf_aragon, ARAGON_STR, 51)
-plot_SIRByCCAAxMonth(mapsf_murcia, MURCIA_STR, 17)
+plot_SIRByMonth(mapsf_valencia, VALENCIA_STR, 30)
+# plot_SIRByMonth(mapsf_aragon, ARAGON_STR, 51)
+plot_SIRByMonth(mapsf_zaragoza, ZARAGOZA_STR, 48)
+plot_SIRByMonth(mapsf_murcia, MURCIA_STR, 17)
 
 # timeplots by month
-timeplot_SIRByCCAAxMonth(df_colera_invasiones.CCAAvalencia)
-timeplot_SIRByCCAAxMonth(df_colera_invasiones.CCAAaragon)
-timeplot_SIRByCCAAxMonth(df_colera_invasiones.CCAAmurcia)
+timeplot_SIRByMonth(df_colera_invasiones.valencia)
+# timeplot_SIRByMonth(df_colera_invasiones.aragon)
+timeplot_SIRByMonth(df_colera_invasiones.zaragoza)
+timeplot_SIRByMonth(df_colera_invasiones.murcia)
 
 # TODO: g + gghighlight(`Codigo Ine` == "30030")
 
@@ -400,67 +472,51 @@ timeplot_SIRByCCAAxMonth(df_colera_invasiones.CCAAmurcia)
 
 # neighbourhood matrix
 graph_valencia <- neighbourhood_matrix(mapsf_valencia, VALENCIA_STR)
-graph_aragon <- neighbourhood_matrix(mapsf_aragon, ARAGON_STR)
+#° graph_aragon <- neighbourhood_matrix(mapsf_aragon, ARAGON_STR)
+graph_zaragoza <- neighbourhood_matrix(mapsf_zaragoza, ZARAGOZA_STR)
 graph_murcia <- neighbourhood_matrix(mapsf_murcia, MURCIA_STR)
 
 # inference using INLA
-# inference_valencia <- inference_inla(df_colera_invasiones.CCAAvalencia, graph_valencia)
-# inference_aragon <- inference_inla(df_colera_invasiones.CCAAaragon, graph_aragon)
-inference_murcia <- inference_inla(df_colera_invasiones.CCAAmurcia, graph_murcia)
+inference_valencia <- inference_inla(df_colera_invasiones.valencia, graph_valencia)
+# inference_aragon <- inference_inla(df_colera_invasiones.aragon, graph_aragon)
+inference_zaragoza <- inference_inla(df_colera_invasiones.zaragoza, graph_zaragoza)
+inference_murcia <- inference_inla(df_colera_invasiones.murcia, graph_murcia)
 
-# TODO: inference for "valencia" and "aragon"
+# TODO: inference for CCAA
 
+# mapping relative risk
+mapsf_valencia.RR <- map_RR(df_colera_invasiones.valencia, inference_valencia, mapsf_valencia)
+mapsf_zaragoza.RR <- map_RR(df_colera_invasiones.zaragoza, inference_zaragoza, mapsf_zaragoza)
+mapsf_murcia.RR <- map_RR(df_colera_invasiones.murcia, inference_murcia, mapsf_murcia)
 
-# mapping relative risks --------------------------------------------------
+# plot by month
+plot_RRByMonth(mapsf_valencia.RR, VALENCIA_STR, 44)
+plot_RRByMonth(mapsf_zaragoza.RR, ZARAGOZA_STR, 7)
+plot_RRByMonth(mapsf_murcia.RR, MURCIA_STR, 23)
+# gif_RRByMonth(mapsf_valencia.RR, VALENCIA_STR, 44)
+# gif_RRByMonth(mapsf_zaragoza.RR, ZARAGOZA_STR, 7)
+# gif_RRByMonth(mapsf_murcia.RR, MURCIA_STR, 23)
 
-
-# add the relative risk estimates and the lower and upper limits of the 95% credible intervals to df_colera_invasiones.CCAAmurcia
-df_colera_invasiones.CCAAmurcia$RR <- inference_murcia$summary.fitted.values[, "mean"]
-df_colera_invasiones.CCAAmurcia$LL <- inference_murcia$summary.fitted.values[, "0.025quant"]
-df_colera_invasiones.CCAAmurcia$UL <- inference_murcia$summary.fitted.values[, "0.975quant"]
-head(df_colera_invasiones.CCAAmurcia)
-
-# format column "Fecha" as POSIXlt
-df_colera_invasiones.CCAAmurcia$Fecha <- month(as.POSIXlt(df_colera_invasiones.CCAAmurcia$Fecha, format = DATE_FORMAT))
-head(df_colera_invasiones.CCAAmurcia)
-
-# maps showing the relative risks and lower and upper limits of 95% credible intervals for each month
-mapsf_murcia.RR <- merge(
-  mapsf_murcia, df_colera_invasiones.CCAAmurcia,
-  by.x = c("CODIGOINE", FECHA_STR),
-  by.y = c(CODIGO_INE_STR, FECHA_STR)
-)
-
-# plot of cholera relative risk in Murcia municipalities from June to November
-ggplot(mapsf_murcia.RR) + geom_sf(aes(fill = RR)) +
-  facet_wrap(~Fecha, dir = "h", ncol = 6) +
-  ggtitle("RR") + theme_bw() +
-  theme(
-    axis.text.x = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks = element_blank()
-  ) +
-  scale_fill_gradient2(
-    midpoint = 23, low = "blue", mid = "white", high = "red"
-  )
-
-# animation of cholera relative risk in Murcia municipalities from June to November
-# p <- ggplot(mapsf_murcia.RR) + 
-#   geom_sf(aes(fill = RR)) +
-#   theme_bw() +
-#   theme(
-#     axis.text.x = element_blank(),
-#     axis.text.y = element_blank(),
-#     axis.ticks = element_blank()
-#   ) +
-#   scale_fill_gradient2(
-#     midpoint = 23,
-#     low = "blue",
-#     mid = "white",
-#     high = "red"
-#   ) +
-#   transition_time(Fecha) +
-#   labs(title = "Mes: {round(frame_time, 0)}")
-# 
-# animate(p, render = gifski_renderer())
-# anim_save(paste0(COLERA_PLOTS_DIR, "/colera_total_invasionesXCCAA_", nameCCAA, ".RR.gif"))
+# gif_RRByMonth <- function(mapsf, name, RR_midpoint) {
+#   
+#   p <- ggplot(mapsf) +
+#     geom_sf(aes(fill = RR)) +
+#     theme_bw() +
+#     theme(
+#       axis.text.x = element_blank(),
+#       axis.text.y = element_blank(),
+#       axis.ticks = element_blank()
+#     ) +
+#     scale_fill_gradient2(
+#       midpoint = RR_midpoint,
+#       low = "blue",
+#       mid = "white",
+#       high = "red"
+#     ) +
+#     transition_time(Fecha) +
+#     labs(title = "Mes: {round(frame_time, 0)}")
+#   
+#   animate(p, render = gifski_renderer())
+#   anim_save(paste0(COLERA_PLOTS_DIR, "/colera_total_invasionesX_", name, ".RR.gif"))
+#   
+# }
