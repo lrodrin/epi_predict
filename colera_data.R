@@ -9,6 +9,7 @@ library(tidyverse)
 
 
 DATA_DIR <- "data"
+dir.create(DATA_DIR, showWarnings = FALSE)
 COLERA_DATA_DIR <- "colera_data"
 dir.create(COLERA_DATA_DIR, showWarnings = FALSE)
 COLERA_PLOTS_DIR <- "colera_plots"

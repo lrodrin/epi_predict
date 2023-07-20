@@ -1,5 +1,5 @@
 # https://www.paulamoraga.com/book-geospatial/index.html
-# https://inla.r-inla-download.org/R/stable/bin/windows/contrib/4.0/
+# https://inla.r-inla-download.org/R/stable/bin/
 
 # install.packages("INLA_21.02.23.tar", repos = NULL, type = "source")
 # install.packages("INLA", repos = c(getOption("repos"), INLA = "https://inla.r-inla-download.org/R/stable"), dep = TRUE)
@@ -148,7 +148,7 @@ invasiones_expectedCasesAndSIRs <- function(df) {
 adding_dfToMap <- function(df, map) {
   
   # format column "Fecha" as POSIXlt
-  df$Fecha <- month(as.POSIXlt(df$Fecha, format = DATA_FORMAT))
+  df$Fecha <- month(as.POSIXlt(df$Fecha, format = DATE_FORMAT))
   
   # reshape df as wide direction
   dfw <-
