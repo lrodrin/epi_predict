@@ -165,6 +165,7 @@ summary(map_municipios)
                       
 df_temperatures.parsed$mes <- as.Date(df_temperatures.parsed$mes)
 df_temperatures.parsed$mes <- month(as.POSIXlt(df_temperatures.parsed$mes, format = DATE_FORMAT))
+
 df_temperatures.parsed.w <-
   reshape(
     df_temperatures.parsed,

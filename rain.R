@@ -2,6 +2,9 @@ library(readxl)
 library(data.table)
 library(zoo)
 library(ggplot2)
+library(sf)
+library(dplyr)
+library(tidyr)
 
 
 # constants ---------------------------------------------------------------
@@ -11,6 +14,8 @@ DATA_DIR <- "data"
 dir.create(DATA_DIR, showWarnings = FALSE)
 RAIN_PLOTS_DIR <- "rain_plots"
 dir.create(RAIN_PLOTS_DIR, showWarnings = FALSE)
+SHAPES_DATA_DIR <- "shapes"
+dir.create(SHAPES_DATA_DIR, showWarnings = FALSE)
 
 LLUVIA_STR <- "lluvia"
 ANO_STR <- "1885"
@@ -30,6 +35,8 @@ NAMEMONTHS_LIST <-
   )
 
 NUMMONTHS_LIST <- c("01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12")
+DATE_FORMAT <- "%Y-%m-%d"
+CODIGOINE_STR <- "CODIGOINE"
 
 
 # functions ---------------------------------------------------------------
@@ -147,3 +154,45 @@ if(.Platform$OS.type == "windows") {
 } else {
   Sys.setlocale("LC_TIME", "ca_ES.UTF-8")
 }
+
+
+# map ---------------------------------------------------------------------
+
+
+map_municipios <- st_read(paste(SHAPES_DATA_DIR, "Municipios_IGN.shp", sep = "/"), quiet = TRUE)
+map_municipios <- subset(map_municipios, CODNUT1 != "ES7")
+summary(map_municipios)
+
+df_rain.parsed$mes <- as.Date(df_rain.parsed$mes)
+df_rain.parsed$mes <- month(as.POSIXlt(df_rain.parsed$mes, format = DATE_FORMAT))
+
+df_rain.parsed.w <-
+  reshape(
+    df_rain.parsed,
+    timevar = "mes",
+    idvar = "codigo ine",
+    direction = "wide"
+  )
+
+df_rain.parsed.w <- na.omit(df_rain.parsed.w)
+colnames(df_rain.parsed.w)[1] <- CODIGOINE_STR
+df_rain.parsed.w$CODIGOINE <- as.character(df_rain.parsed.w$CODIGOINE)
+
+print(df_rain.parsed.w[1:2, ])
+print(map_municipios[1:2, ])
+
+map_rain <- left_join(map_municipios, df_rain.parsed.w, by = CODIGOINE_STR)
+print(map_rain[1:2, ])
+
+mapsf_rain <- st_as_sf(map_rain)
+mapsf_rain <- gather(mapsf_rain, mes, lluvia, paste0(LLUVIA_STR, ".", 6:11))
+mapsf_rain$mes <- as.integer(substring(mapsf_rain$mes, 8, 9))
+
+ggplot(mapsf_rain) + geom_sf(aes(fill = lluvia)) +
+  ggtitle(paste0(LLUVIA_STR, " España", ", ", ANO_STR)) + theme_bw() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  scale_fill_gradient2(midpoint = 174, low = "blue", mid = "white", high = "red")
