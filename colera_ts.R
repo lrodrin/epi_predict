@@ -7,49 +7,11 @@ source("colera_data.R")
 colera_provincias <- unique(df_colera.groupByProvinciaFecha$Provincia)
 colera_municipios <- as.factor(unique(df_colera.groupByProvinciaFechaMunicipo$Municipio))
 
-EPICENTRE_MAX <- 1000 # more than 1000 invasiones/defunciones
-EPICENTRE_LIMIT <- 30 # 30 days after the first case
-
 
 # functions ---------------------------------------------------------------
 
 
-colera_epicentres <- function(df_colera, cause, county=NULL, city=NULL) {
-  
-  if (is.null(city)) {
-    df_colera.tmp <- subset(df_colera, Provincia == county)
-    agg_level <- county
-    first_case <- which(df_colera.tmp$Total_invasiones!=0)[1]
-    last_case <- first_case + EPICENTRE_LIMIT
-    
-  } else if (is.null(county)) {
-    df_colera.tmp <- subset(df_colera, Municipio == city)
-    agg_level <- city
-    first_case <- which(df_colera.tmp$Total_invasiones!=0)[1]
-    last_case <- first_case + EPICENTRE_LIMIT
-  }
-  
-  if (!is.na(first_case)) {
-  
-    if (cause == INVASIONES_STR) {
-      if (!is.na(sum(df_colera.tmp[first_case:last_case,]$Total_invasiones)) &&
-        sum(df_colera.tmp[first_case:last_case,]$Total_invasiones) >= EPICENTRE_MAX) { # is epicentre (more than 1000 invasiones)
-        
-        print(paste(INVASIONES_STR, "en", agg_level, ":", sum(df_colera.tmp[first_case:last_case,]$Total_invasiones), sep = " "))
-      }
-      
-    } else if (cause == DEFUNCIONES_STR) {
-      if (!is.na(sum(df_colera.tmp[first_case:last_case,]$Total_defunciones)) &&
-        sum(df_colera.tmp[first_case:last_case,]$Total_defunciones) >= EPICENTRE_MAX) { # is epicentre (more than 1000 defunciones)
-        
-        print(paste(DEFUNCIONES_STR, "en", agg_level, ":", sum(df_colera.tmp[first_case:last_case,]$Total_defunciones), sep = " "))
-      }
-    }
-  }
-}
-
-
-colera_ts <- function(df_colera, cause, county=NULL, city=NULL) {
+colera_ts <- function(df_colera, cause, county, city=NULL) {
   
   if (is.null(city)) { # provincias
     df_colera.tmp <- subset(df_colera, Provincia == county)
@@ -57,11 +19,11 @@ colera_ts <- function(df_colera, cause, county=NULL, city=NULL) {
     outputfilename <-  paste0(COLERA_DATA_DIR, "/ts.colera_total_", cause, "Xprovincia_", agg_level, ".csv")
     plot_outputfilename <- paste0(COLERA_PLOTS_DIR, "/ts.colera_total_", cause, "Xprovincia_", agg_level, ".png")
     
-  } else if (is.null(county)) { # municipios
-    df_colera.tmp <- subset(df_colera, Municipio == city)
+  } else { # municipios
+    df_colera.tmp <- subset(df_colera, Provincia == county | Municipio == city)
     agg_level <- city
-    outputfile <-  paste0(COLERA_DATA_DIR, "/ts.colera_total_", cause, "Xmunicipio_", agg_level, ".csv")
-    plot_outputfile <- paste0(COLERA_PLOTS_DIR, "/ts.colera_total_", cause, "Xmunicipio_", agg_level, ".png")
+    outputfilename <-  paste0(COLERA_DATA_DIR, "/ts.colera_total_", cause, "Xmunicipio_", agg_level, ".csv")
+    plot_outputfilename <- paste0(COLERA_PLOTS_DIR, "/ts.colera_total_", cause, "Xmunicipio_", agg_level, ".png")
   }
   
   if (cause == INVASIONES_STR) {
@@ -87,7 +49,6 @@ colera_ts <- function(df_colera, cause, county=NULL, city=NULL) {
   ggsave(plot_outputfilename, width = 15.7, height = 4.5, dpi = 300, limitsize = TRUE)
   
   write.csv(df_colera.tmp, outputfilename, row.names = FALSE)
-  return(df_colera.tmp)
   
 }
 
@@ -95,30 +56,25 @@ colera_ts <- function(df_colera, cause, county=NULL, city=NULL) {
 # main --------------------------------------------------------------------
 
 
-# epicentres & plots ------------------------------------------------------
+# plots -------------------------------------------------------------------
 
 
 for (provincia in colera_provincias) { # for each "Provincia"
   
   # invasiones by county
-  colera_epicentres(df_colera.groupByProvinciaFecha, INVASIONES_STR, provincia, NULL)
   colera_ts(df_colera.groupByProvinciaFecha, INVASIONES_STR, provincia, NULL)
   
   # defunciones by county
-  colera_epicentres(df_colera.groupByProvinciaFecha, DEFUNCIONES_STR, provincia, NULL)
   colera_ts(df_colera.groupByProvinciaFecha, DEFUNCIONES_STR, provincia, NULL)
   
 }
 
 
-for (municipio in colera_municipios) { # for each "Municipio"
+# for "Municipio" in the specified "Provincia"
   
-  # invasiones by city
-  colera_epicentres(df_colera.groupByProvinciaFechaMunicipo, INVASIONES_STR, NULL, municipio)
-  # colera_ts(df_colera.groupByProvinciaFechaMunicipo, INVASIONES_STR, NULL, municipio)
-  
-  # defunciones by city
-  colera_epicentres(df_colera.groupByProvinciaFechaMunicipo, DEFUNCIONES_STR, NULL, municipio)
-  # colera_ts(df_colera.groupByProvinciaFechaMunicipo, DEFUNCIONES_STR, NULL, municipio)
-  
-}
+
+# invasiones by city
+colera_ts(df_colera.groupByProvinciaFechaMunicipo, INVASIONES_STR, "valencia", "valencia")
+
+# defunciones by city
+colera_ts(df_colera.groupByProvinciaFechaMunicipo, DEFUNCIONES_STR, "valencia", "valencia")

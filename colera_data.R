@@ -3,6 +3,7 @@ library(lubridate)
 library(ggplot2)
 library(dplyr)
 library(tidyverse)
+library(lubridate)
 
 
 # constants ---------------------------------------------------------------
@@ -290,7 +291,7 @@ df_colera_invasiones.groupByProvinciaFechaCodigoINE <- df_colera_invasiones %>%
   complete(
     Fecha = seq(START_WEEK, END_WEEK, by = 1),
     fill = list(Total_invasiones = 0)
-  ) # add missing dates
+  ) # add missing weeks
 
 df_colera_defunciones.groupByProvinciaFechaCodigoINE <- df_colera_defunciones %>%
   group_by(Provincia, `Codigo Ine`, Fecha) %>%
@@ -299,23 +300,17 @@ df_colera_defunciones.groupByProvinciaFechaCodigoINE <- df_colera_defunciones %>
   complete(
     Fecha = seq(START_WEEK, END_WEEK, by = 1),
     fill = list(Total_defunciones = 0)
-  ) # add missing dates
+  ) # add missing weeks
+
+# save rates "invasiones" and "defunciones" by "Provincia", "Fecha" and "Codigo Ine"
+write.csv(df_colera_invasiones.groupByProvinciaFechaCodigoINE, paste(COLERA_DATA_DIR, "tasa_colera_total_invasionesXmunicipio.csv", sep = "/"), row.names = FALSE, fileEncoding = "UTF-8")
+write.csv(df_colera_defunciones.groupByProvinciaFechaCodigoINE, paste(COLERA_DATA_DIR, "tasa_colera_total_defuncionesXmunicipio.csv", sep = "/"), row.names = FALSE, fileEncoding = "UTF-8")
 
 # merge grouped "invasiones" and "defunciones" as df_colera.groupByProvinciaFechaCodigoINE
 df_colera.groupByProvinciaFechaCodigoINE <- merge(df_colera_invasiones.groupByProvinciaFechaCodigoINE, df_colera_defunciones.groupByProvinciaFechaCodigoINE)
 
 # merge df_colera.groupByProvinciaFechaCodigoINE with Pob_Arago_PaisValencia_Murcia1887
 df_colera.merged <- merge(df_colera.groupByProvinciaFechaCodigoINE, Pob_Arago_PaisValencia_Murcia1887, by = CODIGO_INE_STR)
-df_colera.merged <-
-  df_colera.merged[, c(
-    CODIGO_INE_STR,
-    MUNICIPIO_STR,
-    PROVINCIA_STR,
-    TOTAL_INVASIONES_STR,
-    TOTAL_DEFUNCIONES_STR,
-    TOTAL_POBLACION_STR,
-    FECHA_STR
-  )] # select columns "Codigo Ine", "Municipio", "Provincia", "Total_invasiones", "Total_defunciones", "Total_poblacion" and "Fecha" 
 
 # order values  by "Codigo Ine", "Municipio", "Provincia" and "Fecha"
 df_colera.merged <- df_colera.merged[with(df_colera.merged, order(`Codigo Ine`, Municipio, Provincia, Fecha)),]
@@ -330,4 +325,4 @@ df_colera.merged <- df_colera.merged[, c(1, 2, 3, 4, 8, 5, 9, 6, 7)]
 # change the index numbers
 rownames(df_colera.merged) <- 1:nrow(df_colera.merged)
 
-write.csv(df_colera.merged, paste(COLERA_DATA_DIR, "taxa_colera_total.csv", sep = "/"), row.names = FALSE)
+write.csv(df_colera.merged, paste(COLERA_DATA_DIR, "tasa_colera_totalXmunicipio.csv", sep = "/"), row.names = FALSE)
