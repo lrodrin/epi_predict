@@ -89,7 +89,7 @@ agg_invasiones <- function(df, name) {
   # save aggregated df for Shiny SpatialEpiApp
   write.csv(
     df_colera_invasiones.agg,
-    paste0(COLERA_DATA_DIR, "/webapp.colera_total_", INVASIONES_STR, "X.", name, ".csv"),
+    paste0(COLERA_DATA_DIR, "/webapp.colera_total_", INVASIONES_STR, "X", name, ".csv"),
     row.names = FALSE
   )
   
@@ -185,7 +185,8 @@ plot_SIRByMonth <- function(mapsf, name, invasiones_midpoint) {
       axis.ticks = element_blank()
     ) +
     scale_fill_gradient2(
-      midpoint = invasiones_midpoint, low = "blue", mid = "white", high = "red"
+      midpoint = invasiones_midpoint, low = "blue", mid = "orange", high = "red",
+      breaks = c(0,30,60), labels = c("low", "mid", "high")
     )
   
   # TODO: save plot as paste0(COLERA_PLOTS_DIR, "/colera_total_SIRX_", name, ".png")
@@ -291,13 +292,12 @@ plot_RRByMonth <- function(mapsf, name, RR_midpoint) {
       axis.ticks = element_blank()
     ) +
     scale_fill_gradient2(
-      midpoint = RR_midpoint,
-      low = "blue",
-      mid = "white",
-      high = "red"
+      midpoint = RR_midpoint, low = "blue", mid = "orange", high = "red",
+      breaks = c(0, 40, 80), labels = c("low", "mid", "high"), limits = c(0, 90)
     )
   
   # TODO: save plot as paste0(COLERA_PLOTS_DIR, "/colera_total_RRX_", name, ".png")
+  
   
 }
 
@@ -484,6 +484,8 @@ inference_murcia <- inference_inla(df_colera_invasiones.murcia, graph_murcia)
 
 # TODO: inference for CCAA
 
+options(scipen=999)
+
 # mapping relative risk
 mapsf_valencia.RR <- map_RR(df_colera_invasiones.valencia, inference_valencia, mapsf_valencia)
 mapsf_zaragoza.RR <- map_RR(df_colera_invasiones.zaragoza, inference_zaragoza, mapsf_zaragoza)
@@ -520,3 +522,6 @@ plot_RRByMonth(mapsf_murcia.RR, MURCIA_STR, 23)
 #   anim_save(paste0(COLERA_PLOTS_DIR, "/colera_total_invasionesX_", name, ".RR.gif"))
 #   
 # }
+
+options(scipen=0)
+
