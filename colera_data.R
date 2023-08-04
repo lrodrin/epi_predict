@@ -310,11 +310,11 @@ df_colera.merged <- merge(df_colera.groupByProvinciaFechaCodigoINE, Pob1887, by 
 # order values  by "Codigo Ine", "Municipio", "Provincia" and "Fecha"
 df_colera.merged <- df_colera.merged[with(df_colera.merged, order(`Codigo Ine`, Municipio, Provincia, Fecha)),]
 
-# add rates of "invasiones" and "defunciones" as columns "Tasa_invasiones" and "Tasa_defunciones"
-df_colera.merged$Tasa_invasiones <- (df_colera.merged$Total_invasiones / df_colera.merged$Total_poblacion) * 100
-df_colera.merged$Tasa_defunciones <- (df_colera.merged$Total_defunciones / df_colera.merged$Total_poblacion) * 100
-df_colera.merged$Tasa_invasiones <- round(df_colera.merged$Tasa_invasiones, 4)
-df_colera.merged$Tasa_defunciones <- round(df_colera.merged$Tasa_defunciones, 4)
+# add rates of "invasiones" and "defunciones" as columns "Tasa_incidencia" and "Tasa_mortalidad"
+df_colera.merged$Tasa_incidencia <- (df_colera.merged$Total_invasiones / df_colera.merged$Total_poblacion) * 100 # express the rate per 100 people
+df_colera.merged$Tasa_mortalidad <- (df_colera.merged$Total_defunciones / df_colera.merged$Total_poblacion) * 100
+df_colera.merged$Tasa_incidencia <- round(df_colera.merged$Tasa_incidencia, 4)
+df_colera.merged$Tasa_mortalidad <- round(df_colera.merged$Tasa_mortalidad, 4)
 
 # reorder column names by index
 df_colera.merged <- df_colera.merged[, c(1, 2, 6, 3, 4, 8, 5, 9, 7)]

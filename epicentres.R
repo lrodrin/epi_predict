@@ -47,10 +47,10 @@ colera_epicentres <- function(df_colera, cause, county=NULL, city=NULL, limit_pe
           }
         }
         else if (isRate) {
-          if (!is.na(sum(df_colera.tmp[first_case:last_case,]$Tasa_invasiones)) &&
-              sum(df_colera.tmp[first_case:last_case,]$Tasa_invasiones) >= limit_epicentre) { 
+          if (!is.na(sum(df_colera.tmp[first_case:last_case,]$Tasa_incidencia)) &&
+              sum(df_colera.tmp[first_case:last_case,]$Tasa_incidencia) >= limit_epicentre) { 
             
-            print(paste(INVASIONES_STR, "en", agg_level, ":", sum(df_colera.tmp[first_case:last_case,]$Tasa_invasiones), sep = " "))
+            print(paste(INVASIONES_STR, "en", agg_level, ":", sum(df_colera.tmp[first_case:last_case,]$Tasa_incidencia), sep = " "))
           }
         }
       }
@@ -74,10 +74,10 @@ colera_epicentres <- function(df_colera, cause, county=NULL, city=NULL, limit_pe
           }
         }
         else if (isRate) {
-          if (!is.na(sum(df_colera.tmp[first_case:last_case,]$Tasa_defunciones)) &&
-              sum(df_colera.tmp[first_case:last_case,]$Tasa_defunciones) >= limit_epicentre) { 
+          if (!is.na(sum(df_colera.tmp[first_case:last_case,]$Tasa_mortalidad)) &&
+              sum(df_colera.tmp[first_case:last_case,]$Tasa_mortalidad) >= limit_epicentre) { 
             
-            print(paste(DEFUNCIONES_STR, "en", agg_level, ":", sum(df_colera.tmp[first_case:last_case,]$Tasa_defunciones), sep = " "))
+            print(paste(DEFUNCIONES_STR, "en", agg_level, ":", sum(df_colera.tmp[first_case:last_case,]$Tasa_mortalidad), sep = " "))
           }
         }
       }
