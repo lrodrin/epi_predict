@@ -1,6 +1,10 @@
 library(readxl)
 library(sf)
 library(dplyr)
+library(leaflet)
+library(sp)
+library(rgdal)
+library(viridis)
 
 
 # load("~/epi_predict/colera_data.RData")
@@ -14,6 +18,8 @@ dir.create(DATA_DIR, showWarnings = FALSE)
 
 LONG_STR <- "long"
 LAT_STR <- "lat"
+X_STR <- "x"
+Y_STR <- "y"
 
 
 # data --------------------------------------------------------------------
@@ -58,16 +64,17 @@ df_colera_coord <- distinct(df_colera_coord, .keep_all = TRUE)
 colnames(df_colera_coord)[2:3] <- c(LAT_STR, LONG_STR)
 head(df_colera_coord)
 
-df_colera_inla9 <- merge(df_railwaylines.merged, df_colera_coord, by = CODIGO_INE_STR, all = TRUE)
-df_colera_inla9 <- na.omit(df_colera_inla9) # remove NA
+df_colera_inla9 <- merge(df_railwaylines.merged, df_colera_coord, by = CODIGO_INE_STR)
 head(df_colera_inla9)
 
 # transform long and lat to UTM coordinates
 
 p <- st_as_sf(data.frame(long = df_colera_inla9$long, lat = df_colera_inla9$lat), coords = c(LONG_STR, LAT_STR))
-st_crs(p) <- st_crs(4326) # EPSG code 4326 
-p <- p %>% st_transform(25830) # ESPG code of Spain which is code 25830 and corresponds to UTM zone 30 North
-df_colera_inla9[, c("x", "y")] <- st_coordinates(p)
+st_crs(p) <- st_crs(4326) # EPSG code  
+p <- p %>% st_transform(25830) # ESPG code of Spain which corresponds to UTM zone 30 North
+df_colera_inla9[, c(X_STR, Y_STR)] <- st_coordinates(p)
+
+df_colera_inla9 <- na.omit(df_colera_inla9) # remove NA
 head(df_colera_inla9)
 
 
@@ -81,5 +88,28 @@ df_colera_inla9$prev <-
     df_colera_inla9$Total_invasiones +  df_colera_inla9$Total_defunciones
   ) / df_colera_inla9$Total_poblacion
   ) * 100
+
+# bins <- seq(min(df_colera_inla9$prev), max(df_colera_inla9$prev), by = 5)
+# interval_values <- cut(df_colera_inla9$prev, breaks = bins, right = FALSE)
+# interval_counts <- table(interval_values)
+# barplot(interval_counts)
+
+
+# mapping prevalence
+
+# c(0, 1.25, 2.5, 3.75, 5, 10, 15, 20, 25, 65) # all values
+pal <- colorBin("viridis", bins = c(0, 1.25, 2.5, 3.75, 5))
+leaflet(df_colera_inla9) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addCircles(lng = ~long, lat = ~lat, color = ~ pal(prev)) %>%
+  addLegend("bottomright",
+            pal = pal, values = ~prev,
+            title = "prev."
+  ) %>%
+  addScaleBar(position = c("bottomleft"))
+
+
+# environmental covariates
+
 
 options(scipen=0)
