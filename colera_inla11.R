@@ -73,9 +73,10 @@ head(df_colera_coord)
 df_colera_inla11 <- merge(df_railwaylines.merged, df_colera_coord, by = CODIGO_INE_STR)
 head(df_colera_inla11)
 
-df_colera_inla11 <- df_colera_inla11[, c(LONG_STR, LAT_STR, TOTAL_INVASIONES_STR, "Length_km", "Time_H")]
-colnames(df_colera_inla11)[1:5] <- c(LONGITUDE_STR, LATITUDE_STR, "invasiones", "km", "h")
+df_colera_inla11 <- df_colera_inla11[, c(LONG_STR, LAT_STR, TOTAL_INVASIONES_STR, "Length_km", "Time_H", FECHA_STR)]
+colnames(df_colera_inla11)[1:6] <- c(LONGITUDE_STR, LATITUDE_STR, INVASIONES_STR, "km", "h", "week")
 head(df_colera_inla11)
+
 
 # correct incorrect "longitude" and "latitude" values (TODO: delete after data correction)
 
@@ -90,7 +91,14 @@ head(df_colera_inla11)
 # map ---------------------------------------------------------------------
 
 
+# 1.
 mapS <- getData(name = "GADM", country = "Spain", level = 0)
+
+# 2. 
+library(rnaturalearth)
+mapS <- ne_countries(country = "Spain", scale = "large", returnclass = "sf")
+
+
 mapS <- mapS %>%
   st_as_sf() %>%
   st_cast("POLYGON") %>% # remove the islands from the map (main territory of Spain)
@@ -111,29 +119,36 @@ df_colera_inla11 <- st_filter(df_colera_inla11, mapS)
 head(df_colera_inla11)
 nrow(df_colera_inla11)
 
+
 # observed "invasiones" 
 
 ggplot() + geom_sf(data = mapS) +
   geom_sf(data = df_colera_inla11, aes(col = invasiones)) +
-  scale_color_viridis()
+  # facet_wrap(~week) +
+  scale_color_viridis() # TODO: more plots
+
 
 # raster grid covering map
 
 grid <- rast(mapS, nrows = 100, ncols = 100)
+
 
 # coordinates of all cells
 
 xy <- xyFromCell(grid, 1:ncell(grid))
 head(xy)
 
+
 # transform points to a sf object
 
 df_colera_inla11p <- st_as_sf(as.data.frame(xy), coords = c(X_STR, Y_STR), crs = st_crs(mapS))
 head(df_colera_inla11p)
 
+
 # indices points within the map
 
 indicespointswithin <- which(st_intersects(df_colera_inla11p, mapS, sparse = FALSE))
+
 
 # points within the map
 
@@ -144,22 +159,54 @@ head(df_colera_inla11p)
 # ggplot() + geom_sf(data = mapS) +
 #   geom_sf(data = df_colera_inla11p)
 
+
 # covariates
 
 nearest_features <- st_nearest_feature(df_colera_inla11p, df_colera_inla11)
+# df_colera_inla11p$week <- df_colera_inla11$week[nearest_features]
 df_colera_inla11p$km <- df_colera_inla11$km[nearest_features]
 df_colera_inla11p$h <- df_colera_inla11$h[nearest_features]
 
 head(df_colera_inla11)
 head(df_colera_inla11p)
 
-p1 <- ggplot() + geom_sf(data = mapS) +
-  geom_sf(data = df_colera_inla11, aes(col = km)) +
-  scale_color_viridis()
-p2 <- ggplot() + geom_sf(data = mapS) +
-  geom_sf(data = df_colera_inla11, aes(col = h)) +
-  scale_color_viridis()
-p1 / p2
+# plot of km vs "invasiones"
+
+ggplot(df_colera_inla11, aes(x = km, y = invasiones)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, color = "red") +
+  labs(x = "km", y = INVASIONES_STR) +
+  theme_minimal()
+
+# plot of h vs "invasiones"
+
+ggplot(df_colera_inla11, aes(x = h, y = invasiones)) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, color = "red") +
+  labs(x = "h", y = INVASIONES_STR) +
+  theme_minimal()
+
+# TODO: more plots
+# 
+# p1 <- ggplot() + geom_sf(data = mapS) +
+#   geom_sf(data = df_colera_inla11, aes(col = km)) +
+#   facet_wrap(~week) +
+#   scale_color_viridis()
+# p2 <- ggplot() + geom_sf(data = mapS) +
+#   geom_sf(data = df_colera_inla11, aes(col = h)) +
+#   facet_wrap(~week) +
+#   scale_color_viridis()
+# p1 / p2
+
+
+# TODO: train and test
+
+# df_colera_inla11.train <- subset(df_colera_inla11, week %in% c(25:28))
+# df_colera_inla11.test <- subset(df_colera_inla11p, week %in% c(29))
+
+# head(df_colera_inla11.train)
+# head(df_colera_inla11.test)
+
 
 # transforming coordinates to UTM
 
@@ -169,13 +216,16 @@ projMercator <- "+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0
 df_colera_inla11 <- st_transform(df_colera_inla11, crs = projMercator)
 df_colera_inla11p <- st_transform(df_colera_inla11p, crs = projMercator)
 
+
 # observed coordinates
 
 coo <- st_coordinates(df_colera_inla11)
 
+
 # predicted coordinates
 
 coop <- st_coordinates(df_colera_inla11p)
+
 
 # mesh construction
 
@@ -184,31 +234,32 @@ mesh$n
 
 plot(mesh)
 points(coo, col = "red")
-# axis(1)
-# axis(2)
+
 
 # building the SPDE on the mesh
 
 spde <- inla.spde2.matern(mesh = mesh, alpha = 2, constr = TRUE)
+
 
 # index set
 
 indexs <- inla.spde.make.index("s", spde$n.spde)
 lengths(indexs)
 
+
 # projection matrix
 
 A <- inla.spde.make.A(mesh = mesh, loc = coo)
 dim(A)
-nrow(A)
+
 
 # projection matrix for the prediction
 
 Ap <- inla.spde.make.A(mesh = mesh, loc = coop)
 dim(Ap)
-nrow(Ap)
 
-# stack for estimation stk.e
+
+# stack with data for estimation and prediction
 
 stk.e <- inla.stack(
   tag = "est",
@@ -224,8 +275,6 @@ stk.e <- inla.stack(
   )
 )
 
-# stack for prediction stk.p
-
 stk.p <- inla.stack(
   tag = "pred",
   data = list(y = NA),
@@ -240,18 +289,15 @@ stk.p <- inla.stack(
   )
 )
 
-# stk.full has stk.e and stk.p
 
-stk.full <- inla.stack(stk.e, stk.p)
-
-# model formula 
+# model formula and inla() call
 
 formula <- y ~ 0 + b0 + km + h + f(s, model = spde)
 
+stk.full <- inla.stack(stk.e, stk.p)
+
 cl <- makePSOCKcluster(4, setup_strategy = "sequential")
 registerDoParallel(cl)
-
-# inla() call
 
 res <- inla(
   formula,
@@ -263,9 +309,29 @@ res <- inla(
 
 stopCluster(cl)
 
+
 # results
 
 res$summary.fixed
+
+
+# coefficients from the results
+
+coefficients <- res$summary.fixed[, c("mean", "sd", "0.025quant", "0.975quant")]
+print(coefficients)
+
+
+# marginal effects of "km" and "h" from the model results
+
+effects_km <- res$marginals.fitted.values$km
+effects_h <- res$marginals.fitted.values$h
+
+
+# partial dependence plots
+
+plot(df_colera_inla11$km, effects_km, type = "l", xlab = "km", ylab = "Effect")
+plot(df_colera_inla11$h, effects_h, type = "l", xlab = "h", ylab = "Effect")
+
 
 # mapping predicted "invasiones"
 
@@ -284,17 +350,15 @@ grid$ul[indicespointswithin] <- pred_ul
 
 summary(grid) # negative values for the lower limit
 
-# plot
-
 levelplot(grid, layout = c(1, 3), names.attr = c("mean", "2.5 percentile", "97.5 percentile"))
+
 
 # exceed probabilities
 
 excprob <- sapply(res$marginals.fitted.values[index],FUN = function(marg){1-inla.pmarginal(q = 100, marginal = marg)})
 
-grid$excprob <- NA
-grid$excprob[indicespointswithin] <- excprob
+gridexcprob <- grid
+gridexcprob$excprob <- NA
+gridexcprob$excprob[indicespointswithin] <- excprob
 
-# plot 
-
-levelplot(grid$excprob, margin = FALSE)
+levelplot(gridexcprob$excprob, margin = FALSE)
