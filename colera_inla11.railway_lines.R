@@ -24,6 +24,8 @@ LONG_STR <- "long"
 LONGITUDE_STR <- "longitude"
 LAT_STR <- "lat"
 LATITUDE_STR <- "latitude"
+KM_STR <- "km"
+H_STR <- "h"
 X_STR <- "x"
 Y_STR <- "y"
 
@@ -92,7 +94,7 @@ head(df_colera_inla11)
 
 
 # 1.
-mapS <- getData(name = "GADM", country = "Spain", level = 0)
+# mapS <- getData(name = "GADM", country = "Spain", level = 0)
 
 # 2. 
 library(rnaturalearth)
@@ -101,7 +103,7 @@ mapS <- ne_countries(country = "Spain", scale = "large", returnclass = "sf")
 
 mapS <- mapS %>%
   st_as_sf() %>%
-  st_cast("POLYGON") %>% # remove the islands from the map (main territory of Spain)
+  st_cast("POLYGON") %>% # remove the canary islands from the map (main territory of Spain)
   mutate(area = st_area(.)) %>%
   arrange(desc(area)) %>%
   slice(1) %>%
@@ -122,10 +124,31 @@ nrow(df_colera_inla11)
 
 # observed "invasiones" 
 
+df_colera_inla11.copy <- df_colera_inla11
+df_colera_inla11.copy$invasiones_factor <-
+  cut(
+    df_colera_inla11$invasiones,
+    breaks = c(-1, 10, 50, 100, Inf),
+    labels = c("low", "mid-low", "mid-high", "high")
+  )
+
 ggplot() + geom_sf(data = mapS) +
-  geom_sf(data = df_colera_inla11, aes(col = invasiones)) +
-  # facet_wrap(~week) +
-  scale_color_viridis() # TODO: more plots
+  geom_sf(data = df_colera_inla11.copy, aes(col = invasiones_factor)) +
+  scale_color_manual(values = c(
+    "low" = "blue",
+    "mid-low" = "green",
+    "mid-high" = "orange",
+    "high" = "red"
+  )) +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  labs(color = INVASIONES_STR) # TODO: more plots
+
+
+# modelling ---------------------------------------------------------------
 
 
 # raster grid covering map
@@ -155,57 +178,84 @@ indicespointswithin <- which(st_intersects(df_colera_inla11p, mapS, sparse = FAL
 df_colera_inla11p <- st_filter(df_colera_inla11p, mapS)
 head(df_colera_inla11p)
 
-# plot
+# plot points of the map
 # ggplot() + geom_sf(data = mapS) +
 #   geom_sf(data = df_colera_inla11p)
 
 
-# covariates
+# covariates --------------------------------------------------------------
+
 
 nearest_features <- st_nearest_feature(df_colera_inla11p, df_colera_inla11)
-# df_colera_inla11p$week <- df_colera_inla11$week[nearest_features]
 df_colera_inla11p$km <- df_colera_inla11$km[nearest_features]
 df_colera_inla11p$h <- df_colera_inla11$h[nearest_features]
 
 head(df_colera_inla11)
 head(df_colera_inla11p)
 
-# plot of km vs "invasiones"
+# plot of "km" vs "invasiones"
 
 ggplot(df_colera_inla11, aes(x = km, y = invasiones)) +
   geom_point() +
-  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, color = "red") +
-  labs(x = "km", y = INVASIONES_STR) +
+  # geom_smooth(method = "lm", formula = y ~ x, se = FALSE, color = "red") +
+  labs(x = KM_STR, y = INVASIONES_STR) +
   theme_minimal()
 
-# plot of h vs "invasiones"
+# plot of "h" vs "invasiones"
 
 ggplot(df_colera_inla11, aes(x = h, y = invasiones)) +
   geom_point() +
-  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, color = "red") +
-  labs(x = "h", y = INVASIONES_STR) +
+  # geom_smooth(method = "lm", formula = y ~ x, se = FALSE, color = "red") +
+  labs(x = H_STR, y = INVASIONES_STR) +
   theme_minimal()
 
+# plot of "km" and "h"
+
+df_colera_inla11.copy$km_factor <-
+  cut(
+    df_colera_inla11.copy$km,
+    breaks = c(-1, 10, 50, 100, Inf),
+    labels = c("very close", "close", "moderate", "far")
+  )
+
+ggplot() + geom_sf(data = mapS) +
+  geom_sf(data = df_colera_inla11.copy, aes(col = km_factor)) +
+  scale_color_manual(values = c(
+    "very close" = "blue",
+    "close" = "green",
+    "moderate" = "orange",
+    "far" = "red"
+  )) +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  labs(color = KM_STR) 
+
+df_colera_inla11.copy$h_factor <-
+  cut(
+    df_colera_inla11.copy$h,
+    breaks = c(-1, 5, 10, 20, Inf),
+    labels = c("very short", "short", "moderate", "long")
+  )
+
+ggplot() + geom_sf(data = mapS) +
+  geom_sf(data = df_colera_inla11.copy, aes(col = h_factor)) +
+  scale_color_manual(values = c(
+    "very short" = "blue",
+    "short" = "green",
+    "moderate" = "orange",
+    "long" = "red"
+  )) +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  labs(color = H_STR) 
+
 # TODO: more plots
-# 
-# p1 <- ggplot() + geom_sf(data = mapS) +
-#   geom_sf(data = df_colera_inla11, aes(col = km)) +
-#   facet_wrap(~week) +
-#   scale_color_viridis()
-# p2 <- ggplot() + geom_sf(data = mapS) +
-#   geom_sf(data = df_colera_inla11, aes(col = h)) +
-#   facet_wrap(~week) +
-#   scale_color_viridis()
-# p1 / p2
-
-
-# TODO: train and test
-
-# df_colera_inla11.train <- subset(df_colera_inla11, week %in% c(25:28))
-# df_colera_inla11.test <- subset(df_colera_inla11p, week %in% c(29))
-
-# head(df_colera_inla11.train)
-# head(df_colera_inla11.test)
 
 
 # transforming coordinates to UTM
@@ -215,6 +265,9 @@ projMercator <- "+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0
 +x_0=0 +y_0=0 +k=1 +units=km +nadgrids=@null +wktext +no_defs"
 df_colera_inla11 <- st_transform(df_colera_inla11, crs = projMercator)
 df_colera_inla11p <- st_transform(df_colera_inla11p, crs = projMercator)
+
+
+# inla --------------------------------------------------------------------
 
 
 # observed coordinates
@@ -310,18 +363,21 @@ res <- inla(
 stopCluster(cl)
 
 
-# results
+# results -----------------------------------------------------------------
+
+
+# coefficients
 
 res$summary.fixed
+res$summary.fixed[, c("mean", "sd", "0.025quant", "0.975quant")]
+
+index <- inla.stack.index(stack = stk.full, tag = "pred")$data
+pred_mean <- res$summary.fitted.values[index, "mean"]
+pred_ll <- res$summary.fitted.values[index, "0.025quant"]
+pred_ul <- res$summary.fitted.values[index, "0.975quant"]
 
 
-# coefficients from the results
-
-coefficients <- res$summary.fixed[, c("mean", "sd", "0.025quant", "0.975quant")]
-print(coefficients)
-
-
-# marginal effects of "km" and "h" from the model results
+# marginal effects of "km" and "h"
 
 effects_km <- res$marginals.fitted.values$km
 effects_h <- res$marginals.fitted.values$h
@@ -329,16 +385,24 @@ effects_h <- res$marginals.fitted.values$h
 
 # partial dependence plots
 
-plot(df_colera_inla11$km, effects_km, type = "l", xlab = "km", ylab = "Effect")
-plot(df_colera_inla11$h, effects_h, type = "l", xlab = "h", ylab = "Effect")
+plot(df_colera_inla11$km, effects_km, type = "l", xlab = KM_STR, ylab = "Effect")
+plot(df_colera_inla11$h, effects_h, type = "l", xlab = H_STR, ylab = "Effect")
 
 
-# mapping predicted "invasiones"
+# correlation and significance
 
-index <- inla.stack.index(stack = stk.full, tag = "pred")$data
-pred_mean <- res$summary.fitted.values[index, "mean"]
-pred_ll <- res$summary.fitted.values[index, "0.025quant"]
-pred_ul <- res$summary.fitted.values[index, "0.975quant"]
+km_values <- df_colera_inla11p$km
+h_values <- df_colera_inla11p$h
+
+correlation_km <- cor(pred_mean, km_values)
+correlation_h <- cor(pred_mean, h_values)
+significance_km <- ifelse(correlation_km < 0.05, "significativa", "no significativa")
+significance_h <- ifelse(correlation_h < 0.05, "significativa", "no significativa")
+cat("Correlation between predictions and", KM_STR, ":", correlation_km, significance_km, "\n")
+cat("Correlation between predictions and", H_STR, ":", correlation_h, significance_h, "\n")
+
+
+# mapping predicted "invasiones" ------------------------------------------
 
 grid$mean <- NA
 grid$ll <- NA
@@ -350,15 +414,20 @@ grid$ul[indicespointswithin] <- pred_ul
 
 summary(grid) # negative values for the lower limit
 
+# plot
+
 levelplot(grid, layout = c(1, 3), names.attr = c("mean", "2.5 percentile", "97.5 percentile"))
 
 
-# exceed probabilities
+# exceed probabilities ----------------------------------------------------
+
 
 excprob <- sapply(res$marginals.fitted.values[index],FUN = function(marg){1-inla.pmarginal(q = 100, marginal = marg)})
 
 gridexcprob <- grid
 gridexcprob$excprob <- NA
 gridexcprob$excprob[indicespointswithin] <- excprob
+
+# plot
 
 levelplot(gridexcprob$excprob, margin = FALSE)
