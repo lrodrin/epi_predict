@@ -11,7 +11,7 @@ library(INLA)
 library(rasterVis)
 
 
-# load("~/epi_predict/colera_data.RData")
+# load("colera_data_week.RData")
 
 
 # constants ---------------------------------------------------------------
@@ -396,8 +396,8 @@ h_values <- df_colera_inla11p$h
 
 correlation_km <- cor(pred_mean, km_values)
 correlation_h <- cor(pred_mean, h_values)
-significance_km <- ifelse(correlation_km < 0.05, "significativa", "no significativa")
-significance_h <- ifelse(correlation_h < 0.05, "significativa", "no significativa")
+significance_km <- ifelse(correlation_km > 0.05, "significativa", "no significativa")
+significance_h <- ifelse(correlation_h > 0.05, "significativa", "no significativa")
 cat("Correlation between predictions and", KM_STR, ":", correlation_km, significance_km, "\n")
 cat("Correlation between predictions and", H_STR, ":", correlation_h, significance_h, "\n")
 
