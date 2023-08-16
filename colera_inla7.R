@@ -1,303 +1,62 @@
-# https://www.paulamoraga.com/book-geospatial/index.html
 # https://inla.r-inla-download.org/R/stable/bin/
 
 # install.packages("INLA_21.02.23.tar", repos = NULL, type = "source")
 # install.packages("INLA", repos = c(getOption("repos"), INLA = "https://inla.r-inla-download.org/R/stable"), dep = TRUE)
 
 
-library(lwgeom)
 library(sf)
-library(viridis)
-library(foreach)
+library(mapview)
+library(RColorBrewer)
+library(leafpop)
 library(INLA)
 library(spdep)
-library(splancs)
-library(raster)
-library(reshape2)
 library(doParallel)
-library(SpatialEpi)
-library(plotly)
-library(gghighlight)
-library(gganimate)
-library(transformr)
-library(gifski)
-
-# remove.packages("gganimate")
-# remove.packages("transformr")
-# install.packages("https://cran.r-project.org/src/contrib/Archive/gganimate/gganimate_1.0.7.tar.gz", repos = NULL, type = "source")
-# install.packages("https://cran.r-project.org/src/contrib/Archive/transformr/transformr_0.1.3.tar.gz", repos = NULL, type = "source")
+library(leafsync)
 
 
-# load("~/epi_predict/colera_data.RData")
+# load("colera_data_month.RData")
+# load("temperatures.RData")
+# load("rain.RData")
 
 
 # constants ---------------------------------------------------------------
 
 
-SHAPES_DATA_DIR <- "shapes"
-dir.create(SHAPES_DATA_DIR, showWarnings = FALSE)
-
+COVTEMP_STR <- "covtemp"
+COVPREC_STR <- "covprec"
 TOTAL_POBLACION_STR <- "Total_poblacion"
 TOTAL_INVASIONES_STR <- paste("Total", INVASIONES_STR, sep = "_")
 TOTAL_DEFUNCIONES_STR <- paste("Total", DEFUNCIONES_STR, sep = "_")
-VALENCIA_STR <- "valencia"
-# ARAGON_STR <- "aragon"
-ZARAGOZA_STR <- "zaragoza"
-MURCIA_STR <- "murcia"
-SIR_STR <- "SIR"
-MINPOS_SUBSTR <- 5
-MAXPOS_SUBSTR <- 6
-MINPOS_GATHER <- 6
-MAXPOS_GATHER <- 11
+LONG_STR <- "long"
+LAT_STR <- "lat"
+X_STR <- "x"
+Y_STR <- "y"
+SMR_STR <- "SMR"
+RR_STR <- "RR"
+
+PALETTE <- colorRampPalette(brewer.pal(9, "YlOrRd"))
 
 
 # functions ---------------------------------------------------------------
 
 
-split_df <- function(df, provincias) {
+generate_maps <- function(data, numeric_col, month_col, months, palette) {
   
-  if (is.vector(provincias)) { # more than one county
-    df <- subset(df, Provincia %in% provincias)
+  map_list <- list()
+  
+  for (month in months) {
+    
+    filtered_data <- data %>%
+      filter({{ month_col }} == month)
+    
+    map <- mapview(filtered_data, zcol = {{ numeric_col }}, color = "gray", alpha.regions = 0.8,
+                   layer.name = paste0({{ numeric_col }}, " (month: ", month, ")"), col.regions = palette,
+                   map.types = "CartoDB.Positron")
+    
+    map_list[[as.character(month)]] <- map
   }
-  else {
-    df <- subset(df, Provincia == provincias) # one county
-  }
   
-  return(df)
-  
-}
-
-
-agg_invasiones <- function(df, name) {
-  
-  # aggregate df by "Codigo Ine", "Total_poblacion" and "Fecha"
-  df_colera_invasiones.agg <- aggregate(
-    x = df$Total_invasiones,
-    by = list(
-      `Codigo Ine` = df$`Codigo Ine`, 
-      Total_poblacion = df$Total_poblacion,
-      Fecha = df$Fecha),
-    FUN = "sum"
-  )
-  names(df_colera_invasiones.agg) <- c(CODIGO_INE_STR, TOTAL_POBLACION_STR, FECHA_STR, TOTAL_INVASIONES_STR)
-  
-  # order by "Codigo Ine" and "Fecha"  
-  df_colera_invasiones.agg <- df_colera_invasiones.agg[order(df_colera_invasiones.agg$`Codigo Ine`, df_colera_invasiones.agg$Fecha),]
-  # change the index numbers
-  rownames(df_colera_invasiones.agg) <- 1:nrow(df_colera_invasiones.agg)
-  
-  # save aggregated df for Shiny SpatialEpiApp
-  write.csv(
-    df_colera_invasiones.agg,
-    paste0(COLERA_DATA_DIR, "/webapp.colera_total_", INVASIONES_STR, "X", name, ".csv"),
-    row.names = FALSE
-  )
-  
-  return(df_colera_invasiones.agg)
-  
-}
-
-
-invasiones_expectedCasesAndSIRs <- function(df) {
-  
-  # calculate observed cases
-  observados <-
-    aggregate(
-      x = df$Total_invasiones,
-      by = list(time = df$Fecha, id = df$`Codigo Ine`),
-      FUN = "sum"
-    )[, "x"]
-  
-  # calculate population
-  poblacion <-
-    aggregate(
-      x = df$Total_poblacion,
-      by = list(time = df$Fecha, id = df$`Codigo Ine`),
-      FUN = "sum"
-    )[, "x"]
-  
-  # calculate expected cases
-  esperados <- expected(
-    population = df$Total_poblacion,
-    cases = df$Total_invasiones,
-    n.strata = 1
-  )
-  
-  # select unique "Codigo Ine"
-  vecid <- unique(df$`Codigo Ine`)
-  
-  # calculate all consecutive dates between min and max
-  vectime <- seq(as.Date(min(df$Fecha)), as.Date(max(df$Fecha)), by = 1)
-  length(vectime)
-  
-  # create new data frame dfE with the expected counts for each "Codigo Ine" and "Fecha"
-  dfE <- expand.grid(`Codigo Ine` = vecid, Fecha = vectime)
-  dfE <- dfE[ with(dfE, order(`Codigo Ine`, Fecha)), ] # order by "Codigo Ine" and "Fecha"
-  rownames(dfE) <- 1:nrow(dfE) # change the index numbers
-  dfE$Total_poblacion <- poblacion
-  dfE$Total_invasiones <- observados
-  dfE$Total_invasionesE <- esperados
-  dfE$SIR <- dfE$Total_invasiones/dfE$Total_invasionesE
-  print(head(dfE))
-  
-  return(dfE)
-  
-}
-
-
-adding_dfToMap <- function(df, map) {
-  
-  # format column "Fecha" as POSIXlt
-  df$Fecha <- month(as.POSIXlt(df$Fecha, format = DATE_FORMAT))
-  
-  # reshape df as wide direction
-  dfw <-
-    reshape(
-      df,
-      timevar = FECHA_STR,
-      idvar = CODIGO_INE_STR,
-      direction = "wide"
-    )
-  
-  print(dfw[1:2, ])
-  print(map[1:2, ])
-  
-  # merge map with dfw
-  map.merged <- merge(map, dfw, by.x = "CODIGOINE", by.y = CODIGO_INE_STR)
-  print(map.merged[1:2, ])
-  
-  # convert map of type SpatialPolygonsDataFrame to of type sf
-  mapsf <- st_as_sf(map.merged)
-  
-  return(mapsf)
-  
-}
-
-
-plot_SIRByMonth <- function(mapsf, name, invasiones_midpoint) {
-  
-  ggplot(mapsf) + geom_sf(aes(fill = SIR)) +
-    facet_wrap(~Fecha, ncol = 6) +
-    ggtitle(paste0(SIR_STR, " ", name, ", ", ANO_STR)) + theme_bw() +
-    theme(
-      axis.text.x = element_blank(),
-      axis.text.y = element_blank(),
-      axis.ticks = element_blank()
-    ) +
-    scale_fill_gradient2(
-      midpoint = invasiones_midpoint, low = "blue", mid = "orange", high = "red",
-      breaks = c(0,30,60), labels = c("low", "mid", "high")
-    )
-  
-  # TODO: save plot as paste0(COLERA_PLOTS_DIR, "/colera_total_SIRX_", name, ".png")
-  
-}
-
-
-timeplot_SIRByMonth <- function(df) {
-  
-  g <- ggplot(
-    df,
-    aes(
-      x = Fecha,
-      y = SIR,
-      group = `Codigo Ine`,
-      color = `Codigo Ine`
-    )
-  ) + geom_line() + geom_point(size = 2) + theme_bw()
-  
-  # g
-  # g + theme(legend.position = "none")
-  ggplotly(g)
-  
-  # return(g)
-  
-}
-
-
-neighbourhood_matrix <- function(mapsf, county) {
-  
-  nb <- poly2nb(mapsf)
-  print(head(nb))
-  
-  outputfilename <- paste0("map_", county, ".adj")
-  nb2INLA(outputfilename, nb)
-  g <- inla.read.graph(filename = outputfilename)
-  
-  return(g)
-  
-}
-
-
-inference_inla <- function(df, g) {
-  
-  # create the index vectors for the municipalities and days
-  df$idarea <- as.numeric(as.factor(df$`Codigo Ine`)) # vector with the indices of municipalities 
-  df$idarea1 <- df$idarea # second index vector for municipalities (idarea1) by replicating idarea
-  df$idtime <- 1 + df$Fecha - min(df$Fecha) # vector with the indices of days 
-  
-  # formula of the Bernardinelli model
-  formula <- Total_invasiones ~ f(idarea, model = "bym", graph = g) +
-    f(idarea1, idtime, model = "iid") + idtime
-  
-  cl <- makePSOCKcluster(4, setup_strategy = "sequential")
-  registerDoParallel(cl)
-  
-  # inla() call
-  res <- inla(formula,
-              family = "poisson", data = df, E = Total_invasionesE,
-              control.predictor = list(compute = TRUE), verbose = TRUE
-  )
-  
-  stopCluster(cl)
-  
-  return(res)
-  
-}
-
-
-map_RR <- function(df, inference, mapsf) {
-  
-  # add the relative risk estimates and the lower and upper limits of the 95% credible intervals to df
-  df$RR <- inference$summary.fitted.values[, "mean"]
-  df$LL <- inference$summary.fitted.values[, "0.025quant"]
-  df$UL <- inference$summary.fitted.values[, "0.975quant"]
-  print(head(df))
-  
-  # format column "Fecha" as POSIXlt
-  df$Fecha <- month(as.POSIXlt(df$Fecha, format = DATE_FORMAT))
-  print(head(df))
-  
-  # maps showing the relative risks and lower and upper limits of 95% credible intervals for each month
-  mapsf.RR <- merge(
-    mapsf, df,
-    by.x = c("CODIGOINE", FECHA_STR),
-    by.y = c(CODIGO_INE_STR, FECHA_STR)
-  )
-  
-  return(mapsf.RR)
-  
-  
-}
-
-
-plot_RRByMonth <- function(mapsf, name, RR_midpoint) {
-  
-  ggplot(mapsf) + geom_sf(aes(fill = RR)) +
-    facet_wrap( ~ Fecha, dir = "h", ncol = 6) +
-    ggtitle(paste0("RR ", name, ", ", ANO_STR)) + theme_bw() +
-    theme(
-      axis.text.x = element_blank(),
-      axis.text.y = element_blank(),
-      axis.ticks = element_blank()
-    ) +
-    scale_fill_gradient2(
-      midpoint = RR_midpoint, low = "blue", mid = "orange", high = "red",
-      breaks = c(0, 40, 80), labels = c("low", "mid", "high"), limits = c(0, 90)
-    )
-  
-  # TODO: save plot as paste0(COLERA_PLOTS_DIR, "/colera_total_RRX_", name, ".png")
-  
+  return(map_list)
   
 }
 
@@ -308,220 +67,305 @@ plot_RRByMonth <- function(mapsf, name, RR_midpoint) {
 # data --------------------------------------------------------------------
 
 
-Pob_Arago_PaisValencia_Murcia <- read_excel(paste(DATA_DIR, "Pob_Arago_PaisValencia_Murcia.xlsx", sep = "/"))
-Pob_Arago_PaisValencia_Murcia1887 <- Pob_Arago_PaisValencia_Murcia[, c("Codi INE", "Municipi", "1887")]
-Pob_Arago_PaisValencia_Murcia1887 <- na.omit(Pob_Arago_PaisValencia_Murcia1887) # remove NA
-names(Pob_Arago_PaisValencia_Murcia1887) <- c(CODIGO_INE_STR, MUNICIPIO_STR, TOTAL_POBLACION_STR) # change column names
+df_covtemp <- df_temperatures.parsed
+df_covprec <- df_rain.parsed
 
-# group "invasiones" and "defunciones" by "Provincia", "Fecha" and "Codigo Ine"
-df_colera_invasiones.groupByProvinciaFechaCodigoINE <- df_colera_invasiones %>%
-  group_by(Provincia, `Codigo Ine`, Fecha) %>%
-  summarize(Total_invasiones = sum(invasiones)) %>%
-  na.omit(df_colera_invasiones) %>%
-  complete(
-    Fecha = seq.Date(as.Date(START_DATE), as.Date(END_DATE), by = DAY_STR),
-    fill = list(Total_invasiones = 0)
-  ) # add missing dates
 
-df_colera_defunciones.groupByProvinciaFechaCodigoINE <- df_colera_defunciones %>%
-  group_by(Provincia, `Codigo Ine`, Fecha) %>%
-  summarize(Total_defunciones = sum(defunciones)) %>%
-  na.omit(df_colera_defunciones) %>%
-  complete(
-    Fecha = seq.Date(as.Date(START_DATE), as.Date(END_DATE), by = DAY_STR),
-    fill = list(Total_defunciones = 0)
-  ) # add missing dates
+# format df_covtemp and df_covprec
 
-# merge grouped "invasiones" and "defunciones" as df_colera.groupByProvinciaFechaCodigoINE
-df_colera.groupByProvinciaFechaCodigoINE <- merge(df_colera_invasiones.groupByProvinciaFechaCodigoINE, df_colera_defunciones.groupByProvinciaFechaCodigoINE)
+df_covtemp$mes <- as.integer(format(df_covtemp$mes, "%m"))
+df_covprec$mes <- as.integer(format(df_covprec$mes, "%m"))
 
-# merge df_colera.groupByProvinciaFechaCodigoINE with Pob_Arago_PaisValencia_Murcia1887
-df_colera.merged <- merge(df_colera.groupByProvinciaFechaCodigoINE, Pob_Arago_PaisValencia_Murcia1887, by = CODIGO_INE_STR)
-df_colera.merged <-
-  df_colera.merged[, c(
-    CODIGO_INE_STR,
-    MUNICIPIO_STR,
-    PROVINCIA_STR,
-    TOTAL_INVASIONES_STR,
-    TOTAL_DEFUNCIONES_STR,
-    TOTAL_POBLACION_STR,
-    FECHA_STR
-  )] # select columns "Codigo Ine", "Municipio", "Provincia", "Total_invasiones", "Total_defunciones", "Total_poblacion" and "Fecha" 
+df_covtemp <- subset(df_covtemp, !(localidad %in% c("Alicante (M.)", "Zaragoza (E.P.)")))
+df_covprec <- subset(df_covprec, !(localidad %in% c("Alicante (M.)", "Zaragoza (E.P.)")))
 
-# split df_colera.merged for CCAA 
-# df_colera.split.valencia <- split_df(df_colera.merged, c("castellon", VALENCIA_STR))
-# df_colera.split.aragon <- split_df(df_colera.merged, c("huesca", "teruel", "zaragoza"))
-# df_colera.split.murcia <- split_df(df_colera.merged, MURCIA_STR)
 
-# split df_colera.merged for "Provincia" 
-df_colera.split.valencia <- split_df(df_colera.merged, VALENCIA_STR)
-df_colera.split.zaragoza <- split_df(df_colera.merged, ZARAGOZA_STR)
-df_colera.split.murcia <- split_df(df_colera.merged, MURCIA_STR)
+# merge df_covtemp and df_covprec with df_colera.merged
 
-head(df_colera.split.valencia)
-# head(df_colera.split.aragon)
-head(df_colera.split.zaragoza)
-head(df_colera.split.murcia)
+df_covtemp.subset <- df_covtemp[, c(4, 5, 6)]
+df_covprec.subset <- df_covprec[, c(4, 5, 6)]
+colnames(df_covtemp.subset)[1:3] <- c(CODIGO_INE_STR, FECHA_STR, COVTEMP_STR)
+colnames(df_covprec.subset)[1:3] <- c(CODIGO_INE_STR, FECHA_STR, COVPREC_STR)
+head(df_covtemp.subset)
+head(df_covprec.subset)
 
-codigosINE.valencia <- unique(df_colera.split.valencia$`Codigo Ine`)
-# codigosINE.aragon <- unique(df_colera.split.aragon$`Codigo Ine`)
-codigosINE.zaragoza <- unique(df_colera.split.zaragoza$`Codigo Ine`)
-codigosINE.murcia <- unique(df_colera.split.murcia$`Codigo Ine`)
+df_colera.merged$`Codigo Ine` <- as.numeric(df_colera.merged$`Codigo Ine`)
+rownames(df_colera.merged) <- 1:nrow(df_colera.merged)
+head(df_colera.merged)
 
-# TODO: move code to colera_data.R
+df_environmental.merged <- merge(df_covtemp.subset, df_covprec.subset, by = c(CODIGO_INE_STR, FECHA_STR))
+head(df_environmental.merged)
+
+df_covariates.merged <- merge(df_colera.merged, df_environmental.merged, by = c(CODIGO_INE_STR, FECHA_STR))
+head(df_covariates.merged)
+
+
+# add coordinates from df_colera and save as df_colera_inla7
+
+df_colera_coord <- df_colera[, c(CODIGO_INE_STR, "LAT_POB_new_num", "LNG_POB_new_num")]
+df_colera_coord <- distinct(df_colera_coord, .keep_all = TRUE)
+df_colera_coord <- na.omit(df_colera_coord)
+colnames(df_colera_coord)[2:3] <- c(LAT_STR, LONG_STR)
+head(df_colera_coord)
+
+df_colera_inla7 <- merge(df_covariates.merged, df_colera_coord, by = CODIGO_INE_STR)
+head(df_colera_inla7)
+
+df_colera_inla7 <- df_colera_inla7[, !colnames(df_colera_inla7) %in% c(PROVINCIA_STR, MUNICIPIO_STR, "Tasa_incidencia", "Tasa_mortalidad")]
+head(df_colera_inla7)
+
+
+# correct incorrect "long" and "lat" values (TODO: delete after data correction)
+
+df_colera_inla7 <- df_colera_inla7 %>%
+  mutate(
+    lat = ifelse(lat < 36.0, 36.0, ifelse(lat > 43.0, 43.0, lat)),
+    long = ifelse(long < -10.0, -10.0, ifelse(long > 4.0, 4.0, long))
+  )
+head(df_colera_inla7)
 
 
 # map ---------------------------------------------------------------------
 
 
-map_municipios <- st_read(paste(SHAPES_DATA_DIR, "Municipios_IGN.shp", sep = "/"), quiet = TRUE)
-summary(map_municipios)
+# 1.
+# mapS <- getData(name = "GADM", country = "Spain", level = 0)
 
-# split map_municipios of Spain for "Provincia" (only "codigosINE" presents in data) 
-map_valencia <- map_municipios[map_municipios$CODIGOINE %in% codigosINE.valencia,]
-# map_aragon <- map_municipios[map_municipios$CODIGOINE %in% codigosINE.aragon,]
-map_zaragoza <- map_municipios[map_municipios$CODIGOINE %in% codigosINE.zaragoza,]
-map_murcia <- map_municipios[map_municipios$CODIGOINE %in% codigosINE.murcia,]
-
-map_valencia$CODIGOINE <- as.numeric(map_valencia$CODIGOINE)
-# map_aragon$CODIGOINE <- as.numeric(map_aragon$CODIGOINE)
-map_zaragoza$CODIGOINE <- as.numeric(map_zaragoza$CODIGOINE)
-map_murcia$CODIGOINE <- as.numeric(map_murcia$CODIGOINE)
-
-plot(map_valencia)
-# plot(map_aragon)
-plot(map_zaragoza)
-plot(map_murcia)
+# 2. 
+library(rnaturalearth)
+mapS <- ne_countries(country = "Spain", scale = "large", returnclass = "sf")
 
 
-# invasiones agg by "Provincia" -------------------------------------------
+mapS <- mapS %>%
+  st_as_sf() %>%
+  st_cast("POLYGON") %>% # remove the canary islands from the map (main territory of Spain)
+  mutate(area = st_area(.)) %>%
+  arrange(desc(area)) %>%
+  slice(1) %>%
+  st_transform("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0") # UTM transformation
 
 
-df_colera_invasiones.valencia.agg <- agg_invasiones(df_colera.split.valencia, VALENCIA_STR)
-# df_colera_invasiones.aragon.agg <- agg_invasiones(df_colera.split.aragon, ARAGON_STR)
-df_colera_invasiones.zaragoza.agg <- agg_invasiones(df_colera.split.zaragoza, ZARAGOZA_STR)
-df_colera_invasiones.murcia.agg <- agg_invasiones(df_colera.split.murcia, MURCIA_STR)
-
-head(df_colera_invasiones.valencia.agg)
-# head(df_colera_invasiones.aragon.agg)
-head(df_colera_invasiones.zaragoza.agg)
-head(df_colera_invasiones.murcia.agg)
+# observations ------------------------------------------------------------
 
 
-# calculation of expected cases and SIRs by "Provincia" -------------------
+# transforming coordinates
+
+df_colera_inla7 <- st_as_sf(df_colera_inla7, coords = c(LONG_STR, LAT_STR))
+st_crs(df_colera_inla7) <- "EPSG:4326"
+df_colera_inla7 <- st_filter(df_colera_inla7, mapS)
+head(df_colera_inla7)
+nrow(df_colera_inla7)
 
 
-df_colera_invasiones.valencia <- invasiones_expectedCasesAndSIRs(df_colera_invasiones.valencia.agg)
-# df_colera_invasiones.aragon <- invasiones_expectedCasesAndSIRs(df_colera_invasiones.aragon.agg)
-df_colera_invasiones.zaragoza <- invasiones_expectedCasesAndSIRs(df_colera_invasiones.zaragoza.agg)
-df_colera_invasiones.murcia <- invasiones_expectedCasesAndSIRs(df_colera_invasiones.murcia.agg)
+# "invasiones" 
 
-head(df_colera_invasiones.valencia)
-# head(df_colera_invasiones.aragon)
-head(df_colera_invasiones.zaragoza)
-head(df_colera_invasiones.murcia)
+df_colera_inla7.copy <- df_colera_inla7
+df_colera_inla7.copy$invasiones_factor <-
+  cut(
+    df_colera_inla7$Total_invasiones,
+    breaks = c(-1, 10, 50, 100, Inf),
+    labels = PLOT_LABELS
+  )
+
+ggplot() + geom_sf(data = mapS) +
+  geom_sf(data = df_colera_inla7.copy, aes(col = invasiones_factor)) +
+  scale_color_manual(values = c(
+    "low" = "blue",
+    "mid-low" = "green",
+    "mid-high" = "orange",
+    "high" = "red"
+  )) +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  labs(color = INVASIONES_STR) 
 
 
-# adding to map -----------------------------------------------------------
+# "defunciones" 
+
+df_colera_inla7.copy$defunciones_factor <-
+  cut(
+    df_colera_inla7$Total_defunciones,
+    breaks = c(-1, 10, 30, 100, Inf),
+    labels = PLOT_LABELS
+  )
+
+ggplot() + geom_sf(data = mapS) +
+  geom_sf(data = df_colera_inla7.copy, aes(col = defunciones_factor)) +
+  scale_color_manual(values = c(
+    "low" = "blue",
+    "mid-low" = "green",
+    "mid-high" = "orange",
+    "high" = "red"
+  )) +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  labs(color = DEFUNCIONES_STR) # TODO: more plots
 
 
-mapsf_valencia <- adding_dfToMap(df_colera_invasiones.valencia, map_valencia)
-# mapsf_aragon <- adding_dfToMap(df_colera_invasiones.aragon, map_aragon)
-mapsf_zaragoza <- adding_dfToMap(df_colera_invasiones.zaragoza, map_zaragoza)
-mapsf_murcia <- adding_dfToMap(df_colera_invasiones.murcia, map_murcia)
+# SMR ---------------------------------------------------------------------
 
 
-# SIR plots ---------------------------------------------------------------
+df_colera_inla7$SMR <- ifelse(
+  df_colera_inla7$Total_defunciones == 0,
+  0,  # set to 0 when Total_defunciones is zero
+  df_colera_inla7$Total_invasiones / df_colera_inla7$Total_defunciones
+)
+head(df_colera_inla7)
 
 
-mapsf_valencia <- gather(mapsf_valencia, Fecha, SIR, paste0(SIR_STR, ".", MINPOS_GATHER:MAXPOS_GATHER))
-# mapsf_aragon <- gather(mapsf_aragon, Fecha, SIR, paste0(SIR_STR, ".", 6:11))
-mapsf_zaragoza <- gather(mapsf_zaragoza, Fecha, SIR, paste0(SIR_STR, ".", MINPOS_GATHER:MAXPOS_GATHER))
-mapsf_murcia <- gather(mapsf_murcia, Fecha, SIR, paste0(SIR_STR, ".", MINPOS_GATHER:MAXPOS_GATHER))
-# mapsf_murcia <-
-#   gather(mapsf_murcia,
-#          Fecha,
-#          SIR,
-#          paste0(SIR_STR, ".", seq(as.Date("1885-06-18"), as.Date("1885-11-18"), by = 1)))
+# plots
 
-# TODO: try gather by yyyy-mm-dd
+mapview(df_colera_inla7, zcol = SMR_STR, color = "gray", alpha.regions = 0.8,
+        layer.name = SMR_STR, col.regions = PALETTE,
+        map.types = "CartoDB.Positron")
 
-# keep integer month in each column like "Total_SIR_6" in Fecha column
-mapsf_valencia$Fecha <- as.integer(substring(mapsf_valencia$Fecha, MINPOS_SUBSTR, MAXPOS_SUBSTR))
-# mapsf_aragon$Fecha <- as.integer(substring(mapsf_aragon$Fecha, MINPOS_SUBSTR, MAXPOS_SUBSTR))
-mapsf_zaragoza$Fecha <- as.integer(substring(mapsf_zaragoza$Fecha, MINPOS_SUBSTR, MAXPOS_SUBSTR))
-mapsf_murcia$Fecha <- as.integer(substring(mapsf_murcia$Fecha, MINPOS_SUBSTR, MAXPOS_SUBSTR))
+# for each month
 
-# plots by month
-plot_SIRByMonth(mapsf_valencia, VALENCIA_STR, 30)
-# plot_SIRByMonth(mapsf_aragon, ARAGON_STR, 51)
-plot_SIRByMonth(mapsf_zaragoza, ZARAGOZA_STR, 48)
-plot_SIRByMonth(mapsf_murcia, MURCIA_STR, 17)
+multi_maps_SMR <-
+  generate_maps(
+    data = df_colera_inla7,
+    numeric_col = SMR_STR,
+    month_col = Fecha,
+    months = c(6, 7, 8, 9, 10, 11),
+    palette = PALETTE
+  )
 
-# timeplots by month
-timeplot_SIRByMonth(df_colera_invasiones.valencia)
-# timeplot_SIRByMonth(df_colera_invasiones.aragon)
-timeplot_SIRByMonth(df_colera_invasiones.zaragoza)
-timeplot_SIRByMonth(df_colera_invasiones.murcia)
-
-# TODO: g + gghighlight(`Codigo Ine` == "30030")
+multi_maps_SMR
+leafsync::sync(multi_maps_SMR)
 
 
 # model -------------------------------------------------------------------
 
 
+# data preparation
+
+df_colera_inla7.sf <- st_as_sf(df_colera_inla7, crs = 4326)
+
+coordinates <- st_coordinates(df_colera_inla7.sf)
+df_colera_inla7.sf$long <- coordinates[, 1]
+df_colera_inla7.sf$lat <- coordinates[, 2]
+
+df_colera_inla7.sf <- df_colera_inla7.sf %>% select(-geometry)
+head(df_colera_inla7.sf)
+
 # neighbourhood matrix
-graph_valencia <- neighbourhood_matrix(mapsf_valencia, VALENCIA_STR)
-#° graph_aragon <- neighbourhood_matrix(mapsf_aragon, ARAGON_STR)
-graph_zaragoza <- neighbourhood_matrix(mapsf_zaragoza, ZARAGOZA_STR)
-graph_murcia <- neighbourhood_matrix(mapsf_murcia, MURCIA_STR)
 
-# inference using INLA
-inference_valencia <- inference_inla(df_colera_invasiones.valencia, graph_valencia)
-# inference_aragon <- inference_inla(df_colera_invasiones.aragon, graph_aragon)
-inference_zaragoza <- inference_inla(df_colera_invasiones.zaragoza, graph_zaragoza)
-inference_murcia <- inference_inla(df_colera_invasiones.murcia, graph_murcia)
+nb <- dnearneigh(df_colera_inla7.sf, d1 = 0, d2 = 1)
+nb2INLA("map.adj", nb)
+g <- inla.read.graph(filename = "map.adj")
 
-# TODO: inference for CCAA
 
-options(scipen=999)
+# model formula and inla() call
 
-# mapping relative risk
-mapsf_valencia.RR <- map_RR(df_colera_invasiones.valencia, inference_valencia, mapsf_valencia)
-mapsf_zaragoza.RR <- map_RR(df_colera_invasiones.zaragoza, inference_zaragoza, mapsf_zaragoza)
-mapsf_murcia.RR <- map_RR(df_colera_invasiones.murcia, inference_murcia, mapsf_murcia)
+df_colera_inla7.sf$re_u <- 1:nrow(df_colera_inla7.sf)
+df_colera_inla7.sf$re_v <- 1:nrow(df_colera_inla7.sf)
 
-# plot by month
-plot_RRByMonth(mapsf_valencia.RR, VALENCIA_STR, 44)
-plot_RRByMonth(mapsf_zaragoza.RR, ZARAGOZA_STR, 7)
-plot_RRByMonth(mapsf_murcia.RR, MURCIA_STR, 23)
-# gif_RRByMonth(mapsf_valencia.RR, VALENCIA_STR, 44)
-# gif_RRByMonth(mapsf_zaragoza.RR, ZARAGOZA_STR, 7)
-# gif_RRByMonth(mapsf_murcia.RR, MURCIA_STR, 23)
+# formula <- Total_invasiones ~ covtemp + covprec +
+#   f(re_u, model = "besag", graph = g, scale.model = TRUE) +
+#   f(re_v, model = "iid")
 
-# gif_RRByMonth <- function(mapsf, name, RR_midpoint) {
-#   
-#   p <- ggplot(mapsf) +
-#     geom_sf(aes(fill = RR)) +
-#     theme_bw() +
-#     theme(
-#       axis.text.x = element_blank(),
-#       axis.text.y = element_blank(),
-#       axis.ticks = element_blank()
-#     ) +
-#     scale_fill_gradient2(
-#       midpoint = RR_midpoint,
-#       low = "blue",
-#       mid = "white",
-#       high = "red"
-#     ) +
-#     transition_time(Fecha) +
-#     labs(title = "Mes: {round(frame_time, 0)}")
-#   
-#   animate(p, render = gifski_renderer())
-#   anim_save(paste0(COLERA_PLOTS_DIR, "/colera_total_invasionesX_", name, ".RR.gif"))
-#   
-# }
+formula <- Total_invasiones ~ covtemp +
+  f(re_u, model = "besag", graph = g, scale.model = TRUE) +
+  f(re_v, model = "iid")
 
-options(scipen=0)
+cl <- makePSOCKcluster(4, setup_strategy = "sequential")
+registerDoParallel(cl)
 
+res <- inla(formula, family = "poisson", data = df_colera_inla7.sf, E = Total_defunciones,
+            control.predictor = list(compute = TRUE),
+            control.compute = list())
+
+stopCluster(cl)
+
+
+# results -----------------------------------------------------------------
+
+
+res$summary.fixed
+res$summary.fitted.values[1:3, ]
+
+df_colera_inla7.sf$RR <- res$summary.fitted.values[, "mean"] # relative risk
+df_colera_inla7.sf$LL <- res$summary.fitted.values[, "0.025quant"] # lower limit 95% CI
+df_colera_inla7.sf$UL <- res$summary.fitted.values[, "0.975quant"] # upper limit 95% CI
+
+
+# correlation and significance
+
+cor_rr_covtemp <- cor(df_colera_inla7.sf$RR, df_colera_inla7.sf$covtemp)
+# cor_rr_covprec <- cor(df_colera_inla7.sf$RR, df_colera_inla7.sf$covprec)
+
+significance_covtemp <- ifelse(cor_rr_covtemp > 0.05, "significativa", "no significativa")
+cat("Correlation between predictions and", COVTEMP_STR, ":", cor_rr_covtemp, significance_covtemp, "\n")
+
+# significance_covprec <- ifelse(cor_rr_covprec > 0.05, "significativa", "no significativa")
+# cat("Correlation between predictions and", COVPREC_STR, ":", cor_rr_covprec, significance_covprec, "\n")
+
+
+# disease risk ------------------------------------------------------------
+
+
+mapview(df_colera_inla7.sf, zcol = RR_STR, color = "gray", alpha.regions = 0.8,
+        layer.name = RR_STR, col.regions = PALETTE,
+        map.types = "CartoDB.Positron")
+
+
+# comparing SMR and RR 
+
+at <- seq(min(df_colera_inla7.sf$SMR), max(df_colera_inla7.sf$SMR), length.out = 7)
+
+m1 <- mapview(df_colera_inla7.sf, zcol = SMR_STR, color = "gray",
+              col.regions = PALETTE, at = at, layer.name = SMR_STR, map.types = "CartoDB.Positron")
+m2 <- mapview(df_colera_inla7.sf, zcol = RR_STR, color = "gray",
+              col.regions = PALETTE, at = at, layer.name = RR_STR, map.types = "CartoDB.Positron")
+
+leafsync::sync(m1, m2)
+
+
+# for each month
+
+multi_maps_RR <-
+  generate_maps(
+    data = df_colera_inla7.sf,
+    numeric_col = RR_STR,
+    month_col = Fecha,
+    months = c(6, 7, 8, 9, 10, 11),
+    palette = PALETTE
+  )
+
+multi_maps_RR
+leafsync::sync(multi_maps_RR)
+
+
+# exceed probabilities ------------------------------------------------
+
+
+c <- 2
+df_colera_inla7.sf$exc <- sapply(res$marginals.fitted.values,
+                  FUN = function(marg){1 - inla.pmarginal(q = c, marginal = marg)})
+
+# plot
+
+mapview(df_colera_inla7.sf, zcol = "exc", color = "gray", 
+        layer.name = "exc", col.regions = PALETTE,
+        map.types = "CartoDB.Positron")
+
+
+# for each month
+
+multi_maps_exc <-
+  generate_maps(
+    data = df_colera_inla7.sf,
+    numeric_col = "exc",
+    month_col = Fecha,
+    months = c(6, 7, 8, 9, 10, 11),
+    palette = PALETTE
+  )
+
+multi_maps_exc
+leafsync::sync(multi_maps_exc)
