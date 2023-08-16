@@ -5,6 +5,8 @@
 
 
 library(sf)
+library(dplyr)
+library(zoo)
 library(mapview)
 library(RColorBrewer)
 library(leafpop)
@@ -35,6 +37,7 @@ SMR_STR <- "SMR"
 RR_STR <- "RR"
 
 PALETTE <- colorRampPalette(brewer.pal(9, "YlOrRd"))
+PLOT_LABELS <- c("low", "mid-low", "mid-high", "high")
 
 
 # functions ---------------------------------------------------------------
@@ -50,7 +53,7 @@ generate_maps <- function(data, numeric_col, month_col, months, palette) {
       filter({{ month_col }} == month)
     
     map <- mapview(filtered_data, zcol = {{ numeric_col }}, color = "gray", alpha.regions = 0.8,
-                   layer.name = paste0({{ numeric_col }}, " (month: ", month, ")"), col.regions = palette,
+                   layer.name = paste0({{ numeric_col }}, ".month_", month), col.regions = palette,
                    map.types = "CartoDB.Positron")
     
     map_list[[as.character(month)]] <- map
