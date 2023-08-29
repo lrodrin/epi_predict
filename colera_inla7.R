@@ -4,6 +4,7 @@
 # install.packages("INLA", repos = c(getOption("repos"), INLA = "https://inla.r-inla-download.org/R/stable"), dep = TRUE)
 
 
+library(ggplot2)
 library(sf)
 library(dplyr)
 library(zoo)
@@ -24,11 +25,16 @@ library(leafsync)
 # constants ---------------------------------------------------------------
 
 
+SHAPES_DATA_DIR <- "shapes"
+dir.create(SHAPES_DATA_DIR, showWarnings = FALSE)
+
 COVTEMP_STR <- "covtemp"
 COVPREC_STR <- "covprec"
 TOTAL_POBLACION_STR <- "Total_poblacion"
 TOTAL_INVASIONES_STR <- paste("Total", INVASIONES_STR, sep = "_")
 TOTAL_DEFUNCIONES_STR <- paste("Total", DEFUNCIONES_STR, sep = "_")
+TASA_INCIDENCIA_STR <- "Tasa_incidencia"
+TASA_MORTALIDAD_STR <- "Tasa_mortalidad"
 LONG_STR <- "long"
 LAT_STR <- "lat"
 X_STR <- "x"
@@ -38,6 +44,12 @@ RR_STR <- "RR"
 
 PALETTE <- colorRampPalette(brewer.pal(9, "YlOrRd"))
 PLOT_LABELS <- c("low", "mid-low", "mid-high", "high")
+PLOT_COLORS_BY_LABELS <- c(
+  "low" = "blue",
+  "mid-low" = "green",
+  "mid-high" = "orange",
+  "high" = "red"
+)
 
 
 # functions ---------------------------------------------------------------
@@ -114,7 +126,8 @@ head(df_colera_coord)
 df_colera_inla7 <- merge(df_covariates.merged, df_colera_coord, by = CODIGO_INE_STR)
 head(df_colera_inla7)
 
-df_colera_inla7 <- df_colera_inla7[, !colnames(df_colera_inla7) %in% c(PROVINCIA_STR, MUNICIPIO_STR, "Tasa_incidencia", "Tasa_mortalidad")]
+# df_colera_inla7 <- df_colera_inla7[, !colnames(df_colera_inla7) %in% c(PROVINCIA_STR, MUNICIPIO_STR, "Tasa_incidencia", "Tasa_mortalidad")]
+df_colera_inla7 <- df_colera_inla7[, !colnames(df_colera_inla7) %in% c(PROVINCIA_STR, MUNICIPIO_STR)]
 head(df_colera_inla7)
 
 
@@ -135,29 +148,39 @@ head(df_colera_inla7)
 # mapS <- getData(name = "GADM", country = "Spain", level = 0)
 
 # 2. 
-library(rnaturalearth)
-mapS <- ne_countries(country = "Spain", scale = "large", returnclass = "sf")
+# library(rnaturalearth)
+# mapS <- ne_countries(country = "Spain", scale = "large", returnclass = "sf")
+# 
+# 
+# mapS <- mapS %>%
+#   st_as_sf() %>%
+#   st_cast("POLYGON") %>% # remove the canary islands from the map (main territory of Spain)
+#   mutate(area = st_area(.)) %>%
+#   arrange(desc(area)) %>%
+#   slice(1) %>%
+#   st_transform("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0") # UTM transformation
 
-
-mapS <- mapS %>%
-  st_as_sf() %>%
-  st_cast("POLYGON") %>% # remove the canary islands from the map (main territory of Spain)
-  mutate(area = st_area(.)) %>%
-  arrange(desc(area)) %>%
-  slice(1) %>%
-  st_transform("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0") # UTM transformation
+# 3. 
+mapS <- st_read(paste(SHAPES_DATA_DIR, "Municipios_IGN.shp", sep = "/"), quiet = TRUE)
+head(mapS)
 
 
 # observations ------------------------------------------------------------
 
 
-# transforming coordinates
+# # transforming coordinates
+# 
+# df_colera_inla7 <- st_as_sf(df_colera_inla7, coords = c(LONG_STR, LAT_STR))
+# st_crs(df_colera_inla7) <- "EPSG:4326"
+# df_colera_inla7 <- st_filter(df_colera_inla7, mapS)
+# head(df_colera_inla7)
+# nrow(df_colera_inla7)
 
-df_colera_inla7 <- st_as_sf(df_colera_inla7, coords = c(LONG_STR, LAT_STR))
-st_crs(df_colera_inla7) <- "EPSG:4326"
-df_colera_inla7 <- st_filter(df_colera_inla7, mapS)
+
+# merge mapS and df_colera_inla7
+
+df_colera_inla7 <- merge(mapS, df_colera_inla7, by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR)
 head(df_colera_inla7)
-nrow(df_colera_inla7)
 
 
 # "invasiones" 
@@ -166,24 +189,21 @@ df_colera_inla7.copy <- df_colera_inla7
 df_colera_inla7.copy$invasiones_factor <-
   cut(
     df_colera_inla7$Total_invasiones,
-    breaks = c(-1, 10, 50, 100, Inf),
+    breaks = c(-1, 10, 50, 90, Inf),
     labels = PLOT_LABELS
   )
 
-ggplot() + geom_sf(data = mapS) +
-  geom_sf(data = df_colera_inla7.copy, aes(col = invasiones_factor)) +
-  scale_color_manual(values = c(
-    "low" = "blue",
-    "mid-low" = "green",
-    "mid-high" = "orange",
-    "high" = "red"
-  )) +
+ggplot() +
+  geom_sf(data = mapS) +
+  geom_sf(data = df_colera_inla7.copy, aes(col = invasiones_factor, fill = invasiones_factor)) +
+  scale_color_manual(values = PLOT_COLORS_BY_LABELS) +
+  scale_fill_manual(values = PLOT_COLORS_BY_LABELS) +
   theme(
     axis.title = element_blank(),
     axis.text = element_blank(),
     axis.ticks = element_blank()
   ) +
-  labs(color = INVASIONES_STR) 
+  labs(color = INVASIONES_STR, fill = INVASIONES_STR)
 
 
 # "defunciones" 
@@ -195,20 +215,61 @@ df_colera_inla7.copy$defunciones_factor <-
     labels = PLOT_LABELS
   )
 
-ggplot() + geom_sf(data = mapS) +
-  geom_sf(data = df_colera_inla7.copy, aes(col = defunciones_factor)) +
-  scale_color_manual(values = c(
-    "low" = "blue",
-    "mid-low" = "green",
-    "mid-high" = "orange",
-    "high" = "red"
-  )) +
+ggplot() + 
+  geom_sf(data = mapS) +
+  geom_sf(data = df_colera_inla7.copy, aes(col = defunciones_factor, fill = defunciones_factor)) +
+  scale_color_manual(values = PLOT_COLORS_BY_LABELS) +
+  scale_fill_manual(values = PLOT_COLORS_BY_LABELS) +
   theme(
     axis.title = element_blank(),
     axis.text = element_blank(),
     axis.ticks = element_blank()
   ) +
-  labs(color = DEFUNCIONES_STR) # TODO: more plots
+  labs(color = DEFUNCIONES_STR, fill = DEFUNCIONES_STR) 
+
+
+# "Tasa_incidencia" 
+
+df_colera_inla7.copy$incidencia_factor <-
+  cut(
+    df_colera_inla7$Tasa_incidencia,
+    breaks = c(-1, 0.5, 1, 2, Inf),
+    labels = PLOT_LABELS
+  )
+
+ggplot() + 
+  geom_sf(data = mapS) +
+  geom_sf(data = df_colera_inla7.copy, aes(col = incidencia_factor, fill = incidencia_factor)) +
+  scale_color_manual(values = PLOT_COLORS_BY_LABELS) +
+  scale_fill_manual(values = PLOT_COLORS_BY_LABELS) +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  labs(color = TASA_INCIDENCIA_STR, fill = TASA_INCIDENCIA_STR) 
+
+
+# "Tasa_mortalidad" 
+
+df_colera_inla7.copy$mortalidad_factor <-
+  cut(
+    df_colera_inla7$Tasa_mortalidad,
+    breaks = c(-1, 0.5, 1, 2, Inf),
+    labels = PLOT_LABELS
+  )
+
+ggplot() + 
+  geom_sf(data = mapS) +
+  geom_sf(data = df_colera_inla7.copy, aes(col = mortalidad_factor, fill = mortalidad_factor)) +
+  scale_color_manual(values = PLOT_COLORS_BY_LABELS) +
+  scale_fill_manual(values = PLOT_COLORS_BY_LABELS) +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  labs(color = TASA_MORTALIDAD_STR, fill = TASA_MORTALIDAD_STR) # TODO: more plots
 
 
 # SMR ---------------------------------------------------------------------
@@ -246,20 +307,21 @@ leafsync::sync(multi_maps_SMR)
 # model -------------------------------------------------------------------
 
 
-# data preparation
-
 df_colera_inla7.sf <- st_as_sf(df_colera_inla7, crs = 4326)
 
-coordinates <- st_coordinates(df_colera_inla7.sf)
-df_colera_inla7.sf$long <- coordinates[, 1]
-df_colera_inla7.sf$lat <- coordinates[, 2]
+# coordinates <- st_coordinates(df_colera_inla7.sf)
+# df_colera_inla7.sf$long <- coordinates[, 1]
+# df_colera_inla7.sf$lat <- coordinates[, 2]
+# 
+# df_colera_inla7.sf <- df_colera_inla7.sf %>% select(-geometry)
+# head(df_colera_inla7.sf)
 
-df_colera_inla7.sf <- df_colera_inla7.sf %>% select(-geometry)
-head(df_colera_inla7.sf)
 
 # neighbourhood matrix
 
-nb <- dnearneigh(df_colera_inla7.sf, d1 = 0, d2 = 1)
+nb <- poly2nb(df_colera_inla7.sf)
+head(nb)
+
 nb2INLA("map.adj", nb)
 g <- inla.read.graph(filename = "map.adj")
 
