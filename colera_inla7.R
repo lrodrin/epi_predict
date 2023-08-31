@@ -44,8 +44,6 @@ TASA_INCIDENCIA_FACTOR_STR <- "incidencia_factor"
 TASA_MORTALIDAD_FACTOR_STR <- "mortalidad_factor"
 LONG_STR <- "long"
 LAT_STR <- "lat"
-X_STR <- "x"
-Y_STR <- "y"
 SIR_STR <- "SIR"
 SMR_STR <- "SMR"
 RR_STR <- "RR"
@@ -191,10 +189,84 @@ generate_mapsByMonth <- function(data, numeric_col, month_col, months, palette) 
 }
 
 
+run_inla <- function(formula, df_colera, var_col) {
+  #' Run the INLA model for regression analysis.
+  #'
+  #' This function runs the Integrated Nested Laplace Approximations (INLA) model for regression analysis.
+  #' It uses the specified formula, data frame, and variable column to fit the model.
+  #'
+  #' @param formula Model formula.
+  #' @param df_colera Data frame containing the observations.
+  #' @param var_col Column with numeric values for regression.
+  #'
+  #' @return The result of the INLA model fitting.
+  
+  res <- inla(formula, family = "gaussian", data = df_colera, E = log(df_colera[[var_col]]),
+              control.predictor = list(compute = TRUE),
+              control.compute = list(), verbose = TRUE)
+  
+  return(res)
+  
+}
+
+
+results_inla <- function(df_colera, res) {
+  #' Extract and process results from the INLA model.
+  #'
+  #' This function extracts and processes the results from the INLA model and adds relevant
+  #' summary statistics to the provided data frame.
+  #'
+  #' @param df_colera Data frame containing the observations.
+  #' @param res Result object obtained from the INLA model.
+  #'
+  #' @return The data frame with added relative risk and confidence interval columns.
+  
+  print(res$summary.fixed)
+  # print(res$summary.fitted.values[1:3, ])
+  
+  df_colera$RR <- res$summary.fitted.values[, "mean"] # relative risk
+  df_colera$LL <- res$summary.fitted.values[, "0.025quant"] # lower limit 95% CI
+  df_colera$UL <- res$summary.fitted.values[, "0.975quant"] # upper limit 95% CI
+  
+  return(df_colera)
+  
+}
+
+
+calculate_correlation <- function(df_res, covariate) {
+  #' Calculate the correlation between relative risk and a covariate.
+  #'
+  #' This function calculates the Pearson correlation coefficient between the relative risk (RR) and a specified covariate.
+  #'
+  #' @param df_res Data frame containing the result obtained from the INLA model.
+  #' @param covariate Name of the covariate column.
+  #'
+  #' @return The calculated correlation coefficient.
+  
+  cor_rr <- cor(df_res$RR, df_res[[covariate]])
+  return(cor_rr)
+  
+}
+
+
+calculate_significance <- function(cor_rr, covariate) {
+  #' Determine the significance of correlation.
+  #'
+  #' This function determines the significance of a correlation coefficient by comparing it to a threshold.
+  #'
+  #' @param cor_rr Correlation coefficient value.
+  #' @param covariate Name of the covariate.
+  
+  significance <- ifelse(cor_rr > 0.05, "significativa", "no significativa")
+  cat("Correlation between predictions and", covariate, ":", cor_rr, significance, "\n")
+  
+}
+
+
 # main --------------------------------------------------------------------
 
 
-# data --------------------------------------------------------------------
+# raw data ----------------------------------------------------------------
 
 
 df_covtemp <- df_temperatures.parsed
@@ -317,7 +389,7 @@ plot_list.incidencia <- plot_observationsByMonth(df_colera_inla7.copy, TASA_INCI
 plot_list.mortalidad <- plot_observationsByMonth(df_colera_inla7.copy, TASA_MORTALIDAD_FACTOR_STR, TASA_MORTALIDAD_STR)
 
 
-for (month in MONTHS) { # TODO: change type of plots ???
+for (month in names(plot_list.invasiones)) { # TODO: change type of plots ???
   # print(plot_list.invasiones[[month]])
   # print(plot_list.defunciones[[month]])
   # print(plot_list.incidencia[[month]])
@@ -326,7 +398,7 @@ for (month in MONTHS) { # TODO: change type of plots ???
   ggsave(paste0(COLERA_PLOTS_DIR, "/colera_total_defuncionesXmunicipios_", month, ".png"), plot_list.defunciones[[month]])
   ggsave(paste0(COLERA_PLOTS_DIR, "/colera_total_incidenciaXmunicipios_", month, ".png"), plot_list.incidencia[[month]])
   ggsave(paste0(COLERA_PLOTS_DIR, "/colera_total_mortalidadXmunicipios_", month, ".png"), plot_list.mortalidad[[month]])
-  
+
 }
 
 
@@ -352,7 +424,8 @@ head(df_colera_inla7)
 # SIR and SMR -------------------------------------------------------------
 
 
-# 1. "Tasa_incidencia" and "Tasa_mortalidad" by county
+# 1. 
+# "Tasa_incidencia" and "Tasa_mortalidad" by county
 
 df_colera_inla7$Tasa_incidencia_Provincia <- (df_colera_inla7$Total_invasiones_Provincia / df_colera_inla7$Total_poblacion) * 100
 df_colera_inla7$Tasa_mortalidad_Provincia <- (df_colera_inla7$Total_defunciones_Provincia / df_colera_inla7$Total_poblacion) * 100
@@ -375,7 +448,8 @@ df_colera_inla7$SMR <-
   )
 
 
-# 2. total of "Tasa_incidencia" and "Tasa_mortalidad" 
+# 2. 
+# total of "Tasa_incidencia" and "Tasa_mortalidad" 
 
 tasa_incidencia_referencia <- (sum(df_colera_inla7$Total_invasiones) / sum(df_colera_inla7$Total_poblacion)) * 100
 tasa_mortalidad_referencia <- (sum(df_colera_inla7$Total_defunciones) / sum(df_colera_inla7$Total_poblacion)) * 100
@@ -425,37 +499,67 @@ leafsync::sync(multi_maps_SMR)
 # model -------------------------------------------------------------------
 
 
-df_colera_inla7.sf <- st_as_sf(df_colera_inla7, crs = 4326)
-
-
 # neighbourhood matrix
 
-nb <- poly2nb(df_colera_inla7.sf)
+nb <- poly2nb(df_colera_inla7)
 head(nb)
 
 nb2INLA("map.adj", nb)
 g <- inla.read.graph(filename = "map.adj")
 
 
-# model formula and inla() call
+# model formula 
 
-df_colera_inla7.sf$re_u <- 1:nrow(df_colera_inla7.sf)
-df_colera_inla7.sf$re_v <- 1:nrow(df_colera_inla7.sf)
+df_colera_inla7$re_u <- 1:nrow(df_colera_inla7)
+df_colera_inla7$re_v <- 1:nrow(df_colera_inla7)
 
-formula_covtemp_covprec <- Tasa_mortalidad ~ covtemp + covprec +
+# formula_covtemp_covprec.invasiones <- Total_invasiones ~ covtemp + covprec +
+#   f(re_u, model = "besag", graph = g, scale.model = TRUE) +
+#   f(re_v, model = "iid")
+
+# formula_covtemp_covprec.defunciones <- Total_defunciones ~ covtemp + covprec +
+#   f(re_u, model = "besag", graph = g, scale.model = TRUE) +
+#   f(re_v, model = "iid")
+
+formula_covtemp_covprec.incidencia <- Tasa_incidencia ~ covtemp + covprec +
   f(re_u, model = "besag", graph = g, scale.model = TRUE) +
   f(re_v, model = "iid")
 
-formula_covtemp <- Tasa_mortalidad ~ covtemp +
+formula_covtemp.incidencia <- Tasa_incidencia ~ covtemp +
   f(re_u, model = "besag", graph = g, scale.model = TRUE) +
   f(re_v, model = "iid")
+
+formula_covtemp_covprec.mortalidad <- Tasa_mortalidad ~ covtemp + covprec +
+  f(re_u, model = "besag", graph = g, scale.model = TRUE) +
+  f(re_v, model = "iid")
+
+formula_covtemp.mortalidad <- Tasa_mortalidad ~ covtemp +
+  f(re_u, model = "besag", graph = g, scale.model = TRUE) +
+  f(re_v, model = "iid")
+
+
+# inla() call
 
 cl <- makePSOCKcluster(4, setup_strategy = "sequential")
 registerDoParallel(cl)
 
-res <- inla(formula_covtemp_covprec, family = "gaussian", data = df_colera_inla7.sf, E = log(Tasa_mortalidad_Provincia),
-            control.predictor = list(compute = TRUE),
-            control.compute = list(), verbose = TRUE)
+# res_covtemp_covprec.invasiones <- inla(formula_covtemp_covprec.invasiones, family = "poisson", data = df_colera_inla7, E = Total_invasiones_Provincia,
+#             control.predictor = list(compute = TRUE),
+#             control.compute = list(), verbose = TRUE)
+
+# res_covtemp_covprec.defunciones <- inla(formula_covtemp_covprec.defunciones, family = "poisson", data = df_colera_inla7, E = Total_defunciones_Provincia,
+#             control.predictor = list(compute = TRUE),
+#             control.compute = list(), verbose = TRUE)
+
+# TODO: poisson implementation
+
+res_covtemp_covprec.incidencia <- run_inla(formula_covtemp_covprec.incidencia, df_colera_inla7, paste0(TASA_INCIDENCIA_STR, "_", PROVINCIA_STR))
+
+res_covtemp.incidencia <- run_inla(formula_covtemp.incidencia, df_colera_inla7, paste0(TASA_INCIDENCIA_STR, "_", PROVINCIA_STR))
+
+res_covtemp_covprec.mortalildad <- run_inla(formula_covtemp_covprec.mortalidad, df_colera_inla7, paste0(TASA_MORTALIDAD_STR, "_", PROVINCIA_STR))
+
+res_covtemp.mortalildad <- run_inla(formula_covtemp.mortalidad, df_colera_inla7, paste0(TASA_MORTALIDAD_STR, "_", PROVINCIA_STR))
 
 stopCluster(cl)
 
@@ -463,85 +567,111 @@ stopCluster(cl)
 # results -----------------------------------------------------------------
 
 
-res$summary.fixed
-res$summary.fitted.values[1:3, ]
-
-df_colera_inla7.sf$RR <- res$summary.fitted.values[, "mean"] # relative risk
-df_colera_inla7.sf$LL <- res$summary.fitted.values[, "0.025quant"] # lower limit 95% CI
-df_colera_inla7.sf$UL <- res$summary.fitted.values[, "0.975quant"] # upper limit 95% CI
+df_res_covtemp_covprec.incidencia <- results_inla(df_colera_inla7, res_covtemp_covprec.incidencia)
+df_res_covtemp.incidencia <- results_inla(df_colera_inla7, res_covtemp.incidencia)
+df_res_covtemp_covprec.mortalildad <- results_inla(df_colera_inla7, res_covtemp_covprec.mortalildad)
+df_res_covtemp.mortalildad <- results_inla(df_colera_inla7, res_covtemp.mortalildad)
 
 
-# correlation and significance
+# correlation and significance 
 
-cor_rr_covtemp <- cor(df_colera_inla7.sf$RR, df_colera_inla7.sf$covtemp)
-cor_rr_covprec <- cor(df_colera_inla7.sf$RR, df_colera_inla7.sf$covprec)
+cor_rr_covtemp.incidencia <- calculate_correlation(df_res_covtemp_covprec.incidencia, COVTEMP_STR)
+cor_rr_covprec.incidencia <- calculate_correlation(df_res_covtemp_covprec.incidencia, COVPREC_STR)
+cor_rr_covtemp.mortalildad <- calculate_correlation(df_res_covtemp_covprec.mortalildad, COVTEMP_STR)
+cor_rr_covprec.mortalildad <- calculate_correlation(df_res_covtemp_covprec.mortalildad, COVPREC_STR)
 
-significance_covtemp <- ifelse(cor_rr_covtemp > 0.05, "significativa", "no significativa")
-cat("Correlation between predictions and", COVTEMP_STR, ":", cor_rr_covtemp, significance_covtemp, "\n")
+significance_covtemp.incidencia <- calculate_significance(cor_rr_covtemp.incidencia, COVTEMP_STR)
+significance_covprec.incidencia <- calculate_significance(cor_rr_covprec.incidencia, COVPREC_STR)
+significance_covtemp.mortalidad <- calculate_significance(cor_rr_covtemp.mortalildad, COVTEMP_STR)
+significance_covprec.mortalidad <- calculate_significance(cor_rr_covprec.mortalildad, COVPREC_STR)
 
-significance_covprec <- ifelse(cor_rr_covprec > 0.05, "significativa", "no significativa")
-cat("Correlation between predictions and", COVPREC_STR, ":", cor_rr_covprec, significance_covprec, "\n")
-
-
-# disease risk ------------------------------------------------------------
-
-
-mapview(df_colera_inla7.sf, zcol = RR_STR, color = "gray", alpha.regions = 0.8,
-        layer.name = RR_STR, col.regions = PALETTE,
-        map.types = "CartoDB.Positron")
+# TODO: more than one covariate at the same time ???
 
 
-# comparing SMR and RR 
-
-at <- seq(min(df_colera_inla7.sf$SMR), max(df_colera_inla7.sf$SMR), length.out = 7)
-
-m1 <- mapview(df_colera_inla7.sf, zcol = SMR_STR, color = "gray",
-              col.regions = PALETTE, at = at, layer.name = SMR_STR, map.types = "CartoDB.Positron")
-m2 <- mapview(df_colera_inla7.sf, zcol = RR_STR, color = "gray",
-              col.regions = PALETTE, at = at, layer.name = RR_STR, map.types = "CartoDB.Positron")
-
-leafsync::sync(m1, m2)
+# cholera risk ------------------------------------------------------------
 
 
-# for each month
+visualize_choleraRisk <- function(df_res, isSMR) {
+  #' Visualize cholera risk using interactive maps.
+  #'
+  #' This function generates interactive maps to visualize cholera risk based on the provided data frame.
+  #'
+  #' @param df_res Data frame containing cholera risk data.
+  #' @param isSMR Logical indicating if SMR (Standardized Mortality Ratio) should be used. The other option is SIR (Standardized Incidence Ratio).
+  
+  print(mapview(df_res, zcol = RR_STR, color = "gray", alpha.regions = 0.8,
+                layer.name = RR_STR, col.regions = PALETTE,
+                map.types = "CartoDB.Positron"))
+  
+  Sys.sleep(1)  
+  
+  if (isSMR) {
+    
+    at <- seq(min(df_res$SMR), max(df_res$SMR), length.out = 7)
+    m1 <- mapview(df_res, zcol = SMR_STR, color = "gray",
+                  col.regions = PALETTE, at = at, layer.name = SMR_STR, map.types = "CartoDB.Positron")
+  
+  } else { # SIR
+    
+    at <- seq(min(df_res$SIR), max(df_res$SIR), length.out = 7)
+    m1 <- mapview(df_res, zcol = SIR_STR, color = "gray",
+                  col.regions = PALETTE, at = at, layer.name = SIR_STR, map.types = "CartoDB.Positron")
+  
+  }
+  
+  m2 <- mapview(df_res, zcol = RR_STR, color = "gray",
+                col.regions = PALETTE, at = at, layer.name = RR_STR, map.types = "CartoDB.Positron")
+  
+  print(leafsync::sync(m1, m2))
+  
+  Sys.sleep(1)
 
-multi_maps_RR <-
-  generate_mapsByMonth(
-    data = df_colera_inla7.sf,
-    numeric_col = RR_STR,
-    month_col = Fecha,
-    months = MONTHS,
-    palette = PALETTE
-  )
+  multi_maps_RR <-
+    generate_mapsByMonth(
+      data = df_res,
+      numeric_col = RR_STR,
+      month_col = Fecha,
+      months = MONTHS,
+      palette = PALETTE
+    )
 
-multi_maps_RR
-leafsync::sync(multi_maps_RR)
+  print(multi_maps_RR)
+  print(leafsync::sync(multi_maps_RR))
+  
+}
+
+
+visualize_choleraRisk(df_res_covtemp.incidencia, FALSE)
+visualize_choleraRisk(df_res_covtemp.mortalildad, TRUE)
 
 
 # exceed probabilities ------------------------------------------------
 
 
-c <- 2
-df_colera_inla7.sf$exc <- sapply(res$marginals.fitted.values,
-                  FUN = function(marg){1 - inla.pmarginal(q = c, marginal = marg)})
+visualize_choleraExceedProb <- function(df_res, res, c) {
 
-# plot
+  df_res$exc <- sapply(res$marginals.fitted.values, FUN = function(marg){1 - inla.pmarginal(q = c, marginal = marg)})
 
-mapview(df_colera_inla7.sf, zcol = "exc", color = "gray", 
-        layer.name = "exc", col.regions = PALETTE,
-        map.types = "CartoDB.Positron")
+  print(mapview(df_res, zcol = "exc", color = "gray", 
+                layer.name = "exc", col.regions = PALETTE,
+                map.types = "CartoDB.Positron"))
+  
+  Sys.sleep(1)
 
+  multi_maps_exc <-
+    generate_mapsByMonth(
+      data = df_res,
+      numeric_col = "exc",
+      month_col = Fecha,
+      months = MONTHS,
+      palette = PALETTE
+    )
 
-# for each month
+  print(multi_maps_exc)
+  print(leafsync::sync(multi_maps_exc))
+  
+}
 
-multi_maps_exc <-
-  generate_mapsByMonth(
-    data = df_colera_inla7.sf,
-    numeric_col = "exc",
-    month_col = Fecha,
-    months = MONTHS,
-    palette = PALETTE
-  )
+visualize_choleraExceedProb(df_res_covtemp.incidencia, res_covtemp.incidencia, 2)
+visualize_choleraExceedProb(df_res_covtemp.mortalildad, res_covtemp.mortalildad, 2)
 
-multi_maps_exc
-leafsync::sync(multi_maps_exc)
