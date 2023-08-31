@@ -189,19 +189,29 @@ generate_mapsByMonth <- function(data, numeric_col, month_col, months, palette) 
 }
 
 
-run_inla <- function(formula, df_colera, var_col) {
-  #' Run the INLA model for regression analysis.
+run_inla <- function(distribution, formula, df_colera, var_col) {
+  #' Run an INLA model for regression analysis.
   #'
-  #' This function runs the Integrated Nested Laplace Approximations (INLA) model for regression analysis.
-  #' It uses the specified formula, data frame, and variable column to fit the model.
+  #' This function runs an Integrated Nested Laplace Approximations (INLA) model for regression analysis.
+  #' It uses the specified distribution, formula, data frame, and variable column to fit the model.
   #'
+  #' @param distribution Distribution family for the model (e.g., "gaussian", "poisson").
   #' @param formula Model formula.
   #' @param df_colera Data frame containing the observations.
   #' @param var_col Column with numeric values for regression.
   #'
   #' @return The result of the INLA model fitting.
   
-  res <- inla(formula, family = "gaussian", data = df_colera, E = log(df_colera[[var_col]]),
+  if (distribution == "gaussian") {
+    
+    expected_cases <- log(df_colera[[var_col]])
+    
+  } else if (distribution == "poisson") {
+    
+    expected_cases <- df_colera[[var_col]]
+  }
+  
+  res <- inla(formula, family = distribution, data = df_colera, E = expected_cases,
               control.predictor = list(compute = TRUE),
               control.compute = list(), verbose = TRUE)
   
@@ -496,6 +506,43 @@ multi_maps_SMR
 leafsync::sync(multi_maps_SMR)
 
 
+# with ggplot2
+
+ggplot() + 
+  geom_sf(data = mapS) +
+  geom_sf(data = df_colera_inla7, aes(fill = SIR)) +
+  facet_wrap(~Fecha, dir = "h", ncol = 3) +
+  ggtitle(SIR_STR) + theme_bw() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  scale_fill_gradient2(
+    midpoint = 0.5, low = "blue", mid = "white", high = "red"
+  )
+
+ggplot() + 
+  geom_sf(data = mapS) +
+  geom_sf(data = df_colera_inla7, aes(fill = SMR)) +
+  facet_wrap(~Fecha, dir = "h", ncol = 3) +
+  ggtitle(SMR_STR) + theme_bw() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  scale_fill_gradient2(
+    midpoint = 0.5, low = "blue", mid = "white", high = "red"
+  )
+
+ggplot(df_colera_inla7, aes(x = Fecha, y = SIR, group = CODIGOINE, color = CODIGOINE)) +
+  geom_line() + geom_point(size = 2) + theme_bw()
+
+ggplot(df_colera_inla7, aes(x = Fecha, y = SMR, group = CODIGOINE, color = CODIGOINE)) +
+  geom_line() + geom_point(size = 2) + theme_bw()
+
+
 # model -------------------------------------------------------------------
 
 
@@ -510,16 +557,31 @@ g <- inla.read.graph(filename = "map.adj")
 
 # model formula 
 
+# 1.
 df_colera_inla7$re_u <- 1:nrow(df_colera_inla7)
 df_colera_inla7$re_v <- 1:nrow(df_colera_inla7)
 
-# formula_covtemp_covprec.invasiones <- Total_invasiones ~ covtemp + covprec +
-#   f(re_u, model = "besag", graph = g, scale.model = TRUE) +
-#   f(re_v, model = "iid")
+# 2.
+df_colera_inla7$idarea <- as.numeric(as.factor(df_colera_inla7$CODIGOINE))
+df_colera_inla7$idarea1 <- df_colera_inla7$idarea
+df_colera_inla7$idtime <- 1 + df_colera_inla7$Fecha - min(df_colera_inla7$Fecha)
 
-# formula_covtemp_covprec.defunciones <- Total_defunciones ~ covtemp + covprec +
-#   f(re_u, model = "besag", graph = g, scale.model = TRUE) +
-#   f(re_v, model = "iid")
+# 1.
+formula_covtemp_covprec.invasiones <- Total_invasiones ~ covtemp + covprec +
+  f(re_u, model = "besag", graph = g, scale.model = TRUE) +
+  f(re_v, model = "iid")
+
+formula_covprec.invasiones <- Total_invasiones ~ covprec +
+  f(re_u, model = "besag", graph = g, scale.model = TRUE) +
+  f(re_v, model = "iid")
+
+formula_covtemp_covprec.defunciones <- Total_defunciones ~ covtemp + covprec +
+  f(re_u, model = "besag", graph = g, scale.model = TRUE) +
+  f(re_v, model = "iid")
+
+formula_covprec.defunciones <- Total_defunciones ~ covprec +
+  f(re_u, model = "besag", graph = g, scale.model = TRUE) +
+  f(re_v, model = "iid")
 
 formula_covtemp_covprec.incidencia <- Tasa_incidencia ~ covtemp + covprec +
   f(re_u, model = "besag", graph = g, scale.model = TRUE) +
@@ -537,29 +599,60 @@ formula_covtemp.mortalidad <- Tasa_mortalidad ~ covtemp +
   f(re_u, model = "besag", graph = g, scale.model = TRUE) +
   f(re_v, model = "iid")
 
+# 2. taking to account "Fecha"
+formula_covtemp_covprec.invasiones <- Total_invasiones ~ covtemp + covprec +
+  f(idarea, model = "bym", graph = g) +
+  f(idarea1, idtime, model = "iid") + idtime
+
+formula_covprec.invasiones <- Total_invasiones ~ covprec +
+  f(idarea, model = "bym", graph = g) +
+  f(idarea1, idtime, model = "iid") + idtime
+
+formula_covtemp_covprec.defunciones <- Total_defunciones ~ covtemp + covprec +
+  f(idarea, model = "bym", graph = g) +
+  f(idarea1, idtime, model = "iid") + idtime
+
+formula_covprec.defunciones <- Total_defunciones ~ covprec +
+  f(idarea, model = "bym", graph = g) +
+  f(idarea1, idtime, model = "iid") + idtime
+
+formula_covtemp_covprec.incidencia <- Tasa_incidencia ~ covtemp + covprec +
+  f(idarea, model = "bym", graph = g) +
+  f(idarea1, idtime, model = "iid") + idtime
+
+formula_covtemp.incidencia <- Tasa_incidencia ~ covtemp +
+  f(idarea, model = "bym", graph = g) +
+  f(idarea1, idtime, model = "iid") + idtime
+
+formula_covtemp_covprec.mortalidad <- Tasa_mortalidad ~ covtemp + covprec +
+  f(idarea, model = "bym", graph = g) +
+  f(idarea1, idtime, model = "iid") + idtime
+
+formula_covtemp.mortalidad <- Tasa_mortalidad ~ covtemp +
+  f(idarea, model = "bym", graph = g) +
+  f(idarea1, idtime, model = "iid") + idtime
+
 
 # inla() call
 
 cl <- makePSOCKcluster(4, setup_strategy = "sequential")
 registerDoParallel(cl)
 
-# res_covtemp_covprec.invasiones <- inla(formula_covtemp_covprec.invasiones, family = "poisson", data = df_colera_inla7, E = Total_invasiones_Provincia,
-#             control.predictor = list(compute = TRUE),
-#             control.compute = list(), verbose = TRUE)
+res_covtemp_covprec.invasiones <- run_inla("poisson", formula_covtemp_covprec.invasiones, df_colera_inla7, paste0(TOTAL_INVASIONES_STR, "_", PROVINCIA_STR))
 
-# res_covtemp_covprec.defunciones <- inla(formula_covtemp_covprec.defunciones, family = "poisson", data = df_colera_inla7, E = Total_defunciones_Provincia,
-#             control.predictor = list(compute = TRUE),
-#             control.compute = list(), verbose = TRUE)
+res_covprec.invasiones <- run_inla("gaussian", formula_covprec.invasiones, df_colera_inla7, paste0(TASA_INCIDENCIA_STR, "_", PROVINCIA_STR))
 
-# TODO: poisson implementation
+res_covtemp_covprec.defunciones <- run_inla("poisson", formula_covtemp_covprec.defunciones, df_colera_inla7, paste0(TOTAL_DEFUNCIONES_STR, "_", PROVINCIA_STR))
 
-res_covtemp_covprec.incidencia <- run_inla(formula_covtemp_covprec.incidencia, df_colera_inla7, paste0(TASA_INCIDENCIA_STR, "_", PROVINCIA_STR))
+res_covprec.defunciones <- run_inla("gaussian", formula_covprec.defunciones, df_colera_inla7, paste0(TASA_MORTALIDAD_STR, "_", PROVINCIA_STR))
 
-res_covtemp.incidencia <- run_inla(formula_covtemp.incidencia, df_colera_inla7, paste0(TASA_INCIDENCIA_STR, "_", PROVINCIA_STR))
+res_covtemp_covprec.incidencia <- run_inla("gaussian", formula_covtemp_covprec.incidencia, df_colera_inla7, paste0(TASA_INCIDENCIA_STR, "_", PROVINCIA_STR))
 
-res_covtemp_covprec.mortalildad <- run_inla(formula_covtemp_covprec.mortalidad, df_colera_inla7, paste0(TASA_MORTALIDAD_STR, "_", PROVINCIA_STR))
+res_covtemp.incidencia <- run_inla("gaussian", formula_covtemp.incidencia, df_colera_inla7, paste0(TASA_INCIDENCIA_STR, "_", PROVINCIA_STR))
 
-res_covtemp.mortalildad <- run_inla(formula_covtemp.mortalidad, df_colera_inla7, paste0(TASA_MORTALIDAD_STR, "_", PROVINCIA_STR))
+res_covtemp_covprec.mortalildad <- run_inla("gaussian", formula_covtemp_covprec.mortalidad, df_colera_inla7, paste0(TASA_MORTALIDAD_STR, "_", PROVINCIA_STR))
+
+res_covtemp.mortalildad <- run_inla("gaussian", formula_covtemp.mortalidad, df_colera_inla7, paste0(TASA_MORTALIDAD_STR, "_", PROVINCIA_STR))
 
 stopCluster(cl)
 
@@ -567,6 +660,10 @@ stopCluster(cl)
 # results -----------------------------------------------------------------
 
 
+df_res_covtemp_covprec.invasiones <- results_inla(df_colera_inla7, res_covtemp_covprec.invasiones)
+df_res_covprec.invasiones <- results_inla(df_colera_inla7, res_covprec.invasiones)
+df_res_covtemp_covprec.defunciones <- results_inla(df_colera_inla7, res_covtemp_covprec.defunciones)
+df_res_covprec.defunciones <- results_inla(df_colera_inla7, res_covprec.defunciones)
 df_res_covtemp_covprec.incidencia <- results_inla(df_colera_inla7, res_covtemp_covprec.incidencia)
 df_res_covtemp.incidencia <- results_inla(df_colera_inla7, res_covtemp.incidencia)
 df_res_covtemp_covprec.mortalildad <- results_inla(df_colera_inla7, res_covtemp_covprec.mortalildad)
@@ -575,15 +672,23 @@ df_res_covtemp.mortalildad <- results_inla(df_colera_inla7, res_covtemp.mortalil
 
 # correlation and significance 
 
+cor_rr_covtemp.invasiones <- calculate_correlation(df_res_covtemp_covprec.invasiones, COVTEMP_STR)
+cor_rr_covprec.invasiones <- calculate_correlation(df_res_covtemp_covprec.invasiones, COVPREC_STR)
+cor_rr_covtemp.defunciones <- calculate_correlation(df_res_covtemp_covprec.defunciones, COVTEMP_STR)
+cor_rr_covprec.defunciones <- calculate_correlation(df_res_covtemp_covprec.defunciones, COVPREC_STR)
 cor_rr_covtemp.incidencia <- calculate_correlation(df_res_covtemp_covprec.incidencia, COVTEMP_STR)
 cor_rr_covprec.incidencia <- calculate_correlation(df_res_covtemp_covprec.incidencia, COVPREC_STR)
 cor_rr_covtemp.mortalildad <- calculate_correlation(df_res_covtemp_covprec.mortalildad, COVTEMP_STR)
 cor_rr_covprec.mortalildad <- calculate_correlation(df_res_covtemp_covprec.mortalildad, COVPREC_STR)
 
-significance_covtemp.incidencia <- calculate_significance(cor_rr_covtemp.incidencia, COVTEMP_STR)
-significance_covprec.incidencia <- calculate_significance(cor_rr_covprec.incidencia, COVPREC_STR)
-significance_covtemp.mortalidad <- calculate_significance(cor_rr_covtemp.mortalildad, COVTEMP_STR)
-significance_covprec.mortalidad <- calculate_significance(cor_rr_covprec.mortalildad, COVPREC_STR)
+calculate_significance(cor_rr_covtemp.invasiones, COVTEMP_STR)
+calculate_significance(cor_rr_covprec.invasiones, COVPREC_STR) # yes(2)
+calculate_significance(cor_rr_covtemp.defunciones, COVTEMP_STR)
+calculate_significance(cor_rr_covprec.defunciones, COVPREC_STR) # yes(2)
+calculate_significance(cor_rr_covtemp.incidencia, COVTEMP_STR) # yes(1,2)
+calculate_significance(cor_rr_covprec.incidencia, COVPREC_STR)
+calculate_significance(cor_rr_covtemp.mortalildad, COVTEMP_STR) # yes(1,2)
+calculate_significance(cor_rr_covprec.mortalildad, COVPREC_STR)
 
 # TODO: more than one covariate at the same time ???
 
@@ -640,15 +745,84 @@ visualize_choleraRisk <- function(df_res, isSMR) {
   
 }
 
-
+visualize_choleraRisk(df_res_covprec.invasiones, FALSE)
+visualize_choleraRisk(df_res_covprec.defunciones, TRUE)
 visualize_choleraRisk(df_res_covtemp.incidencia, FALSE)
 visualize_choleraRisk(df_res_covtemp.mortalildad, TRUE)
+
+
+# with ggplot2
+
+ggplot() +
+  geom_sf(data = mapS) +
+  geom_sf(data = df_res_covprec.invasiones, aes(fill = RR)) +
+  facet_wrap(~Fecha, dir = "h", ncol = 3) +
+  ggtitle(RR_STR) + theme_bw() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  scale_fill_gradient2(
+    midpoint = 198, low = "blue", mid = "white", high = "red"
+  )
+
+ggplot() +
+  geom_sf(data = mapS) +
+  geom_sf(data = df_res_covprec.defunciones, aes(fill = RR)) +
+  facet_wrap(~Fecha, dir = "h", ncol = 3) +
+  ggtitle(RR_STR) + theme_bw() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  scale_fill_gradient2(
+    midpoint = 86, low = "blue", mid = "white", high = "red"
+  )
+
+ggplot() +
+  geom_sf(data = mapS) +
+  geom_sf(data = df_res_covtemp.incidencia, aes(fill = RR)) +
+  facet_wrap(~Fecha, dir = "h", ncol = 3) +
+  ggtitle(RR_STR) + theme_bw() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  scale_fill_gradient2(
+    midpoint = 0.46, low = "blue", mid = "white", high = "red"
+  )
+
+ggplot() +
+  geom_sf(data = mapS) +
+  geom_sf(data = df_res_covtemp.mortalildad, aes(fill = RR)) +
+  facet_wrap(~Fecha, dir = "h", ncol = 3) +
+  ggtitle(RR_STR) + theme_bw() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  scale_fill_gradient2(
+    midpoint = 0.18, low = "blue", mid = "white", high = "red"
+  )
+
+# TODO: add legend limits
 
 
 # exceed probabilities ------------------------------------------------
 
 
 visualize_choleraExceedProb <- function(df_res, res, c) {
+  #' Visualize cholera exceed probabilities using interactive maps.
+  #'
+  #' This function generates interactive maps to visualize cholera exceed probabilities based on the provided data frame.
+  #'
+  #' @param df_res Data frame containing cholera exceed probabilities data.
+  #' @param res Result object obtained from the INLA model.
+  #' @param c Cut-off point for determining whether relative risk exceeds probabilities. 
 
   df_res$exc <- sapply(res$marginals.fitted.values, FUN = function(marg){1 - inla.pmarginal(q = c, marginal = marg)})
 
@@ -672,6 +846,9 @@ visualize_choleraExceedProb <- function(df_res, res, c) {
   
 }
 
-visualize_choleraExceedProb(df_res_covtemp.incidencia, res_covtemp.incidencia, 2)
-visualize_choleraExceedProb(df_res_covtemp.mortalildad, res_covtemp.mortalildad, 2)
+# values above the mean
 
+visualize_choleraExceedProb(df_res_covprec.invasiones, res_covprec.invasiones, 0.9)
+visualize_choleraExceedProb(df_res_covprec.defunciones, res_covprec.defunciones, 0.9)
+visualize_choleraExceedProb(df_res_covtemp.incidencia, res_covtemp.incidencia, 0.03)
+# visualize_choleraExceedProb(df_res_covtemp.mortalildad, res_covtemp.mortalildad, 0.000002) # very small
