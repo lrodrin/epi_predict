@@ -12,6 +12,18 @@ colera_municipios <- as.factor(unique(df_colera.merged$Municipio))
 
 
 colera_epicentres <- function(df_colera, cause, county=NULL, city=NULL, limit_period, limit_epicentre, isRate) {
+  #' Identify cholera epicentres based on specified criteria.
+  #'
+  #' This function identifies cholera epicentres based on the specified criteria, including the type of cases,
+  #' geographical level of aggregation (county or city), time period, and limit for considering an epicentre.
+  #'
+  #' @param df_colera Data frame containing cholera data.
+  #' @param cause Type of cholera cases to analyse ("invasiones" or "defunciones").
+  #' @param county Name of the county for aggregation (if city is NULL).
+  #' @param city Name of the city for aggregation (if provided).
+  #' @param limit_period Time period for considering an epicentre (30 or 3).
+  #' @param limit_epicentre Limit for considering an epicentre.
+  #' @param isRate Boolean indicating whether to use rates instead of counts (if TRUE).
   
   if (is.null(city)) {
     df_colera.tmp <- subset(df_colera, Provincia == county)

@@ -43,6 +43,12 @@ CODIGOINE_STR <- "CODIGOINE"
 
 
 create_rainTS <- function(df_rain, location) {
+  #' Create time series plot for rainfall data.
+  #'
+  #' This function generates a time series plot for rainfall data at a specific location.
+  #'
+  #' @param df_rain Data frame containing rainfall data.
+  #' @param location Location for which to create the time series plot.
   
   df_rain.tmp <- subset(df_rain, localidad == location)
   

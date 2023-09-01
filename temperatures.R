@@ -43,6 +43,12 @@ CODIGOINE_STR <- "CODIGOINE"
 
 
 create_tempeTS <- function(df_temperatures, location) {
+  #' Create time series plot for temperature data.
+  #'
+  #' This function generates a time series plot for temperature data at a specific location.
+  #'
+  #' @param df_temperatures Data frame containing temperature data.
+  #' @param location Location for which to create the time series plot.
   
   df_temperatures.tmp <- subset(df_temperatures, localidad == location)
   

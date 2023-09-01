@@ -12,6 +12,15 @@ colera_municipios <- as.factor(unique(df_colera.groupByProvinciaFechaMunicipo$Mu
 
 
 colera_ts <- function(df_colera, cause, county, city=NULL) {
+  #' Generate time series plot and data export for cholera data.
+  #'
+  #' This function generates a time series plot and exports data for cholera cases based on the specified
+  #' cause (e.g., "invasiones" or "defunciones") and geographical aggregation level (county or city).
+  #'
+  #' @param df_colera Data frame containing cholera data.
+  #' @param cause Type of cholera cases to analyse ("invasiones" or "defunciones").
+  #' @param county Name of the county for aggregation (if city is NULL).
+  #' @param city Name of the city for aggregation (if provided).
   
   if (is.null(city)) { # provincias
     df_colera.tmp <- subset(df_colera, Provincia == county)
