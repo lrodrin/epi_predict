@@ -816,13 +816,15 @@ ggplot() +
 
 
 visualize_choleraExceedProb <- function(df_res, res, c) {
-  #' Visualize cholera exceed probabilities using interactive maps.
+  #' Visualize Cholera Exceed Probabilities Using Interactive Maps
   #'
   #' This function generates interactive maps to visualize cholera exceed probabilities based on the provided data frame.
   #'
   #' @param df_res Data frame containing cholera exceed probabilities data.
   #' @param res Result object obtained from the INLA model.
-  #' @param c Cut-off point for determining whether relative risk exceeds probabilities. 
+  #' @param c Cut-off point for determining whether relative risk exceeds probabilities.
+  #'
+  #' @return A series of interactive maps displaying cholera exceed probabilities.
 
   df_res$exc <- sapply(res$marginals.fitted.values, FUN = function(marg){1 - inla.pmarginal(q = c, marginal = marg)})
 
