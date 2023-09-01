@@ -66,4 +66,5 @@ rain_plots/
 # macOS files
 .DS_Store
 
-
+# shapefiles
+shapes/
