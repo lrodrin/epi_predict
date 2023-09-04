@@ -9,6 +9,7 @@ library(sfdep)
 library(spdep)
 library(tidyr)
 library(ggplot2)
+library(stringr)
 
 
 # load("colera_data_month.RData")
@@ -545,6 +546,9 @@ df_hot_spots.m$wt <- sapply(df_hot_spots.m$wt, function(x) paste(x, collapse = "
 
 df_hot_spots.i$geometry <- NULL
 df_hot_spots.m$geometry <- NULL
+
+df_hot_spots.i$NAMEUNIT <- tolower(iconv(df_hot_spots.i$NAMEUNIT, from = "UTF-8", to = "ASCII//TRANSLIT"))
+df_hot_spots.m$NAMEUNIT <- tolower(iconv(df_hot_spots.m$NAMEUNIT, from = "UTF-8", to = "ASCII//TRANSLIT"))
 
 write.csv(df_hot_spots.i, paste(COLERA_DATA_DIR, "colera_hot_spots.incidencia.csv", sep = "/"), row.names = FALSE)
 write.csv(df_hot_spots.m, paste(COLERA_DATA_DIR, "colera_hot_spots.mortalidad.csv", sep = "/"), row.names = FALSE)
