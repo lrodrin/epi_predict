@@ -349,14 +349,29 @@ for (month in names(plot_list.incidencia)) { # TODO: change type of plots ???
 tm_shape(df_colera_hotspot.copy) +
   tm_fill(col = TASA_INCIDENCIA_FACTOR_STR, palette = "Reds") +
   tm_shape(mapS) + 
-  tm_borders()
+  tm_borders() 
 
 tm_shape(df_colera_hotspot.copy) +
   tm_fill(col = TASA_MORTALIDAD_FACTOR_STR, palette = "Reds") +
   tm_shape(mapS) + 
   tm_borders()
 
-# TODO: for each month ???
+# for each month (animation)
+
+incidencia.map <- tm_shape(df_colera_hotspot.copy) +
+  tm_fill(col = TASA_INCIDENCIA_FACTOR_STR, palette = "Reds") +
+  tm_facets(along = FECHA_STR, free.coords = FALSE) +
+  tm_shape(mapS) + 
+  tm_borders() 
+
+mortalidad.map <- tm_shape(df_colera_hotspot.copy) +
+  tm_fill(col = TASA_MORTALIDAD_FACTOR_STR, palette = "Reds") +
+  tm_facets(along = FECHA_STR, free.coords = FALSE) +
+  tm_shape(mapS) + 
+  tm_borders()
+
+tmap_animation(incidencia.map, filename = "incidencia.map.gif", delay = 25)
+tmap_animation(mortalidad.map, filename = "mortalidad.map.gif", delay = 25)
 
 
 # neighbour structure ----------------------------------------------------
@@ -527,6 +542,9 @@ df_hot_spots.i$nb <- sapply(df_hot_spots.i$nb, function(x) paste(x, collapse = "
 df_hot_spots.i$wt <- sapply(df_hot_spots.i$wt, function(x) paste(x, collapse = ", "))
 df_hot_spots.m$nb <- sapply(df_hot_spots.m$nb, function(x) paste(x, collapse = ", "))
 df_hot_spots.m$wt <- sapply(df_hot_spots.m$wt, function(x) paste(x, collapse = ", "))
+
+df_hot_spots.i$geometry <- NULL
+df_hot_spots.m$geometry <- NULL
 
 write.csv(df_hot_spots.i, paste(COLERA_DATA_DIR, "colera_hot_spots.incidencia.csv", sep = "/"), row.names = FALSE)
 write.csv(df_hot_spots.m, paste(COLERA_DATA_DIR, "colera_hot_spots.mortalidad.csv", sep = "/"), row.names = FALSE)
