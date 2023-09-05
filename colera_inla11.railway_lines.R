@@ -11,7 +11,7 @@ library(INLA)
 library(rasterVis)
 
 
-# load("colera_data_week.RData")
+# load("colera_data.RData")
 
 
 # constants ---------------------------------------------------------------
@@ -50,17 +50,17 @@ df_railwaylines$Orig_Cod_INE <- as.numeric(df_railwaylines$Orig_Cod_INE)
 df_railwaylines$Dest_Cod_INE <- as.numeric(df_railwaylines$Dest_Cod_INE)
 
 
-# merge df_railwaylines with df_colera.merged
+# merge df_railwaylines with df_colera.merged.week
 
 df_railwaylines.subset <- df_railwaylines[, c(8, 10, 11, 12, 13)]
 colnames(df_railwaylines.subset)[1] <- CODIGO_INE_STR
 head(df_railwaylines.subset)
 
-df_colera.merged$`Codigo Ine` <- as.numeric(df_colera.merged$`Codigo Ine`)
-rownames(df_colera.merged) <- 1:nrow(df_colera.merged)
-head(df_colera.merged)
+df_colera.merged.week$`Codigo Ine` <- as.numeric(df_colera.merged.week$`Codigo Ine`)
+rownames(df_colera.merged.week) <- 1:nrow(df_colera.merged.week)
+head(df_colera.merged.week)
 
-df_railwaylines.merged <- merge(df_colera.merged, df_railwaylines.subset, by = CODIGO_INE_STR)
+df_railwaylines.merged <- merge(df_colera.merged.week, df_railwaylines.subset, by = CODIGO_INE_STR)
 head(df_railwaylines.merged)
 
 

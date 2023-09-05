@@ -37,6 +37,50 @@ END_WEEK <- 46
 WEEK_FORMAT <- "%V"
 
 
+# functions ---------------------------------------------------------------
+
+
+mergeData_withPob1887 <- function(df_colera_invasiones, df_colera_defunciones, Pob1887, timevar) {
+  #' Merge cholera data with 1887 population data and calculate rates.
+  #'
+  #' This function merges cholera data ("invasiones" and "defunciones") with 1887 population data,
+  #' calculates incidence and mortality rates, and writes the merged data to a CSV file.
+  #'
+  #' @param df_colera_invasiones Data frame containing "invasiones" data.
+  #' @param df_colera_defunciones Data frame containing "defunciones" data.
+  #' @param Pob1887 Data frame containing 1887 population data.
+  #' @param timevar Time variable used for naming the output CSV file.
+  #'
+  #' @return A data frame with merged data and calculated rates.
+  
+  # merge grouped "invasiones" and "defunciones" as df_colera.groupByProvinciaFechaCodigoINE
+  df_colera.groupByProvinciaFechaCodigoINE <- merge(df_colera_invasiones, df_colera_defunciones)
+  
+  # merge df_colera.groupByProvinciaFechaCodigoINE with Pob1887
+  df_colera.merged <- merge(df_colera.groupByProvinciaFechaCodigoINE, Pob1887, by = CODIGO_INE_STR)
+  
+  # order values by "Codigo Ine", "Municipio", "Provincia" and "Fecha"
+  df_colera.merged <- df_colera.merged[with(df_colera.merged, order(`Codigo Ine`, Municipio, Provincia, Fecha)),]
+  
+  # add rates of "invasiones" and "defunciones" as columns "Tasa_incidencia" and "Tasa_mortalidad"
+  df_colera.merged$Tasa_incidencia <- (df_colera.merged$Total_invasiones / df_colera.merged$Total_poblacion) * 100 # express the rate per 100 people
+  df_colera.merged$Tasa_mortalidad <- (df_colera.merged$Total_defunciones / df_colera.merged$Total_poblacion) * 100
+  df_colera.merged$Tasa_incidencia <- round(df_colera.merged$Tasa_incidencia, 4)
+  df_colera.merged$Tasa_mortalidad <- round(df_colera.merged$Tasa_mortalidad, 4)
+  
+  # reorder column names by index
+  df_colera.merged <- df_colera.merged[, c(1, 2, 6, 3, 4, 8, 5, 9, 7)]
+  
+  # change the index numbers
+  rownames(df_colera.merged) <- 1:nrow(df_colera.merged)
+  
+  write.csv(df_colera.merged, paste(COLERA_DATA_DIR, paste0("tasa_colera_totalXmunicipio.", timevar, ".csv"), sep = "/"), row.names = FALSE)
+  
+  return(df_colera.merged)
+  
+}
+
+
 # main --------------------------------------------------------------------
 
 
@@ -279,80 +323,105 @@ Pob1887$`habitantes 1887` <- as.numeric(Pob1887$`habitantes 1887`)
 Pob1887 <- na.omit(Pob1887)
 names(Pob1887) <- c(CODIGO_INE_STR, MUNICIPIO_STR, TOTAL_POBLACION_STR) # change column names
 
-isWeek <- FALSE
+# by weeks
 
-if (isWeek) {
+df_colera_invasiones.copy <- df_colera_invasiones
+df_colera_defunciones.copy <- df_colera_defunciones
+
+df_colera_invasiones.copy$Fecha <- strftime(df_colera_invasiones.copy$Fecha, format = WEEK_FORMAT)
+df_colera_defunciones.copy$Fecha <- strftime(df_colera_defunciones.copy$Fecha, format = WEEK_FORMAT)
+df_colera_invasiones.copy$Fecha <- as.numeric(df_colera_invasiones.copy$Fecha)
+df_colera_defunciones.copy$Fecha <- as.numeric(df_colera_defunciones.copy$Fecha)
+
+# group "invasiones" and "defunciones" by "Provincia", "Fecha" and "Codigo Ine"
+df_colera_invasiones.groupByProvinciaFechaCodigoINE.week <- df_colera_invasiones.copy %>%
+  group_by(Provincia, `Codigo Ine`, Fecha) %>%
+  summarize(Total_invasiones = sum(invasiones)) %>%
+  na.omit(df_colera_invasiones) %>%
+  complete(
+    Fecha = seq(START_WEEK, END_WEEK, by = 1),
+    fill = list(Total_invasiones = 0)
+  ) # add missing weeks
+
+df_colera_defunciones.groupByProvinciaFechaCodigoINE.week <- df_colera_defunciones.copy %>%
+  group_by(Provincia, `Codigo Ine`, Fecha) %>%
+  summarize(Total_defunciones = sum(defunciones)) %>%
+  na.omit(df_colera_defunciones) %>%
+  complete(
+    Fecha = seq(START_WEEK, END_WEEK, by = 1),
+    fill = list(Total_defunciones = 0)
+  ) # add missing weeks
+
+df_colera.merged.week <- mergeData_withPob1887(
+  df_colera_invasiones.groupByProvinciaFechaCodigoINE.week,
+  df_colera_defunciones.groupByProvinciaFechaCodigoINE.week,
+  Pob1887,
+  "week"
+)
   
-  df_colera_invasiones$Fecha <- strftime(df_colera_invasiones$Fecha, format = WEEK_FORMAT)
-  df_colera_defunciones$Fecha <- strftime(df_colera_defunciones$Fecha, format = WEEK_FORMAT)
-  df_colera_invasiones$Fecha <- as.numeric(df_colera_invasiones$Fecha)
-  df_colera_defunciones$Fecha <- as.numeric(df_colera_defunciones$Fecha)
+# by months
+
+df_colera_invasiones.copy <- df_colera_invasiones
+df_colera_defunciones.copy <- df_colera_defunciones
   
-  # group "invasiones" and "defunciones" by "Provincia", "Fecha" and "Codigo Ine"
-  df_colera_invasiones.groupByProvinciaFechaCodigoINE <- df_colera_invasiones %>%
-    group_by(Provincia, `Codigo Ine`, Fecha) %>%
-    summarize(Total_invasiones = sum(invasiones)) %>%
-    na.omit(df_colera_invasiones) %>%
-    complete(
-      Fecha = seq(START_WEEK, END_WEEK, by = 1),
-      fill = list(Total_invasiones = 0)
-    ) # add missing weeks
-  
-  df_colera_defunciones.groupByProvinciaFechaCodigoINE <- df_colera_defunciones %>%
-    group_by(Provincia, `Codigo Ine`, Fecha) %>%
-    summarize(Total_defunciones = sum(defunciones)) %>%
-    na.omit(df_colera_defunciones) %>%
-    complete(
-      Fecha = seq(START_WEEK, END_WEEK, by = 1),
-      fill = list(Total_defunciones = 0)
-    ) # add missing weeks
-} else {
-  df_colera_invasiones$Fecha <- month(as.POSIXlt(df_colera_invasiones$Fecha, format = DATE_FORMAT))
-  df_colera_defunciones$Fecha <- month(as.POSIXlt(df_colera_defunciones$Fecha, format = DATE_FORMAT))
-  df_colera_invasiones$Fecha <- as.numeric(df_colera_invasiones$Fecha)
-  df_colera_defunciones$Fecha <- as.numeric(df_colera_defunciones$Fecha)
-  
-  # group "invasiones" and "defunciones" by "Provincia", "Fecha" and "Codigo Ine"
-  df_colera_invasiones.groupByProvinciaFechaCodigoINE <- df_colera_invasiones %>%
-    group_by(Provincia, `Codigo Ine`, Fecha) %>%
-    summarize(Total_invasiones = sum(invasiones)) %>%
-    na.omit(df_colera_invasiones) %>%
-    complete(
-      Fecha = seq(START_MONTH, END_MONTH, by = 1),
-      fill = list(Total_invasiones = 0)
-    ) # add missing weeks
-  
-  df_colera_defunciones.groupByProvinciaFechaCodigoINE <- df_colera_defunciones %>%
-    group_by(Provincia, `Codigo Ine`, Fecha) %>%
-    summarize(Total_defunciones = sum(defunciones)) %>%
-    na.omit(df_colera_defunciones) %>%
-    complete(
-      Fecha = seq(START_MONTH, END_MONTH, by = 1),
-      fill = list(Total_defunciones = 0)
-    ) # add missing weeks
-}
+df_colera_invasiones.copy$Fecha <- month(as.POSIXlt(df_colera_invasiones.copy$Fecha, format = DATE_FORMAT))
+df_colera_defunciones.copy$Fecha <- month(as.POSIXlt(df_colera_defunciones.copy$Fecha, format = DATE_FORMAT))
+df_colera_invasiones.copy$Fecha <- as.numeric(df_colera_invasiones.copy$Fecha)
+df_colera_defunciones.copy$Fecha <- as.numeric(df_colera_defunciones.copy$Fecha)
 
-# TODO: create a function
+# group "invasiones" and "defunciones" by "Provincia", "Fecha" and "Codigo Ine"
+df_colera_invasiones.groupByProvinciaFechaCodigoINE.month <- df_colera_invasiones.copy %>%
+  group_by(Provincia, `Codigo Ine`, Fecha) %>%
+  summarize(Total_invasiones = sum(invasiones)) %>%
+  na.omit(df_colera_invasiones) %>%
+  complete(
+    Fecha = seq(START_MONTH, END_MONTH, by = 1),
+    fill = list(Total_invasiones = 0)
+  ) # add missing days
 
-# merge grouped "invasiones" and "defunciones" as df_colera.groupByProvinciaFechaCodigoINE
-df_colera.groupByProvinciaFechaCodigoINE <- merge(df_colera_invasiones.groupByProvinciaFechaCodigoINE, df_colera_defunciones.groupByProvinciaFechaCodigoINE)
+df_colera_defunciones.groupByProvinciaFechaCodigoINE.month <- df_colera_defunciones.copy %>%
+  group_by(Provincia, `Codigo Ine`, Fecha) %>%
+  summarize(Total_defunciones = sum(defunciones)) %>%
+  na.omit(df_colera_defunciones) %>%
+  complete(
+    Fecha = seq(START_MONTH, END_MONTH, by = 1),
+    fill = list(Total_defunciones = 0)
+  ) # add missing days
 
-# merge df_colera.groupByProvinciaFechaCodigoINE with Pob_Arago_PaisValencia_Murcia1887
-df_colera.merged <- merge(df_colera.groupByProvinciaFechaCodigoINE, Pob1887, by = CODIGO_INE_STR)
+df_colera.merged.month <- mergeData_withPob1887(
+  df_colera_invasiones.groupByProvinciaFechaCodigoINE.month,
+  df_colera_defunciones.groupByProvinciaFechaCodigoINE.month,
+  Pob1887,
+  "month"
+)
 
-# order values  by "Codigo Ine", "Municipio", "Provincia" and "Fecha"
-df_colera.merged <- df_colera.merged[with(df_colera.merged, order(`Codigo Ine`, Municipio, Provincia, Fecha)),]
+# by days
 
-# add rates of "invasiones" and "defunciones" as columns "Tasa_incidencia" and "Tasa_mortalidad"
-df_colera.merged$Tasa_incidencia <- (df_colera.merged$Total_invasiones / df_colera.merged$Total_poblacion) * 100 # express the rate per 100 people
-df_colera.merged$Tasa_mortalidad <- (df_colera.merged$Total_defunciones / df_colera.merged$Total_poblacion) * 100
-df_colera.merged$Tasa_incidencia <- round(df_colera.merged$Tasa_incidencia, 4)
-df_colera.merged$Tasa_mortalidad <- round(df_colera.merged$Tasa_mortalidad, 4)
+df_colera_invasiones.copy <- df_colera_invasiones
+df_colera_defunciones.copy <- df_colera_defunciones
 
-# reorder column names by index
-df_colera.merged <- df_colera.merged[, c(1, 2, 6, 3, 4, 8, 5, 9, 7)]
+# group "invasiones" and "defunciones" by "Provincia", "Fecha" and "Codigo Ine"
+df_colera_invasiones.groupByProvinciaFechaCodigoINE.day <- df_colera_invasiones.copy %>%
+  group_by(Provincia, `Codigo Ine`, Fecha) %>%
+  summarize(Total_invasiones = sum(invasiones)) %>%
+  na.omit(df_colera_invasiones) %>%
+  complete(
+    Fecha = seq.Date(as.Date(START_DATE), as.Date(END_DATE), by = DAY_STR),
+    fill = list(Total_invasiones = 0)
+  ) # add missing days
 
-# change the index numbers
-rownames(df_colera.merged) <- 1:nrow(df_colera.merged)
+df_colera_defunciones.groupByProvinciaFechaCodigoINE.day <- df_colera_defunciones.copy %>%
+  group_by(Provincia, `Codigo Ine`, Fecha) %>%
+  summarize(Total_defunciones = sum(defunciones)) %>%
+  na.omit(df_colera_defunciones) %>%
+  complete(
+    Fecha = seq.Date(as.Date(START_DATE), as.Date(END_DATE), by = DAY_STR),
+    fill = list(Total_defunciones = 0)
+  ) # add missing days
 
-write.csv(df_colera.merged, paste(COLERA_DATA_DIR, "tasa_colera_totalXmunicipio.csv", sep = "/"), row.names = FALSE)
+df_colera.merged.day <- mergeData_withPob1887(
+  df_colera_invasiones.groupByProvinciaFechaCodigoINE.day,
+  df_colera_defunciones.groupByProvinciaFechaCodigoINE.day,
+  Pob1887,
+  "day"
+)

@@ -1,11 +1,11 @@
-source("colera_data.R")
+# load("colera_data.RData")
 
 
 # constants ---------------------------------------------------------------
 
 
 colera_provincias <- unique(df_colera.groupByProvinciaFecha$Provincia)
-colera_municipios <- as.factor(unique(df_colera.merged$Municipio))
+colera_municipios <- as.factor(unique(df_colera.merged.week$Municipio))
 
 
 # functions ---------------------------------------------------------------
@@ -132,7 +132,7 @@ for (provincia in colera_provincias) { # for each "Provincia"
 for (municipio in colera_municipios) { # for each "Municipio"
   
   # n invasiones and defunciones by city
-  colera_epicentres(df_colera.merged,
+  colera_epicentres(df_colera.merged.week,
                     INVASIONES_STR,
                     NULL,
                     municipio,
@@ -140,7 +140,7 @@ for (municipio in colera_municipios) { # for each "Municipio"
                     limit_epicentre = 500, # 500 or more invasiones
                     isRate = FALSE)
   
-  colera_epicentres(df_colera.merged,
+  colera_epicentres(df_colera.merged.week,
                     DEFUNCIONES_STR,
                     NULL,
                     municipio,
@@ -149,7 +149,7 @@ for (municipio in colera_municipios) { # for each "Municipio"
                     isRate = FALSE)
   
   # % invasiones and defunciones by city
-  colera_epicentres(df_colera.merged,
+  colera_epicentres(df_colera.merged.week,
                     INVASIONES_STR,
                     NULL,
                     municipio,
@@ -157,7 +157,7 @@ for (municipio in colera_municipios) { # for each "Municipio"
                     limit_epicentre = 10,
                     isRate = TRUE)
   
-  colera_epicentres(df_colera.merged,
+  colera_epicentres(df_colera.merged.week,
                     DEFUNCIONES_STR,
                     NULL,
                     municipio,

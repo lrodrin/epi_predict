@@ -18,7 +18,7 @@ library(leafsync)
 library(lubridate)
 
 
-# load("colera_data_month.RData")
+# load("colera_data.RData")
 # load("temperatures.RData")
 # load("rain.RData")
 
@@ -292,7 +292,7 @@ df_covtemp <- subset(df_covtemp, !(localidad %in% c("Alicante (M.)", "Zaragoza (
 df_covprec <- subset(df_covprec, !(localidad %in% c("Alicante (M.)", "Zaragoza (E.P.)")))
 
 
-# merge df_covtemp and df_covprec with df_colera.merged
+# merge df_covtemp and df_covprec with df_colera.merged.month
 
 df_covtemp.subset <- df_covtemp[, c(4, 5, 6)]
 df_covprec.subset <- df_covprec[, c(4, 5, 6)]
@@ -301,14 +301,14 @@ colnames(df_covprec.subset)[1:3] <- c(CODIGO_INE_STR, FECHA_STR, COVPREC_STR)
 head(df_covtemp.subset)
 head(df_covprec.subset)
 
-df_colera.merged$`Codigo Ine` <- as.numeric(df_colera.merged$`Codigo Ine`)
-rownames(df_colera.merged) <- 1:nrow(df_colera.merged)
-head(df_colera.merged)
+df_colera.merged.month$`Codigo Ine` <- as.numeric(df_colera.merged.month$`Codigo Ine`)
+rownames(df_colera.merged.month) <- 1:nrow(df_colera.merged.month)
+head(df_colera.merged.month)
 
 df_environmental.merged <- merge(df_covtemp.subset, df_covprec.subset, by = c(CODIGO_INE_STR, FECHA_STR))
 head(df_environmental.merged)
 
-df_covariates.merged <- merge(df_colera.merged, df_environmental.merged, by = c(CODIGO_INE_STR, FECHA_STR))
+df_covariates.merged <- merge(df_colera.merged.month, df_environmental.merged, by = c(CODIGO_INE_STR, FECHA_STR))
 head(df_covariates.merged)
 
 
@@ -561,7 +561,7 @@ g <- inla.read.graph(filename = "map.adj")
 df_colera_inla7$re_u <- 1:nrow(df_colera_inla7)
 df_colera_inla7$re_v <- 1:nrow(df_colera_inla7)
 
-# 2.
+# 2. taking to account "Fecha"
 df_colera_inla7$idarea <- as.numeric(as.factor(df_colera_inla7$CODIGOINE))
 df_colera_inla7$idarea1 <- df_colera_inla7$idarea
 df_colera_inla7$idtime <- 1 + df_colera_inla7$Fecha - min(df_colera_inla7$Fecha)
@@ -853,4 +853,4 @@ visualize_choleraExceedProb <- function(df_res, res, c) {
 visualize_choleraExceedProb(df_res_covprec.invasiones, res_covprec.invasiones, 0.9)
 visualize_choleraExceedProb(df_res_covprec.defunciones, res_covprec.defunciones, 0.9)
 visualize_choleraExceedProb(df_res_covtemp.incidencia, res_covtemp.incidencia, 0.03)
-# visualize_choleraExceedProb(df_res_covtemp.mortalildad, res_covtemp.mortalildad, 0.000002) # very small
+# visualize_choleraExceedProb(df_res_covtemp.mortalildad, res_covtemp.mortalildad, 0.000002) # insignificant

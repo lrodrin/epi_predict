@@ -12,7 +12,7 @@ library(RColorBrewer)
 library(gridExtra)
 
 
-# load("colera_data_month.RData")
+# load("colera_data.RData")
 # load("temperatures.RData")
 # load("rain.RData")
 
@@ -48,7 +48,7 @@ df_covtemp <- subset(df_covtemp, !(localidad %in% c("Alicante (M.)", "Zaragoza (
 df_covprec <- subset(df_covprec, !(localidad %in% c("Alicante (M.)", "Zaragoza (E.P.)")))
 
 
-# merge df_covtemp and df_covprec with df_colera.merged
+# merge df_covtemp and df_covprec with df_colera.merged.month
 
 df_covtemp.subset <- df_covtemp[, c(4, 5, 6)]
 df_covprec.subset <- df_covprec[, c(4, 5, 6)]
@@ -57,14 +57,14 @@ colnames(df_covprec.subset)[1:3] <- c(CODIGO_INE_STR, FECHA_STR, COVPREC_STR)
 head(df_covtemp.subset)
 head(df_covprec.subset)
 
-df_colera.merged$`Codigo Ine` <- as.numeric(df_colera.merged$`Codigo Ine`)
-rownames(df_colera.merged) <- 1:nrow(df_colera.merged)
-head(df_colera.merged)
+df_colera.merged.month$`Codigo Ine` <- as.numeric(df_colera.merged.month$`Codigo Ine`)
+rownames(df_colera.merged.month) <- 1:nrow(df_colera.merged.month)
+head(df_colera.merged.month)
 
 df_environmental.merged <- merge(df_covtemp.subset, df_covprec.subset, by = c(CODIGO_INE_STR, FECHA_STR))
 head(df_environmental.merged)
 
-df_covariates.merged <- merge(df_colera.merged, df_environmental.merged, by = c(CODIGO_INE_STR, FECHA_STR))
+df_covariates.merged <- merge(df_colera.merged.month, df_environmental.merged, by = c(CODIGO_INE_STR, FECHA_STR))
 head(df_covariates.merged)
 
 

@@ -12,7 +12,7 @@ library(ggplot2)
 library(stringr)
 
 
-# load("colera_data_month.RData")
+# load("colera_data.RData")
 
 
 # constants ---------------------------------------------------------------
@@ -251,9 +251,9 @@ head(mapS)
 # explore raw data --------------------------------------------------------
 
 
-df_colera.merged$`Codigo Ine` <- as.numeric(df_colera.merged$`Codigo Ine`)
-rownames(df_colera.merged) <- 1:nrow(df_colera.merged)
-head(df_colera.merged)
+df_colera.merged.month$`Codigo Ine` <- as.numeric(df_colera.merged.month$`Codigo Ine`)
+rownames(df_colera.merged.month) <- 1:nrow(df_colera.merged.month)
+head(df_colera.merged.month)
 
 
 # add coordinates from df_colera and save as df_colera_hotspot
@@ -264,7 +264,7 @@ df_colera_coord <- na.omit(df_colera_coord)
 colnames(df_colera_coord)[2:3] <- c(LAT_STR, LONG_STR)
 head(df_colera_coord)
 
-df_colera_hotspot <- merge(df_colera.merged, df_colera_coord, by = CODIGO_INE_STR)
+df_colera_hotspot <- merge(df_colera.merged.month, df_colera_coord, by = CODIGO_INE_STR)
 df_colera_hotspot <- df_colera_hotspot[, !colnames(df_colera_hotspot) %in% c(PROVINCIA_STR, MUNICIPIO_STR)]
 df_colera_hotspot <- df_colera_hotspot %>%
   mutate(
@@ -345,7 +345,7 @@ for (month in names(plot_list.incidencia)) { # TODO: change type of plots ???
 }
 
 
-# visualize "Tasa_incidencia" and "Tasa_mortalidad"  across neighbourhoods 
+# visualize "Tasa_incidencia" and "Tasa_mortalidad" across neighbourhoods 
 
 tm_shape(df_colera_hotspot.copy) +
   tm_fill(col = TASA_INCIDENCIA_FACTOR_STR, palette = "Reds") +
