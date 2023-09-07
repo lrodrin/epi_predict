@@ -425,3 +425,9 @@ df_colera.merged.day <- mergeData_withPob1887(
   Pob1887,
   "day"
 )
+
+
+# clean environment -------------------------------------------------------
+
+
+rm(df_colera_invasiones.copy, df_colera_defunciones.copy)

@@ -4,6 +4,8 @@ library(dplyr)
 library(stringr)
 library(lubridate)
 library(tidyr)
+library(sf)
+library(tmap)
 
 
 load("colera_data.RData")
@@ -12,11 +14,16 @@ load("colera_data.RData")
 # constants ---------------------------------------------------------------
 
 
+SHAPES_DATA_DIR <- "shapes"
+dir.create(SHAPES_DATA_DIR, showWarnings = FALSE)
 COLERA_PLOTS_DIR <- "colera_plots"
 dir.create(COLERA_PLOTS_DIR, showWarnings = FALSE)
 
 TASA_MORTALIDAD_STR <- "Tasa_mortalidad"
-MONTHS_LABELS <- c("Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre")
+DEFUNCIONES_FACTOR_STR <- "defunciones_factor"
+LONG_STR <- "long"
+LAT_STR <- "lat"
+MONTHS_STR <- c("Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre")
 CAPITALES <- c(
   "vitoria-gasteiz", "albacete", "alicante", "almeria", "oviedo", "avila",
   "badajoz", "barcelona", "burgos", "caceres", "cadiz", "castellon",
@@ -48,28 +55,133 @@ formatN <- function(N) {
 }
 
 
-factorize <- function(df, var_col, breaks, labels) {
-  #' Factorize a numeric column in a data frame.
+factorize <- function(df, var_col, breaks, labels, isFactor_col, factor_col) {
+  #' Factorize a numeric or factor column in a data frame.
   #'
-  #' This function takes a data frame, a column name, and specified breaks and labels to
-  #' factorize the numeric values in that column.
+  #' This function takes a data frame, a column name, specified breaks, and labels to
+  #' factorize the numeric or factor values in that column.
   #'
   #' @param df Data frame containing the column to be factorized.
   #' @param var_col Name of the column to be factorized.
   #' @param breaks Breaks for factorization.
   #' @param labels Labels for the factors.
+  #' @param isFactor_col Logical value indicating whether the column is already a factor.
+  #' @param factor_col Name of the factor column (only used if isFactor_col is TRUE).
   #'
   #' @return The data frame with the specified column factorized.
   
-  df[[var_col]] <-
-    cut(
-      df[[var_col]],
-      breaks = breaks,
-      labels = labels
-    )
+  if (isFactor_col == FALSE) {
+    
+    df[[var_col]] <-
+      cut(
+        df[[var_col]],
+        breaks = breaks,
+        labels = labels
+      )
+  }  else {
+    
+    df[[factor_col]] <-
+      cut(
+        df[[var_col]],
+        breaks = breaks,
+        labels = labels
+      )
+  }
   
   return(df)
   
+}
+
+
+merge_coords <- function(df, df_coord) {
+  #' Merge coordinates with cholera data and perform data cleaning.
+  #'
+  #' This function merges coordinates with cholera data, removes unnecessary columns, and performs
+  #' data cleaning on latitude and longitude values.
+  #'
+  #' @param df_colera.merged Cholera data with rates and other variables.
+  #' @param df_colera_coord Data frame containing latitude and longitude coordinates.
+  #'
+  #' @return Merged data frame with cleaned latitude and longitude values.
+  
+  df_colera_eda.merged <- merge(df, df_coord, by = CODIGO_INE_STR)
+  df_colera_eda.merged <- df_colera_eda.merged[, !colnames(df_colera_eda.merged) == MUNICIPIO_STR]
+  df_colera_eda.merged <- df_colera_eda.merged %>%
+    mutate(
+      lat = ifelse(lat < 36.0, 36.0, ifelse(lat > 43.0, 43.0, lat)),
+      long = ifelse(long < -10.0, -10.0, ifelse(long > 4.0, 4.0, long))
+    )
+  
+  return(df_colera_eda.merged)
+  
+}
+
+
+df_quincena <- function(df, first, last) {
+  #' Extract and summarize data for a specific bi-weekly period.
+  #'
+  #' This function extracts and summarizes data for a specific bi-weekly period
+  #' defined by the "first" and "last" dates.
+  #'
+  #' @param df Data frame containing cholera data.
+  #' @param first Start date of the bi-weekly period.
+  #' @param last End date of the bi-weekly period.
+  #'
+  #' @return Data frame with summarized cholera data for the specified period.
+  
+  df_quincena <- subset(df, Fecha %in% c(first, last))
+  df_quincena <- df_quincena %>%
+    group_by(CODIGOINE, OBJECTID, INSPIREID, NATCODE, NAMEUNIT, CODNUT1, CODNUT2, CODNUT3, Provincia, Total_poblacion, lat, long, geometry) %>%
+    summarize(
+      Total_invasiones = sum(as.numeric(Total_invasiones)),
+      Tasa_incidencia = sum(as.numeric(Tasa_incidencia)),
+      Total_defunciones = sum(as.numeric(Total_defunciones)),
+      Tasa_mortalidad = sum(as.numeric(Tasa_mortalidad))
+    )
+  
+  return(df_quincena)
+  
+}
+
+create_tmap <- function(df_mes, map, factor_col, legend_title, style) {
+  return(
+    tm_shape(df_mes) +
+      tm_polygons(
+        col = factor_col,
+        border.col = NULL,
+        title = legend_title,
+        palette = "Reds",
+        style = style
+      ) +
+      tm_layout(legend.position =  c("right", "bottom"),
+                legend.outside = TRUE,
+                frame = FALSE) +
+      tm_shape(map) +
+      tm_borders() +
+      tm_view(bbox = map)
+  )
+}
+
+
+create_tmapByFecha <- function(df_mes, map, factor_col, legend_title, style, nrows) {
+  return(
+    tm_shape(df_mes) +
+      tm_polygons(
+        col = factor_col,
+        border.col = NULL,
+        title = legend_title,
+        palette = "Reds",
+        style = style
+      ) +
+      tm_facets(by = FECHA_STR,
+                nrow = nrows,
+                free.coords = FALSE) +
+      tm_layout(legend.position =  c("right", "top"),
+                frame = FALSE) +
+      tm_shape(map) +
+      tm_borders() +
+      tm_view(bbox = map)
+  )
 }
 
 
@@ -115,7 +227,7 @@ ggplot(data = df_cuadro3, aes(x = Fecha, y = Total_defunciones)) +
   labs(x = paste0("Año ", ANO_STR), y = "Fallecidos") +
   ggtitle(paste0("Fallecidos por cólera en Gerindote (Toledo), en ", ANO_STR)) +
   scale_y_continuous(breaks = seq(0, 65, 5), limits = c(0, 65), labels = number) +
-  scale_x_continuous(breaks = 6:8, labels = MONTHS_LABELS[1:3]) +
+  scale_x_continuous(breaks = 6:8, labels = MONTHS_STR[1:3]) +
   geom_text(
     data = data.frame(
       Fecha = c(6, 7, 8),
@@ -295,7 +407,7 @@ ggplot(data = df_cuadro5_3, aes(x = Fecha, y = Total_defunciones)) +
   labs(x = paste0("Año ", ANO_STR), y = "Fallecidos") +
   ggtitle(paste0("Fallecidos por cólera en España, en ", ANO_STR)) +
   scale_y_continuous(breaks = seq(0, 38100, 1000), limits = c(0, 38100), labels = number) +
-  scale_x_continuous(breaks = 6:11, labels = MONTHS_LABELS) +
+  scale_x_continuous(breaks = 6:11, labels = MONTHS_STR) +
   geom_text(
     data = data.frame(
       Fecha = c(6, 7, 8, 9, 10, 11),
@@ -320,7 +432,7 @@ ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro5_3.png", sep = "/"), dpi = 300, limits
 
 df_cuadro5_4 <- df_colera.groupByProvinciaFecha 
 df_cuadro5_4$Fecha <- month(as.POSIXlt(df_cuadro5_4$Fecha, format = DATE_FORMAT))
-df_cuadro5_4$Fecha <- factor(df_cuadro5_4$Fecha, levels = c(6, 7, 8, 9, 10, 11), labels = MONTHS_LABELS)
+df_cuadro5_4$Fecha <- factor(df_cuadro5_4$Fecha, levels = c(6, 7, 8, 9, 10, 11), labels = MONTHS_STR)
 df_cuadro5_4 <- subset(df_cuadro5_4, Total_defunciones != 0) %>%
   group_by(Provincia, Fecha) %>%
   summarise(
@@ -352,12 +464,12 @@ df_cuadro6 <- df_cuadro6 %>%
   dplyr::select(Fecha, Total_defunciones) %>%
   bind_rows(data.frame(Fecha = "Total", Total_defunciones = sum(df_cuadro6$Total_defunciones))) %>%
   mutate(Fecha = case_when(
-    Fecha == 6 ~ MONTHS_LABELS[1],
-    Fecha == 7 ~ MONTHS_LABELS[2],
-    Fecha == 8 ~ MONTHS_LABELS[3],
-    Fecha == 9 ~ MONTHS_LABELS[4],
-    Fecha == 10 ~ MONTHS_LABELS[5],
-    Fecha == 11 ~ MONTHS_LABELS[6],
+    Fecha == 6 ~ MONTHS_STR[1],
+    Fecha == 7 ~ MONTHS_STR[2],
+    Fecha == 8 ~ MONTHS_STR[3],
+    Fecha == 9 ~ MONTHS_STR[4],
+    Fecha == 10 ~ MONTHS_STR[5],
+    Fecha == 11 ~ MONTHS_STR[6],
     TRUE ~ as.character(Fecha)
   )) 
 
@@ -450,7 +562,8 @@ df_cuadro13 <- factorize(
   c(-1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, Inf),
   c("De menos de 5 días", "De 6 a 10 días", "De 11 a 20 días", "De 21 a 30 días", 
     "De 31 a 40 días", "De 41 a 50 días", "De 51 a 60 días", "De 61 a 70 días", 
-    "De 71 a 80 días", "De 81 a 90 días", "De 91 a 100 días", "De más de 100 días")
+    "De 71 a 80 días", "De 81 a 90 días", "De 91 a 100 días", "De más de 100 días"),
+  FALSE
 )
 
 df_cuadro13 <- df_cuadro13 %>%
@@ -492,7 +605,8 @@ df_cuadro14 <- factorize(
   c(-1, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, Inf),
   c("Hasta el 0.5 %", "Del 0.51 al 1 %", "Del 1.01 al 2 %", "Del 2.01 al 3 %", 
     "Del 3.01 al 4 %", "Del 4.01 al 5 %", "Del 5.01 al 6 %", "Del 6.01 al 7 %", 
-    "Del 7.01 al 8 %", "Del 8.01 al 9 %", "Del 9.01 al 10 %", "De más del 10 %")
+    "Del 7.01 al 8 %", "Del 8.01 al 9 %", "Del 9.01 al 10 %", "De más del 10 %"),
+  FALSE
 )
 
 df_cuadro14 <- df_cuadro14 %>%
@@ -565,12 +679,12 @@ df_cuadro17 <- df_cuadro17 %>%
   dplyr::select(Fecha, Total_defunciones) %>%
   bind_rows(data.frame(Fecha = "Total", Total_defunciones = sum(df_cuadro17$Total_defunciones))) %>%
   mutate(Fecha = case_when(
-    Fecha == 6 ~ MONTHS_LABELS[1],
-    Fecha == 7 ~ MONTHS_LABELS[2],
-    Fecha == 8 ~ MONTHS_LABELS[3],
-    Fecha == 9 ~ MONTHS_LABELS[4],
-    Fecha == 10 ~ MONTHS_LABELS[5],
-    Fecha == 11 ~ MONTHS_LABELS[6],
+    Fecha == 6 ~ MONTHS_STR[1],
+    Fecha == 7 ~ MONTHS_STR[2],
+    Fecha == 8 ~ MONTHS_STR[3],
+    Fecha == 9 ~ MONTHS_STR[4],
+    Fecha == 10 ~ MONTHS_STR[5],
+    Fecha == 11 ~ MONTHS_STR[6],
     TRUE ~ as.character(Fecha)
   ))
 
@@ -642,7 +756,471 @@ ggplot(df_cuadro77.capitales[1:10,], aes(x = Tasa_mortalidad, y = Municipio, fil
 ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro77.capitales.png", sep = "/"), dpi = 300, limitsize = TRUE)
 
 
+# clean environment -------------------------------------------------------
+
+
+rm(
+  df_cuadro1,
+  df_cuadro11,
+  df_cuadro13,
+  df_cuadro13.long,
+  df_cuadro14,
+  df_cuadro14.long,
+  df_cuadro15,
+  df_cuadro17,
+  df_cuadro17.total,
+  df_cuadro18,
+  df_cuadro2,
+  df_cuadro3,
+  df_cuadro3_2,
+  df_cuadro4,
+  df_cuadro4.long,
+  df_cuadro5,
+  df_cuadro5_2,
+  df_cuadro5_3,
+  df_cuadro5_4,
+  df_cuadro6,
+  df_cuadro6.total,
+  df_cuadro7,
+  df_cuadro77,
+  df_cuadro77.capitales
+)
+
+
 # map ---------------------------------------------------------------------
 
 
-# TODO
+mapS.municipios <- st_read(paste(SHAPES_DATA_DIR, "Municipios_IGN.shp", sep = "/"), quiet = TRUE)
+mapS.provincias <- st_read(paste(SHAPES_DATA_DIR, "Provincias_ETRS89_30N.shp", sep = "/"), quiet = TRUE)
+
+
+# remove Canary Islands, "Ceuta" and "Melilla"
+
+mapS.municipios <- subset(mapS.municipios, CODNUT1 != "ES7") 
+mapS.municipios <- subset(mapS.municipios, !(CODIGOINE %in% c(51001, 52001))) 
+mapS.provincias <- subset(mapS.provincias, !(Cod_CCAA %in% c("05", "18", "19")))
+mapS.provincias$Texto <- tolower(iconv(mapS.provincias$Texto, from = "UTF-8", to = "ASCII//TRANSLIT"))
+
+head(mapS.municipios)
+head(mapS.provincias)
+
+
+# add coordinates from df_colera and merge with df_colera.merged.month, df_colera.merged.day and df_colera.merged.week
+
+df_colera_coord <- df_colera[, c(CODIGO_INE_STR, "LAT_POB_new_num", "LNG_POB_new_num")]
+df_colera_coord <- distinct(df_colera_coord, .keep_all = TRUE)
+df_colera_coord <- na.omit(df_colera_coord)
+colnames(df_colera_coord)[2:3] <- c(LAT_STR, LONG_STR)
+head(df_colera_coord)
+
+df_colera_eda.month <- merge_coords(df_colera.merged.month, df_colera_coord)
+df_colera_eda.day <- merge_coords(df_colera.merged.day, df_colera_coord)
+df_colera_eda.week <- merge_coords(df_colera.merged.week, df_colera_coord)
+
+head(df_colera_eda.month)
+head(df_colera_eda.day)
+head(df_colera_eda.week)
+
+
+# merge mapS.provincias with df_colera_eda.month
+
+df_colera_eda.month.merged.provincias <- merge(mapS.provincias, df_colera_eda.month, by.x = "Texto", by.y = PROVINCIA_STR)
+df_colera_eda.month.merged.provincias$Texto_Alt <- NULL
+colnames(df_colera_eda.month.merged.provincias)[1:2] <- c(PROVINCIA_STR, paste0("Cod_", PROVINCIA_STR))
+head(df_colera_eda.month.merged.provincias)
+
+
+# merge mapS.municipios and df_colera_eda.month, df_colera_eda.day and df_colera_eda.week
+
+df_colera_eda.month.merged.municipios <- merge(mapS.municipios, df_colera_eda.month, by.x = "CODIGOINE", by.y = CODIGO_INE_STR)
+df_colera_eda.day.merged <- merge(mapS.municipios, df_colera_eda.day, by.x = "CODIGOINE", by.y = CODIGO_INE_STR)
+df_colera_eda.week.merged <- merge(mapS.municipios, df_colera_eda.week, by.x = "CODIGOINE", by.y = CODIGO_INE_STR)
+head(df_colera_eda.day.merged)
+head(df_colera_eda.day.merged)
+head(df_colera_eda.week.merged)
+
+rm(df_colera_eda.month, df_colera_eda.day, df_colera_eda.week)
+
+
+# plot maps ---------------------------------------------------------------
+
+
+# intensidad gradual de la epidemia en las provincias ---------------------
+
+
+df_colera_eda.month.provincias <- df_colera_eda.month.merged.provincias %>%
+  group_by(Provincia, Cod_Provincia, Cod_CCAA, CCAA, `Codigo Ine`, Fecha, lat, long, geometry) %>%
+    summarize(
+      Total_invasiones = sum(Total_invasiones),
+      Tasa_incidencia = sum(Tasa_incidencia),
+      Total_defunciones = sum(Total_defunciones),
+      Tasa_mortalidad = sum(Tasa_mortalidad),
+      Total_poblacion = sum(Total_poblacion)
+    )
+
+df_colera_eda.month.provincias <- factorize(
+  df_colera_eda.month.provincias,
+  TOTAL_DEFUNCIONES_STR,
+  c(-1, 800, 1600, 2400, Inf), 
+  c("De menos de 800", "De 800 a 1600", "De 1600 a 2400", "De 2400 a 3200"),
+  TRUE,
+  "defunciones_factor"
+)
+
+
+# plot (1)
+
+m6 <-
+  create_tmap(
+    df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 6,],
+    mapS.provincias,
+    DEFUNCIONES_FACTOR_STR,
+    "Número de fallecidos por provincia",
+    "cat"
+  )
+m7 <-
+  create_tmap(
+    df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 7,],
+    mapS.provincias,
+    DEFUNCIONES_FACTOR_STR,
+    "Número de fallecidos por provincia",
+    "cat"
+  )
+m8 <-
+  create_tmap(
+    df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 8,],
+    mapS.provincias,
+    DEFUNCIONES_FACTOR_STR,
+    "Número de fallecidos por provincia",
+    "cat"
+  )
+m9 <-
+  create_tmap(
+    df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 9,],
+    mapS.provincias,
+    DEFUNCIONES_FACTOR_STR,
+    "Número de fallecidos por provincia",
+    "cat"
+  )
+m10 <-
+  create_tmap(
+    df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 10,],
+    mapS.provincias,
+    DEFUNCIONES_FACTOR_STR,
+    "Número de fallecidos por provincia",
+    "cat"
+  )
+m11 <-
+  create_tmap(
+    df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 11,],
+    mapS.provincias,
+    DEFUNCIONES_FACTOR_STR,
+    "Número de fallecidos por provincia",
+    "cat"
+  )
+
+
+# plot (2)
+
+m611 <-
+  create_tmapByFecha(
+    df_colera_eda.month.provincias,
+    mapS.provincias,
+    DEFUNCIONES_FACTOR_STR,
+    "Número de fallecidos por provincia",
+    "cat",
+    2
+  )
+
+
+# invasión progresiva durante la 1a quincena de Junio ---------------------
+
+
+df_colera_eda.week.1aquin.junio <- df_quincena(df_colera_eda.week.merged, 25, 26)
+head(df_colera_eda.week.1aquin.junio)
+
+
+# plot (1)
+
+m2526 <-
+  create_tmap(
+    df_colera_eda.week.1aquin.junio,
+    mapS.municipios,
+    TOTAL_DEFUNCIONES_STR,
+    "Número de fallecidos por municipio",
+    "pretty"
+  )
+
+
+# invasión progresiva durante la 2a quincena de Junio ---------------------
+
+
+df_colera_eda.week.2aquin.junio <- df_quincena(df_colera_eda.week.merged, 27, 28)
+head(df_colera_eda.week.2aquin.junio)
+
+
+# plot (1)
+
+m2728 <-
+  create_tmap(
+    df_colera_eda.week.2aquin.junio,
+    mapS.municipios,
+    TOTAL_DEFUNCIONES_STR,
+    "Número de fallecidos por municipio",
+    "pretty"
+  )
+
+
+# invasión progresiva durante la 1a quincena de Julio ---------------------
+
+
+df_colera_eda.week.1aquin.julio <- df_quincena(df_colera_eda.week.merged, 29, 30)
+head(df_colera_eda.week.1aquin.julio)
+
+
+# plot (1)
+
+m2930 <-
+  create_tmap(
+    df_colera_eda.week.1aquin.julio,
+    mapS.municipios,
+    TOTAL_DEFUNCIONES_STR,
+    "Número de fallecidos por municipio",
+    "pretty"
+  )
+
+
+# invasión progresiva durante la 2a quincena de Julio ---------------------
+
+
+df_colera_eda.week.2aquin.julio <- df_quincena(df_colera_eda.week.merged, 31, 32)
+head(df_colera_eda.week.2aquin.julio)
+
+
+# plot (1)
+
+m3132 <-
+  create_tmap(
+    df_colera_eda.week.2aquin.julio,
+    mapS.municipios,
+    TOTAL_DEFUNCIONES_STR,
+    "Número de fallecidos por municipio",
+    "pretty"
+  )
+
+
+# invasión progresiva durante Agosto y Septiembre -------------------------
+
+
+df_colera_eda.month.89 <- subset(df_colera_eda.month.merged.municipios, Fecha %in% c(8, 9))
+df_colera_eda.month.89 <- df_colera_eda.month.89 %>%
+  group_by(CODIGOINE, OBJECTID, INSPIREID, NATCODE, NAMEUNIT, CODNUT1, CODNUT2, CODNUT3, Provincia, Total_poblacion, lat, long, geometry) %>%
+  summarize(
+    Total_invasiones = sum(as.numeric(Total_invasiones)),
+    Tasa_incidencia = sum(as.numeric(Tasa_incidencia)),
+    Total_defunciones = sum(as.numeric(Total_defunciones)),
+    Tasa_mortalidad = sum(as.numeric(Tasa_mortalidad))
+  )
+head(df_colera_eda.month.89)
+
+
+# plot (1)
+
+m89 <-
+  create_tmap(
+    df_colera_eda.month.89,
+    mapS.municipios,
+    TOTAL_DEFUNCIONES_STR,
+    "Número de fallecidos por municipio",
+    "pretty"
+  )
+
+# m89 + tm_shape(df_colera_eda.month.89[df_colera_eda.month.89$Total_defunciones > 500, ]) + tm_text("NAMEUNIT", size = 0.5)
+
+
+# plot (2)
+
+tmap_mode("view")
+m89 
+# m89 + tm_shape(df_colera_eda.month.89[df_colera_eda.month.89$Total_defunciones > 500, ]) + tm_text("NAMEUNIT", size = 0.5)
+tmap_mode("plot")
+
+
+# invasión colérica en la provincia de Valencia ---------------------------
+# durante el mes de Junio -------------------------------------------------
+
+
+df_colera_eda.month.valencia.6 <- subset(df_colera_eda.month.merged.municipios, Provincia == "valencia" & Fecha == 6)
+mapS.valencia <- subset(mapS.municipios, CODNUT3 %in% c("ES522", "ES423", "ES616", "ES220", "ES417", "ES514", "ES242", "ES523")) 
+# mapS.valencia <- mapS.municipios[mapS.municipios$CODIGOINE %in% unique(df_colera_eda.month.valencia.6$CODIGOINE),]
+
+# plot (1)
+
+m6.valencia <-
+  create_tmap(
+    df_colera_eda.month.valencia.6,
+    mapS.valencia,
+    TOTAL_INVASIONES_STR,
+    "Número de invasiones en Valencia",
+    "pretty"
+  )
+
+
+# durante los meses de Julio y Agosto -------------------------------------
+
+
+df_colera_eda.month.valencia.78 <- subset(df_colera_eda.month.merged.municipios, Provincia == "valencia" & Fecha %in% c(7, 8))
+
+# plot (1)
+
+m79.valencia <-
+  create_tmap(
+    df_colera_eda.month.valencia.78,
+    mapS.valencia,
+    TOTAL_INVASIONES_STR,
+    "Número de invasiones en Valencia",
+    "pretty"
+  )
+
+
+# invasión colérica en la provincia de Zaragoza ---------------------------
+
+
+df_colera_eda.month.zaragoza <- subset(df_colera_eda.month.merged.municipios, Provincia == "zaragoza")
+df_colera_eda.month.zaragoza <- df_colera_eda.month.zaragoza %>%
+  group_by(CODIGOINE, OBJECTID, INSPIREID, NATCODE, NAMEUNIT, CODNUT1, CODNUT2, CODNUT3, Provincia, Total_poblacion, lat, long, geometry) %>%
+  summarize(
+    Total_invasiones = sum(as.numeric(Total_invasiones)),
+    Tasa_incidencia = sum(as.numeric(Tasa_incidencia)),
+    Total_defunciones = sum(as.numeric(Total_defunciones)),
+    Tasa_mortalidad = sum(as.numeric(Tasa_mortalidad))
+  )
+
+mapS.zaragoza <- subset(mapS.municipios, CODNUT3 %in% c("ES522", "ES423", "ES512", "ES614", "ES424", "ES241", "ES513", "ES300", "ES620", "ES415", "ES416", "ES514", "ES242", "ES425", "ES523", "ES243")) 
+
+
+# plot (1)
+
+m611.zaragoza <-
+  create_tmap(
+    df_colera_eda.month.zaragoza,
+    mapS.zaragoza,
+    TOTAL_INVASIONES_STR,
+    "Número de invasiones en Zaragoza",
+    "pretty"
+  )
+
+
+# invasión colérica en la provincia Barcelona -----------------------------
+
+
+df_colera_eda.month.barcelona <- subset(df_colera_eda.month.merged.municipios, Provincia == "barcelona")
+df_colera_eda.month.barcelona <- df_colera_eda.month.barcelona %>%
+  group_by(CODIGOINE, OBJECTID, INSPIREID, NATCODE, NAMEUNIT, CODNUT1, CODNUT2, CODNUT3, Provincia, Total_poblacion, lat, long, geometry) %>%
+  summarize(
+    Total_invasiones = sum(as.numeric(Total_invasiones)),
+    Tasa_incidencia = sum(as.numeric(Tasa_incidencia)),
+    Total_defunciones = sum(as.numeric(Total_defunciones)),
+    Tasa_mortalidad = sum(as.numeric(Tasa_mortalidad))
+  )
+
+mapS.barcelona <- subset(mapS.municipios, CODNUT3 %in% c("ES513", "ES523")) 
+
+
+# plot (1)
+
+m611.barcelona <-
+  create_tmap(
+    df_colera_eda.month.barcelona,
+    mapS.barcelona,
+    TOTAL_INVASIONES_STR,
+    "Número de invasiones en barcelona",
+    "pretty"
+  )
+
+
+
+# invasión colérica en las provincias de Granada y Málaga -----------------
+
+
+df_colera_eda.month.granada_malaga <- subset(df_colera_eda.month.merged.municipios, Provincia %in% c("granada", "malaga"))
+df_colera_eda.month.granada_malaga <- df_colera_eda.month.granada_malaga %>%
+  group_by(CODIGOINE, OBJECTID, INSPIREID, NATCODE, NAMEUNIT, CODNUT1, CODNUT2, CODNUT3, Provincia, Total_poblacion, lat, long, geometry) %>%
+  summarize(
+    Total_invasiones = sum(as.numeric(Total_invasiones)),
+    Tasa_incidencia = sum(as.numeric(Tasa_incidencia)),
+    Total_defunciones = sum(as.numeric(Total_defunciones)),
+    Tasa_mortalidad = sum(as.numeric(Tasa_mortalidad))
+  )
+
+mapS.granada_malaga <- subset(mapS.municipios, CODNUT3 %in% c("ES522", "ES423", "ES614", "ES616", "ES617", "ES414")) 
+
+
+# plot (1)
+
+m611.granada_malaga <-
+  create_tmap(
+    df_colera_eda.month.granada_malaga,
+    mapS.granada_malaga,
+    TOTAL_INVASIONES_STR,
+    "Número de invasiones en Granada y Málaga",
+    "pretty"
+  )
+
+
+# invasión colérica en las provincias de Murcia, Castellón y Alicante -----
+
+
+df_colera_eda.month.murcia_castellon_alicante <- subset(df_colera_eda.month.merged.municipios, Provincia %in% c("murcia", "castellon", "alicante"))
+df_colera_eda.month.murcia_castellon_alicante <- df_colera_eda.month.murcia_castellon_alicante %>%
+  group_by(CODIGOINE, OBJECTID, INSPIREID, NATCODE, NAMEUNIT, CODNUT1, CODNUT2, CODNUT3, Provincia, Total_poblacion, lat, long, geometry) %>%
+  summarize(
+    Total_invasiones = sum(as.numeric(Total_invasiones)),
+    Tasa_incidencia = sum(as.numeric(Tasa_incidencia)),
+    Total_defunciones = sum(as.numeric(Total_defunciones)),
+    Tasa_mortalidad = sum(as.numeric(Tasa_mortalidad))
+  )
+
+mapS.murcia_castellon_alicante <- subset(mapS.municipios, CODNUT3 %in% c("ES522", "ES614", "ES424", "ES513", "ES620", "ES220", "ES416")) 
+
+
+# plot (1)
+
+m611.murcia_castellon_alicante <-
+  create_tmap(
+    df_colera_eda.month.murcia_castellon_alicante,
+    mapS.murcia_castellon_alicante,
+    TOTAL_INVASIONES_STR,
+    "Número de invasiones en Murcia, Castellón y Alicante",
+    "pretty"
+  )
+
+
+# Indica la marcha del cólera en las cuencas del Guadalaviar y Júcai.
+# Idem id. en las del Guadiana y Guadalquivir.
+# Idem id. en la cuenca del Tajo.
+# Idem id. en la del Ebro.
+
+
+# clean environment -------------------------------------------------------
+
+rm(
+  m6,
+  m7,
+  m8,
+  m9,
+  m10,
+  m11,
+  m611,
+  m2526,
+  m2728,
+  m2930,
+  m3132,
+  m89,
+  m6.valencia,
+  m79.valencia,
+  m611.zaragoza,
+  m611.barcelona,
+  m611.granada_malaga,
+  m611.murcia_castellon_alicante
+)
