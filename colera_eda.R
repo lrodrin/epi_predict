@@ -199,7 +199,7 @@ create_tmapByFecha <- function(df_mes, map, var_col, legend_title, style, nrows)
         free.coords = FALSE
       ) +
       tm_shape(map) + tm_borders() +
-      m_layout(
+      tm_layout(
         legend.position =  c("right", "bottom"),
         legend.outside = TRUE,
         frame = FALSE,
@@ -986,7 +986,7 @@ m2526 <-
     TOTAL_INVASIONES_STR,
     "Número de invadidos por municipio",
     "jenks"
-  ) + tm_shape(df_colera_eda.week.2aquin.junio[df_colera_eda.week.2aquin.junio$Total_invasiones > 500, ]) + tm_text("NAMEUNIT", size = 1)
+  ) + tm_shape(df_colera_eda.week.1aquin.junio[df_colera_eda.week.1aquin.junio$Total_invasiones > 131, ]) + tm_text("NAMEUNIT", size = 0.7)
 
 m2526 + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
 
@@ -1007,7 +1007,7 @@ m2728 <-
     TOTAL_INVASIONES_STR,
     "Número de invadidos por municipio",
     "jenks"
-  ) + tm_shape(df_colera_eda.week.2aquin.junio[df_colera_eda.week.2aquin.junio$Total_invasiones > 500, ]) + tm_text("NAMEUNIT", size = 1)
+  ) + tm_shape(df_colera_eda.week.2aquin.junio[df_colera_eda.week.2aquin.junio$Total_invasiones > 131, ]) + tm_text("NAMEUNIT", size = 0.7)
 
 m2728 + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
 
@@ -1028,7 +1028,7 @@ m2930 <-
     TOTAL_INVASIONES_STR,
     "Número de invadidos por municipio",
     "jenks"
-  ) + tm_shape(df_colera_eda.week.1aquin.julio[df_colera_eda.week.1aquin.julio$Total_invasiones > 500, ]) + tm_text("NAMEUNIT", size = 1)
+  ) + tm_shape(df_colera_eda.week.1aquin.julio[df_colera_eda.week.1aquin.julio$Total_invasiones > 131, ]) + tm_text("NAMEUNIT", size = 0.7)
 
 m2930 + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
 
@@ -1049,7 +1049,7 @@ m3132 <-
     TOTAL_INVASIONES_STR,
     "Número de invadidos por municipio",
     "jenks"
-  ) + tm_shape(df_colera_eda.week.2aquin.julio[df_colera_eda.week.2aquin.julio$Total_invasiones > 500, ]) + tm_text("NAMEUNIT", size = 1)
+  ) + tm_shape(df_colera_eda.week.2aquin.julio[df_colera_eda.week.2aquin.julio$Total_invasiones > 131, ]) + tm_text("NAMEUNIT", size = 0.7)
 
 m3132 + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
 
@@ -1078,7 +1078,7 @@ m89 <-
     TOTAL_INVASIONES_STR,
     "Número de invadidos por municipio",
     "jenks"
-  ) + tm_shape(df_colera_eda.month.89[df_colera_eda.month.89$Total_invasiones > 500, ]) + tm_text("NAMEUNIT", size = 1)
+  ) + tm_shape(df_colera_eda.month.89[df_colera_eda.month.89$Total_invasiones > 615, ]) + tm_text("NAMEUNIT", size = 0.7)
 
 m89 + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
 
@@ -1107,9 +1107,16 @@ m6.valencia <-
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Valencia",
     "jenks"
-  ) + tm_shape(df_colera_eda.month.valencia.6[df_colera_eda.month.valencia.6$Total_invasiones > 500, ]) + tm_text("NAMEUNIT", size = 1)
+  ) + tm_shape(df_colera_eda.month.valencia.6[df_colera_eda.month.valencia.6$Total_invasiones > 64, ]) + tm_text("NAMEUNIT", size = 0.7)
 
 m6.valencia + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
+
+
+# plot (2)
+
+tmap_mode("view")
+m6.valencia + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
+tmap_mode("plot")
 
 
 # durante los meses de Julio y Agosto -------------------------------------
@@ -1126,7 +1133,7 @@ m79.valencia <-
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Valencia",
     "jenks"
-  ) + tm_shape(df_colera_eda.month.valencia.78[df_colera_eda.month.valencia.78$Total_invasiones > 500, ]) + tm_text("NAMEUNIT", size = 1)
+  ) + tm_shape(df_colera_eda.month.valencia.78[df_colera_eda.month.valencia.78$Total_invasiones > 64, ]) + tm_text("NAMEUNIT", size = 0.7)
 
 m79.valencia + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
 
@@ -1156,7 +1163,7 @@ m611.zaragoza <-
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Zaragoza",
     "jenks"
-  ) + tm_shape(df_colera_eda.month.zaragoza[df_colera_eda.month.zaragoza$Total_invasiones > 500, ]) + tm_text("NAMEUNIT", size = 1)
+  ) + tm_shape(df_colera_eda.month.zaragoza[df_colera_eda.month.zaragoza$Total_invasiones > 261, ]) + tm_text("NAMEUNIT", size = 0.7)
 
 m611.zaragoza + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
 
@@ -1186,7 +1193,7 @@ m611.granada_malaga <-
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Granada y Málaga",
     "jenks"
-  ) + tm_shape(df_colera_eda.month.granada_malaga[df_colera_eda.month.granada_malaga$Total_invasiones > 500, ]) + tm_text("NAMEUNIT", size = 1)
+  ) + tm_shape(df_colera_eda.month.granada_malaga[df_colera_eda.month.granada_malaga$Total_invasiones > 270, ]) + tm_text("NAMEUNIT", size = 0.7)
 
 m611.granada_malaga + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
 
@@ -1216,7 +1223,7 @@ m611.murcia_castellon_alicante <-
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Murcia, Castellón y Alicante",
     "jenks"
-  ) + tm_shape(df_colera_eda.month.murcia_castellon_alicante[df_colera_eda.month.murcia_castellon_alicante$Total_invasiones > 500, ]) + tm_text("NAMEUNIT", size = 1)
+  ) + tm_shape(df_colera_eda.month.murcia_castellon_alicante[df_colera_eda.month.murcia_castellon_alicante$Total_invasiones > 574, ]) + tm_text("NAMEUNIT", size = 0.7)
 
 m611.murcia_castellon_alicante + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
 
@@ -1253,7 +1260,7 @@ m611.guadalaviar_jucai <-
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Teruel, Cuenca, Albacete y Valencia",
     "jenks"
-  ) + tm_shape(df_colera_eda.month.guadalaviar_jucai[df_colera_eda.month.guadalaviar_jucai$Total_invasiones > 500, ]) + tm_text("NAMEUNIT", size = 1)
+  ) + tm_shape(df_colera_eda.month.guadalaviar_jucai[df_colera_eda.month.guadalaviar_jucai$Total_invasiones > 253, ]) + tm_text("NAMEUNIT", size = 0.7)
 
 m611.guadalaviar_jucai + tm_shape(mapWaterways1st_int) + tm_lines(lwd = 1, col = "blue")
 
@@ -1288,7 +1295,7 @@ m611.guadiana_guadalquivir <-
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Ciudad Real, Badajoz, Jaén, Córdoba, Sevilla y Cádiz",
     "jenks"
-  ) + tm_shape(df_colera_eda.month.guadiana_guadalquivir[df_colera_eda.month.guadiana_guadalquivir$Total_invasiones > 500, ]) + tm_text("NAMEUNIT", size = 1)
+  ) + tm_shape(df_colera_eda.month.guadiana_guadalquivir[df_colera_eda.month.guadiana_guadalquivir$Total_invasiones > 263, ]) + tm_text("NAMEUNIT", size = 0.7)
 
 m611.guadiana_guadalquivir + tm_shape(mapWaterways1st_int) + tm_lines(lwd = 1, col = "blue")
 
@@ -1325,7 +1332,7 @@ m611.tajo <-
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Guadalajara, Cuenca y Toledo",
     "jenks"
-  ) + tm_shape(df_colera_eda.month.tajo[df_colera_eda.month.tajo$Total_invasiones > 500, ]) + tm_text("NAMEUNIT", size = 1)
+  ) + tm_shape(df_colera_eda.month.tajo[df_colera_eda.month.tajo$Total_invasiones > 156, ]) + tm_text("NAMEUNIT", size = 0.7)
 
 m611.tajo + tm_shape(mapWaterways1st_int) + tm_lines(lwd = 1, col = "blue")
 
@@ -1363,7 +1370,7 @@ m611.ebro <-
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Guadalajara, Cuenca y Toledo",
     "jenks"
-  ) + tm_shape(df_colera_eda.month.ebro[df_colera_eda.month.ebro$Total_invasiones > 500, ]) + tm_text("NAMEUNIT", size = 1)
+  ) + tm_shape(df_colera_eda.month.ebro[df_colera_eda.month.ebro$Total_invasiones > 316, ]) + tm_text("NAMEUNIT", size = 0.7)
 
 m611.ebro + tm_shape(mapWaterways1st_int) + tm_lines(lwd = 1, col = "blue")
 
