@@ -414,4 +414,4 @@ df_colera.merged.day <- mergeData_withPob1887(
 # clean environment -------------------------------------------------------
 
 
-rm(df_colera_invasiones.copy, df_colera_defunciones.copy)
+rm(df_colera_invasiones.copy, df_colera_defunciones.copy, rows_odd)

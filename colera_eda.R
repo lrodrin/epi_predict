@@ -8,7 +8,7 @@ library(sf)
 library(tmap)
 
 
-load("colera_data.RData")
+# load("colera_data.RData")
 
 
 # constants ---------------------------------------------------------------
@@ -16,15 +16,13 @@ load("colera_data.RData")
 
 SHAPES_DATA_DIR <- "shapes"
 dir.create(SHAPES_DATA_DIR, showWarnings = FALSE)
-COLERA_PLOTS_DIR <- "colera_plots"
-dir.create(COLERA_PLOTS_DIR, showWarnings = FALSE)
 
 TASA_MORTALIDAD_STR <- "Tasa_mortalidad"
 DEFUNCIONES_FACTOR_STR <- "defunciones_factor"
 LONG_STR <- "long"
 LAT_STR <- "lat"
 MONTHS_STR <- c("Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre")
-CAPITALES <- c(
+CAPITALES_STR <- c(
   "vitoria-gasteiz", "albacete", "alicante", "almeria", "oviedo", "avila",
   "badajoz", "barcelona", "burgos", "caceres", "cadiz", "castellon",
   "ciudad real", "cordoba", "cuenca", "gerona", "granada", "guadalajara",
@@ -72,20 +70,11 @@ factorize <- function(df, var_col, breaks, labels, isFactor_col, factor_col) {
   
   if (isFactor_col == FALSE) {
     
-    df[[var_col]] <-
-      cut(
-        df[[var_col]],
-        breaks = breaks,
-        labels = labels
-      )
+    df[[var_col]] <- cut(df[[var_col]], breaks = breaks, labels = labels)
+    
   }  else {
     
-    df[[factor_col]] <-
-      cut(
-        df[[var_col]],
-        breaks = breaks,
-        labels = labels
-      )
+    df[[factor_col]] <- cut(df[[var_col]], breaks = breaks, labels = labels)
   }
   
   return(df)
@@ -94,14 +83,14 @@ factorize <- function(df, var_col, breaks, labels, isFactor_col, factor_col) {
 
 
 read_shapefile <- function(filename) {
-  #' Read a shapefile from the specified directory.
+  #' Read a shape file from the specified directory.
   #'
-  #' This function reads a shapefile from the specified directory and returns it as a
+  #' This function reads a shape file from the specified directory and returns it as a
   #' spatial object.
   #'
-  #' @param filename Name of the shapefile file.
+  #' @param filename Name of the shape file file.
   #'
-  #' @return A spatial object representing the shapefile.
+  #' @return A spatial object representing the shape file.
   
   shapefile <- st_read(paste(SHAPES_DATA_DIR, filename, sep = "/"), quiet = TRUE)
   print(head(shapefile))
@@ -162,6 +151,19 @@ df_quincena <- function(df, first, last) {
 }
 
 create_tmap <- function(df_mes, map, var_col, legend_title, style) {
+  #' Create a thematic map using tmap package.
+  #'
+  #' This function creates a thematic map using the tmap package based on the provided data frame,
+  #' map object, variable column, legend title, and style.
+  #'
+  #' @param df_mes Data frame containing the data to be mapped.
+  #' @param map Spatial object representing the map background.
+  #' @param var_col Column containing the variable to be mapped.
+  #' @param legend_title Title for the legend.
+  #' @param style Style for mapping (e.g., "cat" for categorical).
+  #'
+  #' @return A thematic map.
+  
   return(
     tm_shape(df_mes) +
       tm_polygons(
@@ -184,6 +186,20 @@ create_tmap <- function(df_mes, map, var_col, legend_title, style) {
 
 
 create_tmapByFecha <- function(df_mes, map, var_col, legend_title, style, nrows) {
+  #' Create a thematic map with facets by date using tmap package.
+  #'
+  #' This function creates a thematic map with facets by date using the tmap package.
+  #' It is designed to display temporal data on multiple map panels.
+  #'
+  #' @param df_mes Data frame containing the data to be mapped.
+  #' @param map Spatial object representing the map background.
+  #' @param var_col Column containing the variable to be mapped.
+  #' @param legend_title Title for the legend.
+  #' @param style Style for mapping (e.g., "cat" for categorical).
+  #' @param nrows Number of rows for arranging facets.
+  #'
+  #' @return A thematic map with facets.
+  
   return(
     tm_shape(df_mes) +
       tm_polygons(
@@ -336,17 +352,15 @@ ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro4.png", sep = "/"), height = 11, dpi = 
 # del colera de 1885 ------------------------------------------------------
 
 
-df_cuadro5 <- df_colera.merged.month %>%
-  group_by(`Codigo Ine`) %>%
+df_cuadro5 <- df_colera.merged.day %>%
+  group_by(`Codigo Ine`, Municipio, Total_poblacion) %>%
   summarise(
-    Municipio = first(Municipio),
-    Total_poblacion = first(Total_poblacion),
     Total_invasiones = sum(Total_invasiones),
     Total_defunciones = sum(Total_defunciones)
   ) 
 
 paste0("Población de España (Censo de 1887): ", formatN(sum(Pob1887$Total_poblacion)))
-paste0("Población sometida a la epidemia: ", formatN(sum(df_cuadro5$Total_poblacion)), " (", round((sum(df_cuadro5$Total_poblacion) / sum(Pob1887$Total_poblacion)) * 100, 2), " %)")
+paste0("Población sometida a la epidemia: ", formatN(sum(df_cuadro5$Total_poblacion)), " (", round((sum(unique(df_cuadro5$Total_poblacion)) / sum(Pob1887$Total_poblacion)) * 100, 2), " %)")
 
 paste0("Municipios: ", formatN(sum(unique(Pob1887$`Codigo Ine`))))
 paste0("Municipios afectados: ", formatN(sum(unique(df_cuadro5$`Codigo Ine`))), " (", round((sum(unique(df_cuadro5$`Codigo Ine`)) / sum(unique(Pob1887$`Codigo Ine`))) * 100, 2), " %)")
@@ -390,7 +404,7 @@ cat(
   paste0(FECHA_STR, " de comienzo: ", format(min(df_colera.merged.day$Fecha, na.rm = TRUE), format = "%d de %B de %Y")), "\n",
   paste0(FECHA_STR, " de finalización: ", format(max(df_colera.merged.day$Fecha, na.rm = TRUE), format = "%d de %B de %Y")), "\n",
   paste0("Duración de la epidemia: ", max(df_colera.merged.day$Fecha, na.rm = TRUE) - min(df_colera.merged.day$Fecha, na.rm = TRUE), " días"), "\n",
-  paste0("Intensidad media diaria de mortalidad: ???") # TODO: calculation
+  paste0("Intensidad media diaria de mortalidad: ", round((sum(df_cuadro5$Total_defunciones) / 153), 2), " fallecidos") 
 ) # TODO: format in English
 
 
@@ -506,9 +520,10 @@ ggplot(data = df_cuadro6[1:6,], aes(x = Fecha, y = Total_defunciones, fill = Fec
   labs(x = "Meses", y = "Fallecidos") +
   ggtitle(paste0("Fallecidos por cólera en ", ANO_STR, " (por meses)")) +
   scale_y_continuous(breaks = seq(0, 38010, 5000), limits = c(0, 38010), labels = number) +
-  scale_fill_discrete(guide = FALSE) +
+  scale_fill_discrete(guide = "none") +
   geom_text(aes(label = Total_defunciones), hjust = 0.5, vjust = -0.5, size = 3) + 
-  theme_bw() # TODO: add total ???
+  theme_bw() +
+  scale_x_discrete(limits = MONTHS_STR) # TODO: add total ???
 
 ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro6.png", sep = "/"), dpi = 300, limitsize = TRUE)
 
@@ -524,25 +539,35 @@ df_cuadro6.total
 # ocurridas por colera en España durante el año de 1885 -------------------
 
 
-df_cuadro7 <- df_colera.merged.day
-df_cuadro7 <- subset(df_cuadro7, Total_invasiones != 0)
-df_cuadro7 <- df_cuadro7 %>%
-  group_by(`Codigo Ine`) %>%
-  arrange(Fecha) %>%
-  mutate(Primer_caso = min(Fecha), Ultimo_caso = max(Fecha)) %>%
-  ungroup() %>%
-  dplyr::select(`Codigo Ine`, Provincia, Municipio, Total_poblacion, Primer_caso, Ultimo_caso, Total_invasiones, Tasa_incidencia, Total_defunciones, Tasa_mortalidad) %>%
-  group_by(`Codigo Ine`, Provincia, Municipio, Total_poblacion, Primer_caso, Ultimo_caso) %>%
+df_cuadro7 <- df_colera.merged.day %>%
+  group_by(`Codigo Ine`, Municipio, Total_poblacion) %>%
   summarize(
+    Primer_caso = min(Fecha),
+    Ultimo_caso = max(Fecha),
     Total_invasiones = sum(Total_invasiones),
-    Total_defunciones = sum(Total_defunciones),
-    Tasa_incidencia = sum(Tasa_incidencia),
-    Tasa_mortalidad = sum(Tasa_mortalidad)
+    Total_defunciones = sum(Total_defunciones)
   )
 
 df_cuadro7$Total_dias <- ifelse(df_cuadro7$Ultimo_caso - df_cuadro7$Primer_caso == 0, 1, df_cuadro7$Ultimo_caso - df_cuadro7$Primer_caso)
-df_cuadro7$Tasa_invasiones <- round((df_cuadro7$Total_defunciones / df_cuadro7$Total_invasiones) * 100, 4)
-df_cuadro7 <- df_cuadro7[, c(1, 2, 3, 4, 5, 6, 11, 7, 8, 9, 10, 12)]
+df_cuadro7$Intensidad_diaria <- round((df_cuadro7$Total_defunciones / df_cuadro7$Total_dias), 2)
+df_cuadro7$Tasa_mortalidad <- round((df_cuadro7$Total_defunciones / df_cuadro7$Total_poblacion) * 100, 2)
+df_cuadro7$Tasa_invasiones <- ifelse(df_cuadro7$Total_invasiones == 0, 0, round((df_cuadro7$Total_defunciones / df_cuadro7$Total_invasiones) * 100, 2))
+df_cuadro7 <- df_cuadro7[, c(1, 2, 3, 4, 5, 8, 6, 7, 9, 10, 11)]
+df_cuadro7.total <- tibble(
+  `Codigo Ine` = 00000,
+  Municipio = "Total",
+  Total_poblacion = sum(df_cuadro7$Total_poblacion),
+  Primer_caso = min(df_cuadro7$Primer_caso),
+  Ultimo_caso = max(df_cuadro7$Ultimo_caso),
+  Total_dias = unique(df_cuadro7$Total_dias),
+  Total_invasiones = sum(df_cuadro7$Total_invasiones),
+  Total_defunciones = sum(df_cuadro7$Total_defunciones),
+  Intensidad_diaria = mean(df_cuadro7$Intensidad_diaria),
+  Tasa_mortalidad = mean(df_cuadro7$Tasa_mortalidad),
+  Tasa_invasiones = mean(df_cuadro7$Tasa_invasiones)
+)
+
+df_cuadro7 <- bind_rows(df_cuadro7, df_cuadro7.total)
 head(df_cuadro7)
 
 # TODO: create plots
@@ -552,7 +577,7 @@ head(df_cuadro7)
 # respecto a la población sometida a epidemia -----------------------------
 
 
-df_cuadro11 <- df_cuadro7[, c(CODIGO_INE_STR, PROVINCIA_STR, MUNICIPIO_STR, TOTAL_POBLACION_STR, TOTAL_INVASIONES_STR, TOTAL_DEFUNCIONES_STR, TASA_MORTALIDAD_STR)]
+df_cuadro11 <- df_cuadro7[, c(CODIGO_INE_STR, MUNICIPIO_STR, TOTAL_POBLACION_STR, TOTAL_INVASIONES_STR, TOTAL_DEFUNCIONES_STR, TASA_MORTALIDAD_STR)]
 df_cuadro11 <- subset(df_cuadro11, Tasa_mortalidad > 2)
 df_cuadro11 <- df_cuadro11 %>%
   group_by(Municipio) %>%
@@ -574,20 +599,60 @@ ggplot(df_cuadro11[1:13,], aes(x = Tasa_mortalidad, y = Municipio, fill = Munici
 
 ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro11.png", sep = "/"), dpi = 300, limitsize = TRUE)
 
-# TODO: cuadro 12
+
+# intensidad diaria fallecidos por día ------------------------------------
+# (>3 por día de invasión) ------------------------------------------------
+
+
+df_cuadro12 <- df_cuadro7[, c(CODIGO_INE_STR, MUNICIPIO_STR, TOTAL_POBLACION_STR, TOTAL_INVASIONES_STR, TOTAL_DEFUNCIONES_STR, "Intensidad_diaria")]
+df_cuadro12 <- subset(df_cuadro12, Intensidad_diaria > 3)
+df_cuadro12 <- df_cuadro12 %>%
+  group_by(Municipio) %>%
+  summarise(Intensidad_diaria = sum(Intensidad_diaria))
+df_cuadro12 <- df_cuadro12[order(df_cuadro12$Intensidad_diaria, decreasing = TRUE),]
+head(df_cuadro12, 13)
+
+
+# plot (1)
+
+ggplot(df_cuadro12[1:15,], aes(x = Intensidad_diaria, y = Municipio, fill = Municipio)) +
+  geom_bar(stat = "identity") + 
+  labs(x = "Intensidad diaria (%)", y = MUNICIPIO_STR) +
+  ggtitle("Intensidad diaria fallecidos por día (>3 por día de invasión)") +
+  scale_x_continuous(breaks = seq(0, 25, 1), limits = c(0, 25), labels = number) +
+  geom_text(aes(label = Intensidad_diaria), hjust = -0.2, size = 3) + 
+  theme_bw() +
+  theme(legend.position = "none", plot.title = element_text(size = 12))
+
+ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro12.png", sep = "/"), dpi = 300, limitsize = TRUE)
 
 
 # permanencia de la epidemia ----------------------------------------------
 
 
-df_cuadro13 <- df_cuadro7[, c("Total_dias", MUNICIPIO_STR)]
+day_categories <- c("De menos de 5 días", "De 6 a 10 días", "De 11 a 20 días", "De 21 a 30 días", 
+                    "De 31 a 40 días", "De 41 a 50 días", "De 51 a 60 días", "De 61 a 70 días", 
+                    "De 71 a 80 días", "De 81 a 90 días", "De 91 a 100 días", "De más de 100 días")
+
+
+df_cuadro13.subset <- subset(df_colera.merged.day, Total_invasiones != 0)
+df_cuadro13.subset <- df_cuadro13.subset %>%
+  group_by(`Codigo Ine`, Municipio, Total_poblacion) %>%
+  summarize(
+    Primer_caso = min(Fecha),
+    Ultimo_caso = max(Fecha),
+    Total_invasiones = sum(Total_invasiones),
+    Total_defunciones = sum(Total_defunciones),
+    Tasa_mortalidad = sum(Tasa_mortalidad)
+  )
+
+df_cuadro13.subset$Total_dias <- ifelse(df_cuadro13.subset$Ultimo_caso - df_cuadro13.subset$Primer_caso == 0, 1, df_cuadro13.subset$Ultimo_caso - df_cuadro13.subset$Primer_caso)
+df_cuadro13 <- df_cuadro13.subset[, c("Total_dias", MUNICIPIO_STR)]
 df_cuadro13 <- factorize(
   df_cuadro13,
   "Total_dias",
   c(-1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, Inf),
-  c("De menos de 5 días", "De 6 a 10 días", "De 11 a 20 días", "De 21 a 30 días", 
-    "De 31 a 40 días", "De 41 a 50 días", "De 51 a 60 días", "De 61 a 70 días", 
-    "De 71 a 80 días", "De 81 a 90 días", "De 91 a 100 días", "De más de 100 días"),
+  day_categories,
   FALSE
 )
 
@@ -606,7 +671,7 @@ df_cuadro13.long <- df_cuadro13 %>%
   dplyr::select(Total_dias, Numero_de_Municipios, `Fallecidos (%)`) %>%
   pivot_longer(cols = c(Numero_de_Municipios, `Fallecidos (%)`), names_to = "column", values_to = "value")
 
-ggplot(data = df_cuadro13.long[1:12, ], aes(x = Total_dias, y = value, fill = column)) +
+ggplot(data = df_cuadro13.long[1:24, ], aes(x = Total_dias, y = value, fill = column)) +
   geom_bar(stat = "identity", position = position_dodge()) +
   labs(x = NULL, y = NULL, fill = NULL) +
   ggtitle("Permanencia de la epidemia") +
@@ -614,7 +679,8 @@ ggplot(data = df_cuadro13.long[1:12, ], aes(x = Total_dias, y = value, fill = co
   scale_fill_manual(values = c("Numero_de_Municipios" = "red", "Fallecidos (%)" = "blue")) +
   geom_text(aes(label = value), vjust = -0.5, position = position_dodge(width = 0.9), size = 3) +
   theme_bw() +
-  theme(legend.position = "bottom")
+  theme(text = element_text(), axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5), legend.position = "bottom") +
+  scale_x_discrete(limits = day_categories)
 
 ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro13.png", sep = "/"), height = 11, dpi = 300, limitsize = TRUE)
 
@@ -623,14 +689,16 @@ ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro13.png", sep = "/"), height = 11, dpi =
 # por cólera en distintos municipios --------------------------------------
 
 
-df_cuadro14 <- df_cuadro7[, c(TASA_MORTALIDAD_STR, MUNICIPIO_STR)]
+mortalityy_categories <- c("Hasta el 0.5 %", "Del 0.51 al 1 %", "Del 1.01 al 2 %", "Del 2.01 al 3 %", 
+                           "Del 3.01 al 4 %", "Del 4.01 al 5 %", "Del 5.01 al 6 %", "Del 6.01 al 7 %", 
+                           "Del 7.01 al 8 %", "Del 8.01 al 9 %", "Del 9.01 al 10 %", "De más del 10 %")
+  
+df_cuadro14 <- df_cuadro13.subset[, c(TASA_MORTALIDAD_STR, MUNICIPIO_STR)]
 df_cuadro14 <- factorize(
   df_cuadro14,
   TASA_MORTALIDAD_STR,
   c(-1, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, Inf),
-  c("Hasta el 0.5 %", "Del 0.51 al 1 %", "Del 1.01 al 2 %", "Del 2.01 al 3 %", 
-    "Del 3.01 al 4 %", "Del 4.01 al 5 %", "Del 5.01 al 6 %", "Del 6.01 al 7 %", 
-    "Del 7.01 al 8 %", "Del 8.01 al 9 %", "Del 9.01 al 10 %", "De más del 10 %"),
+  mortalityy_categories,
   FALSE
 )
 
@@ -653,11 +721,12 @@ ggplot(data = df_cuadro14.long[1:12, ], aes(x = Tasa_mortalidad, y = value, fill
   geom_bar(stat = "identity", position = position_dodge()) +
   labs(x = NULL, y = NULL, fill = NULL) +
   ggtitle("Porcentaje de población que fallece por cólera en distintos municipios") +
-  scale_y_continuous(breaks = seq(0, 565, 10), limits = c(0, 565), labels = number) +
+  scale_y_continuous(breaks = seq(0, 490, 20), limits = c(0, 490), labels = number) +
   scale_fill_manual(values = c("Numero_de_Municipios" = "red", "Fallecidos (%)" = "blue")) +
   geom_text(aes(label = value), vjust = -0.5, position = position_dodge(width = 0.9), size = 3) +
   theme_bw() +
-  theme(legend.position = "bottom", plot.title = element_text(size = 12))
+  theme(text = element_text(), axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5), legend.position = "bottom", plot.title = element_text(size = 12)) +
+  scale_x_discrete(limits = mortalityy_categories)
 
 ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro14.png", sep = "/"), height = 11, dpi = 300, limitsize = TRUE)
 
@@ -666,8 +735,11 @@ ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro14.png", sep = "/"), height = 11, dpi =
 # con respecto a la población (>10 %) -------------------------------------
 
 
-df_cuadro15 <- df_cuadro7[, c(CODIGO_INE_STR, PROVINCIA_STR, MUNICIPIO_STR, TOTAL_POBLACION_STR, TOTAL_INVASIONES_STR, TOTAL_DEFUNCIONES_STR, TASA_MORTALIDAD_STR)]
-df_cuadro15 <- subset(df_cuadro15, Tasa_mortalidad >= 10)
+df_cuadro15 <- df_cuadro7[, c(CODIGO_INE_STR, MUNICIPIO_STR, TOTAL_POBLACION_STR, TOTAL_INVASIONES_STR, TOTAL_DEFUNCIONES_STR, TASA_MORTALIDAD_STR)]
+df_cuadro15 <- subset(df_cuadro15, Tasa_mortalidad > 10)
+df_cuadro15 <- df_cuadro15 %>%
+  group_by(Municipio) %>%
+  summarise(Tasa_mortalidad = sum(Tasa_mortalidad))
 df_cuadro15 <- df_cuadro15[order(df_cuadro15$Tasa_mortalidad, decreasing = TRUE),]
 df_cuadro15
 
@@ -689,7 +761,8 @@ ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro15.png", sep = "/"), dpi = 300, limitsi
 # fallecidos en 1885 en Monteagudo (Soria) --------------------------------
 # por meses y días --------------------------------------------------------
 
-df_cuadro17 <- subset(df_colera.groupByProvinciaFechaMunicipo, Municipio == "monteagudo")
+
+df_cuadro17 <- subset(df_colera.merged.day, Municipio == "Monteagudo")
 df_cuadro18 <- df_cuadro17
 df_cuadro17$Fecha <- month(as.POSIXlt(df_cuadro17$Fecha, format = DATE_FORMAT))
 df_cuadro17 <- df_cuadro17 %>%
@@ -722,19 +795,13 @@ ggplot(data = df_cuadro17[1:6,], aes(x = Fecha, y = Total_defunciones, fill = Fe
   geom_bar(stat = "identity") +
   labs(x = "Meses", y = "Fallecidos") +
   ggtitle(paste0("Fallecidos por cólera en Monteagudo (Soria), en ", ANO_STR, " (por meses)")) +
-  # scale_y_continuous(breaks = seq(0, 38010, 5000), limits = c(0, 38010), labels = number) +
+  scale_y_continuous(breaks = seq(0, 270, 10), limits = c(0, 270), labels = number) +
   scale_fill_discrete(guide = FALSE) +
   geom_text(aes(label = Total_defunciones), hjust = 0.5, vjust = -0.5, size = 3) + 
-  theme_bw() # TODO: add total ???
+  theme_bw() +
+  scale_x_discrete(limits = MONTHS_STR) # TODO: add total ???
 
 ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro17.png", sep = "/"), dpi = 300, limitsize = TRUE)
-
-df_cuadro17.total <- df_cuadro17 %>%
-  mutate(Fecha = str_pad(Fecha, width = 11, side = "right", pad = " ")) %>%
-  unite(Fecha_Total, Fecha, Total_defunciones, sep = "    ") %>%
-  rename("Fallecidos por cólera en Monteagudo (Soria), en 1885 (por meses)" = Fecha_Total)
-
-df_cuadro17.total
 
 
 # plot (2)
@@ -754,13 +821,13 @@ ggplot(data = df_cuadro18, aes(x = Fecha, y = Total_defunciones)) +
 ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro18.png", sep = "/"), width = 9, dpi = 300, limitsize = TRUE)
 
 
-# capitales de provincia con % fallecidos por colera ----------------------
-# con respecto a su poblacion ---------------------------------------------
+# capitales de provincia con % fallecidos por cólera ----------------------
+# con respecto a su población ---------------------------------------------
 
 
-df_cuadro77 <- df_cuadro7[, c(CODIGO_INE_STR, PROVINCIA_STR, MUNICIPIO_STR, TOTAL_POBLACION_STR, TOTAL_INVASIONES_STR, TOTAL_DEFUNCIONES_STR, TASA_MORTALIDAD_STR)]
+df_cuadro77 <- df_cuadro7[, c(CODIGO_INE_STR, MUNICIPIO_STR, TASA_MORTALIDAD_STR)]
 df_cuadro77$Municipio <- tolower(iconv(df_cuadro77$Municipio, from = "UTF-8", to = "ASCII//TRANSLIT"))
-df_cuadro77$isCapital <- ifelse(df_cuadro77$Municipio %in% CAPITALES, TRUE, FALSE)
+df_cuadro77$isCapital <- ifelse(df_cuadro77$Municipio %in% CAPITALES_STR, TRUE, FALSE)
 df_cuadro77.capitales <- subset(df_cuadro77, isCapital == TRUE)
 df_cuadro77.capitales$isCapital <- NULL
 df_cuadro77.capitales <- df_cuadro77.capitales[order(df_cuadro77.capitales$Tasa_mortalidad, decreasing = TRUE),]
@@ -787,13 +854,14 @@ ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro77.capitales.png", sep = "/"), dpi = 30
 rm(
   df_cuadro1,
   df_cuadro11,
+  df_cuadro12,
   df_cuadro13,
   df_cuadro13.long,
+  df_cuadro13.subset,
   df_cuadro14,
   df_cuadro14.long,
   df_cuadro15,
   df_cuadro17,
-  df_cuadro17.total,
   df_cuadro18,
   df_cuadro2,
   df_cuadro3,
@@ -807,6 +875,7 @@ rm(
   df_cuadro6,
   df_cuadro6.total,
   df_cuadro7,
+  df_cuadro7.total,
   df_cuadro77,
   df_cuadro77.capitales
 )
