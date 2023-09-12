@@ -1,9 +1,7 @@
 library(readxl)
-library(lubridate)
 library(ggplot2)
 library(dplyr)
 library(tidyverse)
-library(lubridate)
 
 
 # constants ---------------------------------------------------------------
@@ -85,9 +83,7 @@ mergeData_withPob1887 <- function(df_colera_invasiones, df_colera_defunciones, P
 
 
 # read "colera" dataset
-df_colera <-
-  read_excel(paste(DATA_DIR, "Base colera harmo_codigos_newlatitudlongitud.xlsx", sep = "/"),
-             sheet = "Capitales_Pueblos")
+df_colera <- read_excel(paste(DATA_DIR, "Base colera harmo_codigos_newlatitudlongitud.xlsx", sep = "/"), sheet = "Capitales_Pueblos")
 
 # remove columns "observaciones_1", "observaciones_2" and "Fichero"
 df_colera$observaciones_1 <- NULL
@@ -102,7 +98,7 @@ df_colera <-
       !(df_colera[,CODIGO_INE_STR] == "9999")
   ), ]
 
-# add column "ano"
+# add column "año"
 df_colera$ano <- ANO_STR
 
 # format "Fecha" as year-month-day
@@ -169,11 +165,7 @@ ggplot(df_colera.groupByFecha, aes(Fecha)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.position = "bottom")
 
 # save the plot
-ggsave(paste(COLERA_PLOTS_DIR, "colera_total_invasiones&defunciones.png", sep = "/"),
-       width = 14,
-       height = 4.5,
-       dpi = 300,
-       limitsize = TRUE)
+ggsave(paste(COLERA_PLOTS_DIR, "colera_total_invasiones&defunciones.png", sep = "/"), width = 14, height = 4.5, dpi = 300, limitsize = TRUE)
 
 
 # TOTALES - PROVINCIA -----------------------------------------------------
@@ -238,11 +230,7 @@ ggplot(df_colera.groupByProvinciaFecha, aes(x = Fecha, y = Total_invasiones, gro
   facet_wrap(~ Provincia, scales = 'free_x', ncol = 4) 
 
 # save the plot
-ggsave(paste(COLERA_PLOTS_DIR, "colera_total_invasionesXprovincia.png", sep = "/"),
-       width = 14,
-       height = 9,
-       dpi = 300,
-       limitsize = TRUE)
+ggsave(paste(COLERA_PLOTS_DIR, "colera_total_invasionesXprovincia.png", sep = "/"), width = 14, height = 9, dpi = 300, limitsize = TRUE)
 
 # plot total defunciones" for "Provincia"
 ggplot(df_colera.groupByProvinciaFecha, aes(x = Fecha, y = Total_defunciones, group = Provincia, colour = Provincia)) + 
@@ -256,11 +244,7 @@ ggplot(df_colera.groupByProvinciaFecha, aes(x = Fecha, y = Total_defunciones, gr
   facet_wrap(~ Provincia, scales = 'free_x', ncol = 4)
 
 # save the plot
-ggsave(paste(COLERA_PLOTS_DIR, "colera_total_defuncionesXprovincia.png", sep = "/"),
-       width = 14,
-       height = 9,
-       dpi = 300,
-       limitsize = TRUE)
+ggsave(paste(COLERA_PLOTS_DIR, "colera_total_defuncionesXprovincia.png", sep = "/"), width = 14, height = 9, dpi = 300, limitsize = TRUE)
 
 # bar plots total "invasiones" and "defunciones" by "Provincia" and "Fecha" 
 ggplot(df_colera.groupByProvinciaFecha, aes(x = Total_invasiones, y = Provincia, fill = Provincia)) +
