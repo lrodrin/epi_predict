@@ -1,9 +1,6 @@
 library(ggplot2)
 library(scales)
 library(dplyr)
-library(stringr)
-library(lubridate)
-library(tidyr)
 library(sf)
 library(tmap)
 
@@ -16,9 +13,13 @@ library(tmap)
 
 SHAPES_DATA_DIR <- "shapes"
 dir.create(SHAPES_DATA_DIR, showWarnings = FALSE)
+COLERA_MAPS_DIR <- "colera_maps"
+dir.create(COLERA_MAPS_DIR, showWarnings = FALSE)
 
 TASA_MORTALIDAD_STR <- "Tasa_mortalidad"
 DEFUNCIONES_FACTOR_STR <- "defunciones_factor"
+CODIGOINE_STR <- "CODIGOINE"
+NAMEUNIT_STR <- "NAMEUNIT"
 LONG_STR <- "long"
 LAT_STR <- "lat"
 MONTHS_STR <- c("Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre")
@@ -138,7 +139,7 @@ df_quincena <- function(df, first, last) {
   
   df_quincena <- subset(df, Fecha %in% c(first, last))
   df_quincena <- df_quincena %>%
-    group_by(CODIGOINE, OBJECTID, INSPIREID, NATCODE, NAMEUNIT, CODNUT1, CODNUT2, CODNUT3, Provincia, Total_poblacion, geometry) %>%
+    group_by(CODIGOINE, OBJECTID, INSPIREID, NATCODE, NAMEUNIT, CODNUT1, CODNUT2, CODNUT3, Provincia, Total_poblacion, lat, long, geometry) %>%
     summarize(
       Total_invasiones = sum(as.numeric(Total_invasiones)),
       Tasa_incidencia = sum(as.numeric(Tasa_incidencia)),
@@ -150,17 +151,18 @@ df_quincena <- function(df, first, last) {
   
 }
 
-create_tmap <- function(df_mes, map, var_col, legend_title, style) {
+create_tmap <- function(df_mes, map, var_col, legend_title, style, coords) {
   #' Create a thematic map using tmap package.
   #'
   #' This function creates a thematic map using the tmap package based on the provided data frame,
-  #' map object, variable column, legend title, and style.
+  #' map object, variable column, legend title, style and coords.
   #'
   #' @param df_mes Data frame containing the data to be mapped.
   #' @param map Spatial object representing the map background.
   #' @param var_col Column containing the variable to be mapped.
   #' @param legend_title Title for the legend.
   #' @param style Style for mapping (e.g., "cat" for categorical).
+  #' @param coords Spatial boundaries based on coordinates.
   #'
   #' @return A thematic map.
   
@@ -180,12 +182,12 @@ create_tmap <- function(df_mes, map, var_col, legend_title, style) {
         frame = FALSE,
         inner.margins = c(0, 0, 0, 0)
       ) +
-      tm_view(bbox = map)
+      tm_view(bbox = coords)
   )
 }
 
 
-create_tmapByFecha <- function(df_mes, map, var_col, legend_title, style, nrows) {
+create_tmapByFecha <- function(df_mes, map, var_col, legend_title, style, coords, nrows) {
   #' Create a thematic map with facets by date using tmap package.
   #'
   #' This function creates a thematic map with facets by date using the tmap package.
@@ -196,6 +198,7 @@ create_tmapByFecha <- function(df_mes, map, var_col, legend_title, style, nrows)
   #' @param var_col Column containing the variable to be mapped.
   #' @param legend_title Title for the legend.
   #' @param style Style for mapping (e.g., "cat" for categorical).
+  #' @param coords Spatial boundaries based on coordinates.
   #' @param nrows Number of rows for arranging facets.
   #'
   #' @return A thematic map with facets.
@@ -221,7 +224,7 @@ create_tmapByFecha <- function(df_mes, map, var_col, legend_title, style, nrows)
         frame = FALSE,
         inner.margins = c(0, 0, 0, 0)
       ) +
-      tm_view(bbox = map)
+      tm_view(bbox = coords)
   )
 }
 
@@ -369,35 +372,19 @@ paste0("Invasiones: ", formatN(sum(df_cuadro5$Total_invasiones)))
 paste0("Defunciones: ", formatN(sum(df_cuadro5$Total_defunciones)))
 
 cat(
-  "Porcentaje de",
-  INVASIONES_STR,
-  "en relación con:\n- la población total:",
-  round((
-    sum(df_cuadro5$Total_invasiones) / sum(Pob1887$Total_poblacion)
-  ) * 100, 2),
+  "Porcentaje de", INVASIONES_STR, "en relación con:\n- la población total:",
+  round((sum(df_cuadro5$Total_invasiones) / sum(Pob1887$Total_poblacion)) * 100, 2),
   "%\n- la población de los Municipios afectados:",
-  round((
-    sum(df_cuadro5$Total_invasiones) / sum(df_cuadro5$Total_poblacion)
-  ) * 100, 2),
-  "%"
+  round((sum(df_cuadro5$Total_invasiones) / sum(df_cuadro5$Total_poblacion)) * 100, 2), "%"
 )
 
 cat(
-  "Porcentaje de",
-  DEFUNCIONES_STR,
-  "en relación con:\n- la población total:",
-  round((
-    sum(df_cuadro5$Total_defunciones) / sum(Pob1887$Total_poblacion)
-  ) * 100, 2),
+  "Porcentaje de", DEFUNCIONES_STR, "en relación con:\n- la población total:",
+  round((sum(df_cuadro5$Total_defunciones) / sum(Pob1887$Total_poblacion)) * 100, 2),
   "%\n- la población de los Municipios afectados:",
-  round((
-    sum(df_cuadro5$Total_defunciones) / sum(df_cuadro5$Total_poblacion)
-  ) * 100, 2),
+  round((sum(df_cuadro5$Total_defunciones) / sum(df_cuadro5$Total_poblacion)) * 100, 2),
   "%\n- las invasiones:",
-  round((
-    sum(df_cuadro5$Total_defunciones) / sum(df_cuadro5$Total_invasiones)
-  ) * 100, 2),
-  "%"
+  round((sum(df_cuadro5$Total_defunciones) / sum(df_cuadro5$Total_invasiones)) * 100, 2), "%"
 )
 
 cat(
@@ -405,7 +392,7 @@ cat(
   paste0(FECHA_STR, " de finalización: ", format(max(df_colera.merged.day$Fecha, na.rm = TRUE), format = "%d de %B de %Y")), "\n",
   paste0("Duración de la epidemia: ", max(df_colera.merged.day$Fecha, na.rm = TRUE) - min(df_colera.merged.day$Fecha, na.rm = TRUE), " días"), "\n",
   paste0("Intensidad media diaria de mortalidad: ", round((sum(df_cuadro5$Total_defunciones) / 153), 2), " fallecidos") 
-) # TODO: format in English
+)
 
 
 # plot (1)
@@ -503,12 +490,9 @@ df_cuadro6 <- df_cuadro6 %>%
   dplyr::select(Fecha, Total_defunciones) %>%
   bind_rows(data.frame(Fecha = "Total", Total_defunciones = sum(df_cuadro6$Total_defunciones))) %>%
   mutate(Fecha = case_when(
-    Fecha == 6 ~ MONTHS_STR[1],
-    Fecha == 7 ~ MONTHS_STR[2],
-    Fecha == 8 ~ MONTHS_STR[3],
-    Fecha == 9 ~ MONTHS_STR[4],
-    Fecha == 10 ~ MONTHS_STR[5],
-    Fecha == 11 ~ MONTHS_STR[6],
+    Fecha == 6 ~ MONTHS_STR[1], Fecha == 7 ~ MONTHS_STR[2],
+    Fecha == 8 ~ MONTHS_STR[3], Fecha == 9 ~ MONTHS_STR[4],
+    Fecha == 10 ~ MONTHS_STR[5], Fecha == 11 ~ MONTHS_STR[6],
     TRUE ~ as.character(Fecha)
   )) 
 
@@ -523,7 +507,7 @@ ggplot(data = df_cuadro6[1:6,], aes(x = Fecha, y = Total_defunciones, fill = Fec
   scale_fill_discrete(guide = "none") +
   geom_text(aes(label = Total_defunciones), hjust = 0.5, vjust = -0.5, size = 3) + 
   theme_bw() +
-  scale_x_discrete(limits = MONTHS_STR) # TODO: add total ???
+  scale_x_discrete(limits = MONTHS_STR)
 
 ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro6.png", sep = "/"), dpi = 300, limitsize = TRUE)
 
@@ -553,9 +537,9 @@ df_cuadro7$Intensidad_diaria <- round((df_cuadro7$Total_defunciones / df_cuadro7
 df_cuadro7$Tasa_mortalidad <- round((df_cuadro7$Total_defunciones / df_cuadro7$Total_poblacion) * 100, 2)
 df_cuadro7$Tasa_invasiones <- ifelse(df_cuadro7$Total_invasiones == 0, 0, round((df_cuadro7$Total_defunciones / df_cuadro7$Total_invasiones) * 100, 2))
 df_cuadro7 <- df_cuadro7[, c(1, 2, 3, 4, 5, 8, 6, 7, 9, 10, 11)]
+
 df_cuadro7.total <- tibble(
-  `Codigo Ine` = 00000,
-  Municipio = "Total",
+  `Codigo Ine` = 00000, Municipio = "Total",
   Total_poblacion = sum(df_cuadro7$Total_poblacion),
   Primer_caso = min(df_cuadro7$Primer_caso),
   Ultimo_caso = max(df_cuadro7$Ultimo_caso),
@@ -569,8 +553,6 @@ df_cuadro7.total <- tibble(
 
 df_cuadro7 <- bind_rows(df_cuadro7, df_cuadro7.total)
 head(df_cuadro7)
-
-# TODO: create plots
 
 
 # municipios con mayor % (>2) de defunciones ------------------------------
@@ -777,12 +759,9 @@ df_cuadro17 <- df_cuadro17 %>%
   dplyr::select(Fecha, Total_defunciones) %>%
   bind_rows(data.frame(Fecha = "Total", Total_defunciones = sum(df_cuadro17$Total_defunciones))) %>%
   mutate(Fecha = case_when(
-    Fecha == 6 ~ MONTHS_STR[1],
-    Fecha == 7 ~ MONTHS_STR[2],
-    Fecha == 8 ~ MONTHS_STR[3],
-    Fecha == 9 ~ MONTHS_STR[4],
-    Fecha == 10 ~ MONTHS_STR[5],
-    Fecha == 11 ~ MONTHS_STR[6],
+    Fecha == 6 ~ MONTHS_STR[1], Fecha == 7 ~ MONTHS_STR[2],
+    Fecha == 8 ~ MONTHS_STR[3], Fecha == 9 ~ MONTHS_STR[4],
+    Fecha == 10 ~ MONTHS_STR[5], Fecha == 11 ~ MONTHS_STR[6],
     TRUE ~ as.character(Fecha)
   ))
 
@@ -799,7 +778,7 @@ ggplot(data = df_cuadro17[1:6,], aes(x = Fecha, y = Total_defunciones, fill = Fe
   scale_fill_discrete(guide = FALSE) +
   geom_text(aes(label = Total_defunciones), hjust = 0.5, vjust = -0.5, size = 3) + 
   theme_bw() +
-  scale_x_discrete(limits = MONTHS_STR) # TODO: add total ???
+  scale_x_discrete(limits = MONTHS_STR)
 
 ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro17.png", sep = "/"), dpi = 300, limitsize = TRUE)
 
@@ -828,6 +807,7 @@ ggsave(paste(COLERA_PLOTS_DIR, "df_cuadro18.png", sep = "/"), width = 9, dpi = 3
 df_cuadro77 <- df_cuadro7[, c(CODIGO_INE_STR, MUNICIPIO_STR, TASA_MORTALIDAD_STR)]
 df_cuadro77$Municipio <- tolower(iconv(df_cuadro77$Municipio, from = "UTF-8", to = "ASCII//TRANSLIT"))
 df_cuadro77$isCapital <- ifelse(df_cuadro77$Municipio %in% CAPITALES_STR, TRUE, FALSE)
+
 df_cuadro77.capitales <- subset(df_cuadro77, isCapital == TRUE)
 df_cuadro77.capitales$isCapital <- NULL
 df_cuadro77.capitales <- df_cuadro77.capitales[order(df_cuadro77.capitales$Tasa_mortalidad, decreasing = TRUE),]
@@ -839,7 +819,7 @@ head(df_cuadro77, 10)
 ggplot(df_cuadro77.capitales[1:10,], aes(x = Tasa_mortalidad, y = Municipio, fill = Municipio)) +
   geom_bar(stat = "identity") + 
   labs(x = "Fallecidos (%)", y = MUNICIPIO_STR) +
-  ggtitle("Capitales de provincia con % fallecidos por colera con respecto a su poblacion") +
+  ggtitle("Capitales de provincia con % fallecidos por cólera con respecto a su población") +
   scale_x_continuous(breaks = seq(0, 5, 1), limits = c(0, 5), labels = number) +
   geom_text(aes(label = Tasa_mortalidad), hjust = -0.2, size = 3) + 
   theme_bw() +
@@ -881,7 +861,7 @@ rm(
 )
 
 
-# map ---------------------------------------------------------------------
+# maps --------------------------------------------------------------------
 
 
 mapS.municipios <- read_shapefile("Municipios_IGN.shp")
@@ -891,15 +871,19 @@ mapWaterways1st_int <- read_shapefile("Waterways1st_int.shp")
 mapWaterways2nd_int <- read_shapefile("Waterways2nd_int.shp")
 
 
-# remove Canary Islands, "Ceuta" and "Melilla"
+# format "Texto" of mapS.provincias and "NAMEUNIT" of mapS.municipios, and remove from maps the Canary Islands, "Ceuta" and "Melilla"
 
-mapS.municipios <- subset(mapS.municipios, CODNUT1 != "ES7") 
-mapS.municipios <- subset(mapS.municipios, !(CODIGOINE %in% c(51001, 52001))) 
 mapS.provincias <- subset(mapS.provincias, !(Cod_CCAA %in% c("05", "18", "19")))
 mapS.provincias$Texto <- tolower(iconv(mapS.provincias$Texto, from = "UTF-8", to = "ASCII//TRANSLIT"))
+mapS.municipios <- subset(mapS.municipios, CODNUT1 != "ES7") 
+mapS.municipios <- subset(mapS.municipios, !(CODIGOINE %in% c(51001, 52001)))
+mapS.municipios$NAMEUNIT <- sapply(strsplit(mapS.municipios$NAMEUNIT, "/"), function(x) x[1])
 
-head(mapS.municipios)
 head(mapS.provincias)
+head(mapS.municipios)
+
+
+# raw data ----------------------------------------------------------------
 
 
 # add coordinates from df_colera and merge with df_colera.merged.month, df_colera.merged.day and df_colera.merged.week
@@ -919,7 +903,10 @@ head(df_colera_eda.day)
 head(df_colera_eda.week)
 
 
-# merge mapS.provincias with df_colera_eda.month
+# maps with raw data ------------------------------------------------------
+
+
+# format and merge mapS.provincias with df_colera_eda.month
 
 df_colera_eda.month.merged.provincias <- merge(mapS.provincias, df_colera_eda.month, by.x = "Texto", by.y = PROVINCIA_STR)
 df_colera_eda.month.merged.provincias$Texto_Alt <- NULL
@@ -929,14 +916,18 @@ head(df_colera_eda.month.merged.provincias)
 
 # merge mapS.municipios and df_colera_eda.month, df_colera_eda.day and df_colera_eda.week
 
-df_colera_eda.month.merged.municipios <- merge(mapS.municipios, df_colera_eda.month, by.x = "CODIGOINE", by.y = CODIGO_INE_STR)
-df_colera_eda.day.merged <- merge(mapS.municipios, df_colera_eda.day, by.x = "CODIGOINE", by.y = CODIGO_INE_STR)
-df_colera_eda.week.merged <- merge(mapS.municipios, df_colera_eda.week, by.x = "CODIGOINE", by.y = CODIGO_INE_STR)
+df_colera_eda.month.merged.municipios <- merge(mapS.municipios, df_colera_eda.month, by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR)
+df_colera_eda.day.merged <- merge(mapS.municipios, df_colera_eda.day, by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR)
+df_colera_eda.week.merged <- merge(mapS.municipios, df_colera_eda.week, by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR)
 head(df_colera_eda.day.merged)
 head(df_colera_eda.day.merged)
 head(df_colera_eda.week.merged)
 
-rm(df_colera_eda.month, df_colera_eda.day, df_colera_eda.week)
+
+# clean environment -------------------------------------------------------
+
+
+rm(df_colera_coord, df_colera_eda.month, df_colera_eda.day, df_colera_eda.week)
 
 
 # plot maps ---------------------------------------------------------------
@@ -961,7 +952,7 @@ df_colera_eda.month.provincias <- factorize(
   c(-1, 800, 1600, 2400, Inf), 
   c("De menos de 800", "De 800 a 1600", "De 1600 a 2400", "De 2400 a 3200"),
   TRUE,
-  "defunciones_factor"
+  DEFUNCIONES_FACTOR_STR
 )
 
 
@@ -973,10 +964,19 @@ m6 <-
     mapS.provincias,
     DEFUNCIONES_FACTOR_STR,
     "Número de fallecidos por provincia",
-    "cat"
-  ) + tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 6,]) + tm_text(PROVINCIA_STR, size = 0.7)
-    
-m6 + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
+    "cat",
+    c(min(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 6,]$long), min(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 6,]$lat), max(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 6,]$long), max(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 6,]$lat))
+  ) + 
+  tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 6,]) + tm_text(PROVINCIA_STR, size = 0.7) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  )
+
+tmap_save(m6, filename = paste(COLERA_MAPS_DIR, "m6.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 m7 <-
   create_tmap(
@@ -984,8 +984,19 @@ m7 <-
     mapS.provincias,
     DEFUNCIONES_FACTOR_STR,
     "Número de fallecidos por provincia",
-    "cat"
-  ) + tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 7,]) + tm_text(PROVINCIA_STR, size = 0.7)
+    "cat",
+    c(min(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 7,]$long), min(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 7,]$lat), max(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 7,]$long), max(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 7,]$lat))
+  ) + 
+  tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 7,]) + tm_text(PROVINCIA_STR, size = 0.7) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  )
+
+tmap_save(m7, filename = paste(COLERA_MAPS_DIR, "m7.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 m8 <-
   create_tmap(
@@ -993,8 +1004,19 @@ m8 <-
     mapS.provincias,
     DEFUNCIONES_FACTOR_STR,
     "Número de fallecidos por provincia",
-    "cat"
-  ) + tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 8,]) + tm_text(PROVINCIA_STR, size = 0.7)
+    "cat",
+    c(min(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 8,]$long), min(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 8,]$lat), max(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 8,]$long), max(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 8,]$lat))
+  ) + 
+  tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 8,]) + tm_text(PROVINCIA_STR, size = 0.7) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  )
+
+tmap_save(m8, filename = paste(COLERA_MAPS_DIR, "m8.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 m9 <-
   create_tmap(
@@ -1002,8 +1024,19 @@ m9 <-
     mapS.provincias,
     DEFUNCIONES_FACTOR_STR,
     "Número de fallecidos por provincia",
-    "cat"
-  ) + tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 9,]) + tm_text(PROVINCIA_STR, size = 0.7)
+    "cat",
+    c(min(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 9,]$long), min(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 9,]$lat), max(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 9,]$long), max(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 9,]$lat))
+  ) + 
+  tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 9,]) + tm_text(PROVINCIA_STR, size = 0.7) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  )
+
+tmap_save(m9, filename = paste(COLERA_MAPS_DIR, "m9.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 m10 <-
   create_tmap(
@@ -1011,8 +1044,19 @@ m10 <-
     mapS.provincias,
     DEFUNCIONES_FACTOR_STR,
     "Número de fallecidos por provincia",
-    "cat"
-  ) + tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 10,]) + tm_text(PROVINCIA_STR, size = 0.7)
+    "cat",
+    c(min(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 10,]$long), min(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 10,]$lat), max(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 10,]$long), max(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 10,]$lat))
+  ) + 
+  tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 10,]) + tm_text(PROVINCIA_STR, size = 0.7) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  )
+
+tmap_save(m10, filename = paste(COLERA_MAPS_DIR, "m10.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 m11 <-
   create_tmap(
@@ -1020,8 +1064,19 @@ m11 <-
     mapS.provincias,
     DEFUNCIONES_FACTOR_STR,
     "Número de fallecidos por provincia",
-    "cat"
-  ) + tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 11,]) + tm_text(PROVINCIA_STR, size = 0.7)
+    "cat",
+    c(min(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 11,]$long), min(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 11,]$lat), max(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 11,]$long), max(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 11,]$lat))
+  ) + 
+  tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 11,]) + tm_text(PROVINCIA_STR, size = 0.7) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  )
+
+tmap_save(m11, filename = paste(COLERA_MAPS_DIR, "m11.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # plot (2)
@@ -1033,10 +1088,19 @@ m611 <-
     DEFUNCIONES_FACTOR_STR,
     "Número de fallecidos por provincia",
     "cat",
+    c(min(df_colera_eda.month.provincias$long), min(df_colera_eda.month.provincias$lat), max(df_colera_eda.month.provincias$long), max(df_colera_eda.month.provincias$lat)),
     2
-  ) + tm_shape(df_colera_eda.month.provincias) + tm_text(PROVINCIA_STR, size = 0.7)
+  ) + 
+  tm_shape(df_colera_eda.month.provincias) + tm_text(PROVINCIA_STR, size = 0.7) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  )
 
-m611 + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
+tmap_save(m611, filename = paste(COLERA_MAPS_DIR, "m611.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # invasión progresiva durante la 1a quincena de Junio ---------------------
@@ -1054,10 +1118,19 @@ m2526 <-
     mapS.municipios,
     TOTAL_INVASIONES_STR,
     "Número de invadidos por municipio",
-    "jenks"
-  ) + tm_shape(df_colera_eda.week.1aquin.junio[df_colera_eda.week.1aquin.junio$Total_invasiones > 131, ]) + tm_text("NAMEUNIT", size = 0.7)
+    "jenks",
+    c(min(df_colera_eda.week.1aquin.junio$long), min(df_colera_eda.week.1aquin.junio$lat), max(df_colera_eda.week.1aquin.junio$long), max(df_colera_eda.week.1aquin.junio$lat))
+  ) + 
+  tm_shape(df_colera_eda.week.1aquin.junio[df_colera_eda.week.1aquin.junio$Total_invasiones > 131, ]) + tm_text(NAMEUNIT_STR, size = 0.6) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  )
 
-m2526 + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
+tmap_save(m2526, filename = paste(COLERA_MAPS_DIR, "m2526.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # invasión progresiva durante la 2a quincena de Junio ---------------------
@@ -1075,10 +1148,19 @@ m2728 <-
     mapS.municipios,
     TOTAL_INVASIONES_STR,
     "Número de invadidos por municipio",
-    "jenks"
-  ) + tm_shape(df_colera_eda.week.2aquin.junio[df_colera_eda.week.2aquin.junio$Total_invasiones > 131, ]) + tm_text("NAMEUNIT", size = 0.7)
+    "jenks",
+    c(min(df_colera_eda.week.2aquin.junio$long), min(df_colera_eda.week.2aquin.junio$lat), max(df_colera_eda.week.2aquin.junio$long), max(df_colera_eda.week.2aquin.junio$lat))
+  ) + 
+  tm_shape(df_colera_eda.week.2aquin.junio[df_colera_eda.week.2aquin.junio$Total_invasiones > 81, ]) + tm_text(NAMEUNIT_STR, size = 0.6) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  )
 
-m2728 + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
+tmap_save(m2728, filename = paste(COLERA_MAPS_DIR, "m2728.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # invasión progresiva durante la 1a quincena de Julio ---------------------
@@ -1096,10 +1178,19 @@ m2930 <-
     mapS.municipios,
     TOTAL_INVASIONES_STR,
     "Número de invadidos por municipio",
-    "jenks"
-  ) + tm_shape(df_colera_eda.week.1aquin.julio[df_colera_eda.week.1aquin.julio$Total_invasiones > 131, ]) + tm_text("NAMEUNIT", size = 0.7)
+    "jenks",
+    c(min(df_colera_eda.week.1aquin.julio$long), min(df_colera_eda.week.1aquin.julio$lat), max(df_colera_eda.week.1aquin.julio$long), max(df_colera_eda.week.1aquin.julio$lat))
+  ) + 
+  tm_shape(df_colera_eda.week.1aquin.julio[df_colera_eda.week.1aquin.julio$Total_invasiones > 202, ]) + tm_text(NAMEUNIT_STR, size = 0.6) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  )
 
-m2930 + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
+tmap_save(m2930, filename = paste(COLERA_MAPS_DIR, "m2930.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # invasión progresiva durante la 2a quincena de Julio ---------------------
@@ -1117,10 +1208,19 @@ m3132 <-
     mapS.municipios,
     TOTAL_INVASIONES_STR,
     "Número de invadidos por municipio",
-    "jenks"
-  ) + tm_shape(df_colera_eda.week.2aquin.julio[df_colera_eda.week.2aquin.julio$Total_invasiones > 131, ]) + tm_text("NAMEUNIT", size = 0.7)
+    "jenks",
+    c(min(df_colera_eda.week.2aquin.julio$long), min(df_colera_eda.week.2aquin.julio$lat), max(df_colera_eda.week.2aquin.julio$long), max(df_colera_eda.week.2aquin.julio$lat))
+  ) + 
+  tm_shape(df_colera_eda.week.2aquin.julio[df_colera_eda.week.2aquin.julio$Total_invasiones > 274, ]) + tm_text(NAMEUNIT_STR, size = 0.6) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  )
 
-m3132 + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
+tmap_save(m3132, filename = paste(COLERA_MAPS_DIR, "m3132.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # invasión progresiva durante Agosto y Septiembre -------------------------
@@ -1146,17 +1246,19 @@ m89 <-
     mapS.municipios,
     TOTAL_INVASIONES_STR,
     "Número de invadidos por municipio",
-    "jenks"
-  ) + tm_shape(df_colera_eda.month.89[df_colera_eda.month.89$Total_invasiones > 615, ]) + tm_text("NAMEUNIT", size = 0.7)
+    "jenks",
+    c(min(df_colera_eda.month.89$long), min(df_colera_eda.month.89$lat), max(df_colera_eda.month.89$long), max(df_colera_eda.month.89$lat))
+  ) + 
+  tm_shape(df_colera_eda.month.89[df_colera_eda.month.89$Total_invasiones > 615, ]) + tm_text(NAMEUNIT_STR, size = 0.6) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  )
 
-m89 + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
-
-
-# plot (2)
-
-tmap_mode("view")
-m89 + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") 
-tmap_mode("plot")
+tmap_save(m89, filename = paste(COLERA_MAPS_DIR, "m89.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # invasión colérica en la provincia de Valencia ---------------------------
@@ -1175,16 +1277,28 @@ m6.valencia <-
     mapS.valencia,
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Valencia",
-    "jenks"
-  ) + tm_shape(df_colera_eda.month.valencia.6[df_colera_eda.month.valencia.6$Total_invasiones > 64, ]) + tm_text("NAMEUNIT", size = 0.7)
+    "jenks",
+    c(min(df_colera_eda.month.valencia.6$long), min(df_colera_eda.month.valencia.6$lat), max(df_colera_eda.month.valencia.6$long), max(df_colera_eda.month.valencia.6$lat))
+  ) + 
+  tm_shape(df_colera_eda.month.valencia.6[df_colera_eda.month.valencia.6$Total_invasiones > 64, ]) + tm_text(NAMEUNIT_STR, size = 0.6) + # 0.7 for interactive map
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  ) # for non interactive map
 
-m6.valencia + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
+tmap_save(m6.valencia, filename = paste(COLERA_MAPS_DIR, "m6.valencia.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # plot (2)
 
+# tmap_leaflet(m6.valencia) %>% addLegend("topright", colors = "#FF3333", labels = "Líneas de tren", title = "Transporte multimodal")
+# TODO: add two legends
+
 tmap_mode("view")
-m6.valencia + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
+m6.valencia
 tmap_mode("plot")
 
 
@@ -1193,18 +1307,28 @@ tmap_mode("plot")
 
 df_colera_eda.month.valencia.78 <- subset(df_colera_eda.month.merged.municipios, Provincia == "valencia" & Fecha %in% c(7, 8))
 
+
 # plot (1)
 
-m79.valencia <-
+m78.valencia <-
   create_tmap(
     df_colera_eda.month.valencia.78,
     mapS.valencia,
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Valencia",
-    "jenks"
-  ) + tm_shape(df_colera_eda.month.valencia.78[df_colera_eda.month.valencia.78$Total_invasiones > 64, ]) + tm_text("NAMEUNIT", size = 0.7)
+    "jenks",
+    c(min(df_colera_eda.month.valencia.78$long), min(df_colera_eda.month.valencia.78$lat), max(df_colera_eda.month.valencia.78$long), max(df_colera_eda.month.valencia.78$lat))
+  ) + 
+  tm_shape(df_colera_eda.month.valencia.78[df_colera_eda.month.valencia.78$Total_invasiones > 164, ]) + tm_text(NAMEUNIT_STR, size = 0.7) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  ) 
 
-m79.valencia + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
+tmap_save(m78.valencia, filename = paste(COLERA_MAPS_DIR, "m78.valencia.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # invasión colérica en la provincia de Zaragoza ---------------------------
@@ -1212,7 +1336,7 @@ m79.valencia + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
 
 df_colera_eda.month.zaragoza <- subset(df_colera_eda.month.merged.municipios, Provincia == "zaragoza")
 df_colera_eda.month.zaragoza <- df_colera_eda.month.zaragoza %>%
-  group_by(CODIGOINE, OBJECTID, INSPIREID, NATCODE, NAMEUNIT, CODNUT1, CODNUT2, CODNUT3, Provincia, Total_poblacion,  lat, long, geometry) %>%
+  group_by(CODIGOINE, OBJECTID, INSPIREID, NATCODE, NAMEUNIT, CODNUT1, CODNUT2, CODNUT3, Provincia, Total_poblacion, lat, long, geometry) %>%
   summarize(
     Total_invasiones = sum(as.numeric(Total_invasiones)),
     Tasa_incidencia = sum(as.numeric(Tasa_incidencia)),
@@ -1231,10 +1355,19 @@ m611.zaragoza <-
     mapS.zaragoza,
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Zaragoza",
-    "jenks"
-  ) + tm_shape(df_colera_eda.month.zaragoza[df_colera_eda.month.zaragoza$Total_invasiones > 261, ]) + tm_text("NAMEUNIT", size = 0.7)
+    "jenks",
+    c(min(df_colera_eda.month.zaragoza$long), min(df_colera_eda.month.zaragoza$lat), max(df_colera_eda.month.zaragoza$long), max(df_colera_eda.month.zaragoza$lat))
+  ) + 
+  tm_shape(df_colera_eda.month.zaragoza[df_colera_eda.month.zaragoza$Total_invasiones > 261, ]) + tm_text(NAMEUNIT_STR, size = 0.7) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  )
 
-m611.zaragoza + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
+tmap_save(m611.zaragoza, filename = paste(COLERA_MAPS_DIR, "m611.zaragoza.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # invasión colérica en las provincias de Granada y Málaga -----------------
@@ -1261,10 +1394,19 @@ m611.granada_malaga <-
     mapS.granada_malaga,
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Granada y Málaga",
-    "jenks"
-  ) + tm_shape(df_colera_eda.month.granada_malaga[df_colera_eda.month.granada_malaga$Total_invasiones > 270, ]) + tm_text("NAMEUNIT", size = 0.7)
+    "jenks",
+    c(min(df_colera_eda.month.granada_malaga$long), min(df_colera_eda.month.granada_malaga$lat), max(df_colera_eda.month.granada_malaga$long), max(df_colera_eda.month.granada_malaga$lat))
+  ) + 
+  tm_shape(df_colera_eda.month.granada_malaga[df_colera_eda.month.granada_malaga$Total_invasiones > 270, ]) + tm_text(NAMEUNIT_STR, size = 0.7) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  ) 
 
-m611.granada_malaga + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
+tmap_save(m611.granada_malaga, filename = paste(COLERA_MAPS_DIR, "m611.granada_malaga.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # invasión colérica en las provincias de Murcia, Castellón y Alicante -----
@@ -1290,18 +1432,27 @@ m611.murcia_castellon_alicante <-
     df_colera_eda.month.murcia_castellon_alicante,
     mapS.murcia_castellon_alicante,
     TOTAL_INVASIONES_STR,
-    "Número de invasiones en Murcia, Castellón y Alicante",
-    "jenks"
-  ) + tm_shape(df_colera_eda.month.murcia_castellon_alicante[df_colera_eda.month.murcia_castellon_alicante$Total_invasiones > 574, ]) + tm_text("NAMEUNIT", size = 0.7)
+    "Número de invasiones en Murcia, Castellon y Alicante",
+    "jenks",
+    c(min(df_colera_eda.month.murcia_castellon_alicante$long), min(df_colera_eda.month.murcia_castellon_alicante$lat), max(df_colera_eda.month.murcia_castellon_alicante$long), max(df_colera_eda.month.murcia_castellon_alicante$lat))
+  ) + 
+  tm_shape(df_colera_eda.month.murcia_castellon_alicante[df_colera_eda.month.murcia_castellon_alicante$Total_invasiones > 574, ]) + tm_text(NAMEUNIT_STR, size = 0.7) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren"),
+    col = c("red"),
+    title = "Transporte multimodal"
+  )
 
-m611.murcia_castellon_alicante + tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red")
+tmap_save(m611.murcia_castellon_alicante, filename = paste(COLERA_MAPS_DIR, "m611.murcia_castellon_alicante.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
-# invasión colérica en las cuencas del Guadalaviar y Jucai ----------------
+# invasión colérica en las cuencas del Guadalaviar y Jucar ----------------
 
 
-df_colera_eda.month.guadalaviar_jucai <- subset(df_colera_eda.month.merged.municipios, Provincia %in% c("teruel", "cuenca", "albacete", "valencia"))
-df_colera_eda.month.guadalaviar_jucai <- df_colera_eda.month.guadalaviar_jucai %>%
+df_colera_eda.month.guadalaviar_jucar <- subset(df_colera_eda.month.merged.municipios, Provincia %in% c("teruel", "cuenca", "albacete", "valencia"))
+df_colera_eda.month.guadalaviar_jucar <- df_colera_eda.month.guadalaviar_jucar %>%
   group_by(CODIGOINE, OBJECTID, INSPIREID, NATCODE, NAMEUNIT, CODNUT1, CODNUT2, CODNUT3, Provincia, Total_poblacion, lat, long, geometry) %>%
   summarize(
     Total_invasiones = sum(as.numeric(Total_invasiones)),
@@ -1310,28 +1461,31 @@ df_colera_eda.month.guadalaviar_jucai <- df_colera_eda.month.guadalaviar_jucai %
     Tasa_mortalidad = sum(as.numeric(Tasa_mortalidad))
   )
 
-mapS.guadalaviar_jucai <-
-  subset(
-    mapS.municipios,
-    CODNUT3 %in% c(
-      "ES522", "ES613", "ES423", "ES614",
-      "ES241", "ES616", "ES513", "ES230",
-      "ES617", "ES220", "ES417", "ES514",
-      "ES242", "ES523", "ES419")
-  )
+mapS.guadalaviar_jucar <- subset(mapS.municipios, CODNUT3 %in% c("ES522", "ES613", "ES423", "ES614", "ES241", "ES616", "ES513", "ES230", "ES617", "ES220", "ES417", "ES514", "ES242", "ES523", "ES419"))
+
 
 # plot (1)
 
-m611.guadalaviar_jucai <-
+m611.guadalaviar_jucar <-
   create_tmap(
-    df_colera_eda.month.guadalaviar_jucai,
-    mapS.guadalaviar_jucai,
+    df_colera_eda.month.guadalaviar_jucar,
+    mapS.guadalaviar_jucar,
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Teruel, Cuenca, Albacete y Valencia",
-    "jenks"
-  ) + tm_shape(df_colera_eda.month.guadalaviar_jucai[df_colera_eda.month.guadalaviar_jucai$Total_invasiones > 253, ]) + tm_text("NAMEUNIT", size = 0.7)
+    "jenks",
+    c(min(df_colera_eda.month.guadalaviar_jucar$long), min(df_colera_eda.month.guadalaviar_jucar$lat), max(df_colera_eda.month.guadalaviar_jucar$long), max(df_colera_eda.month.guadalaviar_jucar$lat))
+  ) + 
+  tm_shape(df_colera_eda.month.guadalaviar_jucar[df_colera_eda.month.guadalaviar_jucar$Total_invasiones > 253, ]) + tm_text(NAMEUNIT_STR, size = 0.7) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapWaterways1st_int) + tm_lines(lwd = 1, col = "blue") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren", "Ríos"),
+    col = c("red", "blue"),
+    title = "Transporte multimodal"
+  ) 
 
-m611.guadalaviar_jucai + tm_shape(mapWaterways1st_int) + tm_lines(lwd = 1, col = "blue")
+tmap_save(m611.guadalaviar_jucar, filename = paste(COLERA_MAPS_DIR, "m611.guadalaviar_jucar.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # invasión colérica en las cuencas del Guadiana y Guadalquivir ------------
@@ -1347,13 +1501,8 @@ df_colera_eda.month.guadiana_guadalquivir <- df_colera_eda.month.guadiana_guadal
     Tasa_mortalidad = sum(as.numeric(Tasa_mortalidad))
   )
 
-mapS.guadiana_guadalquivir <-
-  subset(
-    mapS.municipios,
-    CODNUT3 %in% c(
-      "ES612", "ES522", "ES422", "ES613",
-      "ES423", "ES614", "ES616")
-  )
+mapS.guadiana_guadalquivir <- subset(mapS.municipios, CODNUT3 %in% c("ES612", "ES522", "ES422", "ES613", "ES423", "ES614", "ES616"))
+# TODO: tinc poca dada de cadiz
 
 # plot (1)
 
@@ -1363,10 +1512,20 @@ m611.guadiana_guadalquivir <-
     mapS.guadiana_guadalquivir,
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Ciudad Real, Badajoz, Jaén, Córdoba, Sevilla y Cádiz",
-    "jenks"
-  ) + tm_shape(df_colera_eda.month.guadiana_guadalquivir[df_colera_eda.month.guadiana_guadalquivir$Total_invasiones > 263, ]) + tm_text("NAMEUNIT", size = 0.7)
+    "jenks",
+    c(min(df_colera_eda.month.guadiana_guadalquivir$long), min(df_colera_eda.month.guadiana_guadalquivir$lat), max(df_colera_eda.month.guadiana_guadalquivir$long), max(df_colera_eda.month.guadiana_guadalquivir$lat))
+  ) + 
+  tm_shape(df_colera_eda.month.guadiana_guadalquivir[df_colera_eda.month.guadiana_guadalquivir$Total_invasiones > 263, ]) + tm_text(NAMEUNIT_STR, size = 0.7) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapWaterways1st_int) + tm_lines(lwd = 1, col = "blue") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren", "Ríos"),
+    col = c("red", "blue"),
+    title = "Transporte multimodal"
+  ) 
 
-m611.guadiana_guadalquivir + tm_shape(mapWaterways1st_int) + tm_lines(lwd = 1, col = "blue")
+tmap_save(m611.guadiana_guadalquivir, filename = paste(COLERA_MAPS_DIR, "m611.guadiana_guadalquivir.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # invasión colérica en las cuencas del Tajo -------------------------------
@@ -1382,15 +1541,8 @@ df_colera_eda.month.tajo <- df_colera_eda.month.tajo %>%
     Tasa_mortalidad = sum(as.numeric(Tasa_mortalidad))
   )
 
-mapS.tajo <-
-  subset(
-    mapS.municipios,
-    CODNUT3 %in% c(
-      "ES422", "ES423", "ES614", "ES424",
-      "ES241", "ES513", "ES230", "ES300",
-      "ES620", "ES415", "ES242", "ES425",
-      "ES419")
-  )
+mapS.tajo <- subset(mapS.municipios, CODNUT3 %in% c("ES422", "ES423", "ES614", "ES424", "ES241", "ES513", "ES230", "ES300", "ES620", "ES415", "ES242", "ES425", "ES419"))
+
 
 # plot (1)
 
@@ -1400,10 +1552,20 @@ m611.tajo <-
     mapS.tajo,
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Guadalajara, Cuenca y Toledo",
-    "jenks"
-  ) + tm_shape(df_colera_eda.month.tajo[df_colera_eda.month.tajo$Total_invasiones > 156, ]) + tm_text("NAMEUNIT", size = 0.7)
+    "jenks",
+    c(min(df_colera_eda.month.tajo$long), min(df_colera_eda.month.tajo$lat), max(df_colera_eda.month.tajo$long), max(df_colera_eda.month.tajo$lat))
+  ) + 
+  tm_shape(df_colera_eda.month.tajo[df_colera_eda.month.tajo$Total_invasiones > 156, ]) + tm_text(NAMEUNIT_STR, size = 0.7) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapWaterways1st_int) + tm_lines(lwd = 1, col = "blue") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren", "Ríos"),
+    col = c("red", "blue"),
+    title = "Transporte multimodal"
+  ) 
 
-m611.tajo + tm_shape(mapWaterways1st_int) + tm_lines(lwd = 1, col = "blue")
+tmap_save(m611.tajo, filename = paste(COLERA_MAPS_DIR, "m611.tajo.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # invasión colérica en las cuencas del Ebro -------------------------------
@@ -1419,16 +1581,8 @@ df_colera_eda.month.ebro <- df_colera_eda.month.ebro %>%
     Tasa_mortalidad = sum(as.numeric(Tasa_mortalidad))
   )
 
-mapS.ebro <-
-  subset(
-    mapS.municipios,
-    CODNUT3 %in% c(
-      "ES522", "ES423", "ES512", "ES614",
-      "ES424", "ES212", "ES241", "ES616",
-      "ES513", "ES300", "ES620", "ES220",
-      "ES415", "ES416", "ES514", "ES242",
-      "ES425", "ES523", "ES243")
-  )
+mapS.ebro <- subset(mapS.municipios, CODNUT3 %in% c("ES522", "ES423", "ES512", "ES614", "ES424", "ES212", "ES241", "ES616", "ES513", "ES300", "ES620", "ES220", "ES415", "ES416", "ES514", "ES242", "ES425", "ES523", "ES243"))
+
 
 # plot (1)
 
@@ -1438,10 +1592,20 @@ m611.ebro <-
     mapS.ebro,
     TOTAL_INVASIONES_STR,
     "Número de invasiones en Guadalajara, Cuenca y Toledo",
-    "jenks"
-  ) + tm_shape(df_colera_eda.month.ebro[df_colera_eda.month.ebro$Total_invasiones > 316, ]) + tm_text("NAMEUNIT", size = 0.7)
+    "jenks",
+    c(min(df_colera_eda.month.ebro$long), min(df_colera_eda.month.ebro$lat), max(df_colera_eda.month.ebro$long), max(df_colera_eda.month.ebro$lat))
+  ) + 
+  tm_shape(df_colera_eda.month.ebro[df_colera_eda.month.ebro$Total_invasiones > 316, ]) + tm_text(NAMEUNIT_STR, size = 0.7) +
+  tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapWaterways1st_int) + tm_lines(lwd = 1, col = "blue") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Líneas de tren", "Ríos"),
+    col = c("red", "blue"),
+    title = "Transporte multimodal"
+  ) 
 
-m611.ebro + tm_shape(mapWaterways1st_int) + tm_lines(lwd = 1, col = "blue")
+tmap_save(m611.ebro, filename = paste(COLERA_MAPS_DIR, "m611.ebro.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # clean environment -------------------------------------------------------
@@ -1460,12 +1624,12 @@ rm(
   m3132,
   m89,
   m6.valencia,
-  m79.valencia,
+  m78.valencia,
   m611.zaragoza,
   m611.barcelona,
   m611.granada_malaga,
   m611.murcia_castellon_alicante,
-  m611.guadalaviar_jucai,
+  m611.guadalaviar_jucar,
   m611.guadiana_guadalquivir,
   m611.tajo,
   m611.ebro
