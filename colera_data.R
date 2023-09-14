@@ -2,6 +2,7 @@ library(readxl)
 library(ggplot2)
 library(dplyr)
 library(tidyverse)
+library(scales)
 
 
 # constants ---------------------------------------------------------------
@@ -152,11 +153,11 @@ df_colera.groupByFecha <- merge(df_colera_invasiones.groupByFecha, df_colera_def
 ggplot(df_colera.groupByFecha, aes(Fecha)) + 
   geom_line(aes(y = Total_invasiones, colour = INVASIONES_STR)) +
   geom_line(aes(y = Total_defunciones, colour = DEFUNCIONES_STR)) +
-  scale_color_discrete(name = "causa") +
-  ylab("número") +
+  scale_color_discrete(name = "causa:") +
+  ylab(paste0(INVASIONES_STR, "/", DEFUNCIONES_STR)) +
   xlab("día-mes") +
-  ggtitle(paste0("total ", INVASIONES_STR, "/", DEFUNCIONES_STR, ", ", ANO_STR)) +
-  scale_y_continuous(breaks=seq(0, 7000, 1000), limits=c(0, 7000)) +
+  ggtitle(paste0("Total de ", INVASIONES_STR, " y ", DEFUNCIONES_STR, ", ", ANO_STR)) +
+  scale_y_continuous(breaks=seq(0, 6100, 100), limits=c(0, 6100)) +
   scale_x_continuous(
     breaks = as.numeric(df_colera.groupByFecha[, FECHA_STR]),
     labels = format(df_colera.groupByFecha[, FECHA_STR], "%d - %m"),
@@ -164,8 +165,7 @@ ggplot(df_colera.groupByFecha, aes(Fecha)) +
   ) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.position = "bottom")
 
-# save the plot
-ggsave(paste(COLERA_PLOTS_DIR, "colera_total_invasiones&defunciones.png", sep = "/"), width = 14, height = 4.5, dpi = 300, limitsize = TRUE)
+ggsave(paste(COLERA_PLOTS_DIR, "colera_total_invasiones&defunciones.png", sep = "/"), width = 20, height = 10, dpi = 300, limitsize = TRUE)
 
 
 # TOTALES - PROVINCIA -----------------------------------------------------
@@ -212,58 +212,62 @@ df_colera.groupByProvinciaFecha <- df_colera.groupByProvinciaFecha %>% mutate(cc
     (Provincia == "santander") ~ "cantabria",
     (Provincia == "logroño") ~ "la-rioja"))
 
-# order df_colera.groupByProvinciaFecha by CCAA
 df_colera.groupByProvinciaFecha <- with(df_colera.groupByProvinciaFecha, df_colera.groupByProvinciaFecha[order(ccaa),])
-
-# assign "Provincia" as factor with defined levels
 df_colera.groupByProvinciaFecha$Provincia <- with(df_colera.groupByProvinciaFecha, factor(as.character(Provincia), levels = unique(Provincia)))
 
 # plot total "invasiones" for "Provincia"
 ggplot(df_colera.groupByProvinciaFecha, aes(x = Fecha, y = Total_invasiones, group = Provincia, colour = Provincia)) + 
   geom_line() +
   scale_color_discrete(name = PROVINCIA_STR) +
-  ylab("número") +
+  ylab(INVASIONES_STR) +
   xlab("") +
-  ggtitle(paste0("total ", INVASIONES_STR, " por ", PROVINCIA_STR, ", ", ANO_STR)) +
-  scale_y_continuous(breaks=seq(0, 2000, 350), limits=c(0, 2000)) +
+  ggtitle(paste0("Total de ", INVASIONES_STR, " por ", PROVINCIA_STR, ", ", ANO_STR)) +
+  scale_y_continuous(breaks=seq(0, 1840, 350), limits=c(0, 1840)) +
   theme(legend.position = "none") +
   facet_wrap(~ Provincia, scales = 'free_x', ncol = 4) 
 
-# save the plot
-ggsave(paste(COLERA_PLOTS_DIR, "colera_total_invasionesXprovincia.png", sep = "/"), width = 14, height = 9, dpi = 300, limitsize = TRUE)
+ggsave(paste(COLERA_PLOTS_DIR, "colera_total_invasionesXprovincia.png", sep = "/"), width = 15, height = 10, dpi = 300, limitsize = TRUE)
 
 # plot total defunciones" for "Provincia"
 ggplot(df_colera.groupByProvinciaFecha, aes(x = Fecha, y = Total_defunciones, group = Provincia, colour = Provincia)) + 
   geom_line() +
   scale_color_discrete(name = PROVINCIA_STR) +
-  ylab("número") +
+  ylab(DEFUNCIONES_STR) +
   xlab("") +
-  ggtitle(paste0("total ", DEFUNCIONES_STR, " por ", PROVINCIA_STR, ", ", ANO_STR)) +
+  ggtitle(paste0("Total de ", DEFUNCIONES_STR, " por ", PROVINCIA_STR, ", ", ANO_STR)) +
   scale_y_continuous(breaks=seq(0, 600, 150), limits=c(0, 600)) +
   theme(legend.position = "none") +
   facet_wrap(~ Provincia, scales = 'free_x', ncol = 4)
 
-# save the plot
-ggsave(paste(COLERA_PLOTS_DIR, "colera_total_defuncionesXprovincia.png", sep = "/"), width = 14, height = 9, dpi = 300, limitsize = TRUE)
+ggsave(paste(COLERA_PLOTS_DIR, "colera_total_defuncionesXprovincia.png", sep = "/"), width = 15, height = 10, dpi = 300, limitsize = TRUE)
 
-# bar plots total "invasiones" and "defunciones" by "Provincia" and "Fecha" 
-ggplot(df_colera.groupByProvinciaFecha, aes(x = Total_invasiones, y = Provincia, fill = Provincia)) +
+# bar plots total "invasiones" and "defunciones" by "Provincia" and "Fecha"
+df_colera.groupByProvinciaFecha.barplot <- df_colera.groupByProvinciaFecha %>%
+  group_by(Provincia) %>%
+  summarise(
+    Total_invasiones = sum(Total_invasiones),
+    Total_defunciones = sum(Total_defunciones)
+  ) 
+
+ggplot(df_colera.groupByProvinciaFecha.barplot, aes(x = Total_invasiones, y = Provincia, fill = Provincia)) +
   geom_bar(stat = "identity") + 
   ylab(PROVINCIA_STR) +
-  xlab(paste("número", INVASIONES_STR, sep = " ")) +
+  xlab(INVASIONES_STR) +
+  scale_x_continuous(breaks = seq(0, 30000, 1000), limits = c(0, 30000), labels = number) +
+  geom_text(aes(label = Total_invasiones), hjust = -0.2, size = 3) + 
   theme(legend.position="none")
 
-# save the bar plot
-ggsave(paste(COLERA_PLOTS_DIR, "barplot.colera_total_invasionesXprovincia.png", sep = "/"), dpi = 300, limitsize = TRUE)
+ggsave(paste(COLERA_PLOTS_DIR, "barplot.colera_total_invasionesXprovincia.png", sep = "/"), width = 15, dpi = 300, limitsize = TRUE)
 
-ggplot(df_colera.groupByProvinciaFecha, aes(x = Total_defunciones, y = Provincia, fill = Provincia)) +
+ggplot(df_colera.groupByProvinciaFecha.barplot, aes(x = Total_defunciones, y = Provincia, fill = Provincia)) +
   geom_bar(stat = "identity") + 
   ylab(PROVINCIA_STR) +
-  xlab(paste("número", DEFUNCIONES_STR, sep = " ")) +
+  xlab(DEFUNCIONES_STR) +
+  scale_x_continuous(breaks = seq(0, 12400, 500), limits = c(0, 12400), labels = number) +
+  geom_text(aes(label = Total_defunciones), hjust = -0.2, size = 3) + 
   theme(legend.position="none")
 
-# save the plot
-ggsave(paste(COLERA_PLOTS_DIR, "barplot.colera_total_defuncionesXprovincia.png", sep = "/"), dpi = 300, limitsize = TRUE)
+ggsave(paste(COLERA_PLOTS_DIR, "barplot.colera_total_defuncionesXprovincia.png", sep = "/"), width = 15, dpi = 300, limitsize = TRUE)
 
 # remove column "ccaa"
 df_colera.groupByProvinciaFecha$ccaa <- NULL
@@ -305,7 +309,7 @@ df_colera.groupByProvinciaFechaMunicipo <- merge(df_colera_invasiones.groupByPro
 Pob1887 <- read_excel(paste(DATA_DIR, "poblaciones habitantes municipios de colera.xlsx", sep = "/"))
 Pob1887$`habitantes 1887` <- as.numeric(Pob1887$`habitantes 1887`)
 Pob1887 <- na.omit(Pob1887)
-names(Pob1887) <- c(CODIGO_INE_STR, MUNICIPIO_STR, TOTAL_POBLACION_STR) # change column names
+names(Pob1887) <- c(CODIGO_INE_STR, MUNICIPIO_STR, TOTAL_POBLACION_STR)
 
 # by weeks
 
@@ -414,4 +418,4 @@ df_colera.merged.day <- mergeData_withPob1887(
 # clean environment -------------------------------------------------------
 
 
-rm(df_colera_invasiones.copy, df_colera_defunciones.copy, rows_odd)
+rm(df_colera_invasiones.copy, df_colera_defunciones.copy, df_colera.groupByProvinciaFecha.barplot, rows_odd)
