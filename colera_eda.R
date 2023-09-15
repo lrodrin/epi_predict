@@ -1610,6 +1610,7 @@ tmap_save(m611.ebro, filename = paste(COLERA_MAPS_DIR, "m611.ebro.png", sep = "/
 
 # clean environment -------------------------------------------------------
 
+
 rm(
   m6,
   m7,

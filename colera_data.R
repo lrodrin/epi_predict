@@ -91,10 +91,11 @@ df_colera$observaciones_1 <- NULL
 df_colera$observaciones_2 <- NULL
 df_colera$Fichero <- NULL
 
-# remove "Codigo Ine" 99999, 99998 and 9999
+# remove "Codigo Ine" 100000, 99999, 99998 and 9999
 df_colera <-
   df_colera[(
-    !(df_colera[,CODIGO_INE_STR] == "99999") &
+      !(df_colera[,CODIGO_INE_STR] == "100000") &
+      !(df_colera[,CODIGO_INE_STR] == "99999") &
       !(df_colera[,CODIGO_INE_STR] == "99998") &
       !(df_colera[,CODIGO_INE_STR] == "9999")
   ), ]
