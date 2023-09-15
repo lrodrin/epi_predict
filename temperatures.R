@@ -182,16 +182,10 @@ for (localidad in tempe_localidades) {
   
 }
 
-if(.Platform$OS.type == "windows") {
-  Sys.setlocale("LC_TIME", "Catalan_Spain.1252")
-} else {
-  Sys.setlocale("LC_TIME", "ca_ES.UTF-8")
-}
-
 # barplot
 ggplot(df_temperatures.parsed, aes(x = localidad, y = temperatura, fill = localidad)) +
   geom_bar(stat = "identity", position = "dodge") +
-  facet_wrap(~ mes, nrow = 3, scales = "free_x") +  # Utilitzem facet_wrap per controlar les files
+  facet_wrap(~ mes, nrow = 3, scales = "free_x") +  
   labs(x = "localidad", y = "grados (ºC)") +
   scale_y_continuous(breaks = seq(-5, 30, 5), limits = c(-5, 30), labels = number) +
   ggtitle(paste0("Temperatura mensual por meses en España, ", ANO_STR)) +
@@ -200,6 +194,12 @@ ggplot(df_temperatures.parsed, aes(x = localidad, y = temperatura, fill = locali
   theme(text = element_text(), axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.1), legend.position = "none")
 
 ggsave(paste0(TEMPE_PLOTS_DIR, "/barplot_temperaturesXmunicipios.png"), width = 20, height = 10, dpi = 300, limitsize = TRUE)
+
+if(.Platform$OS.type == "windows") {
+  Sys.setlocale("LC_TIME", "Catalan_Spain.1252")
+} else {
+  Sys.setlocale("LC_TIME", "ca_ES.UTF-8")
+}
 
 
 # map ---------------------------------------------------------------------
@@ -222,7 +222,7 @@ df_temperatures.merged <- factorize(
   df_temperatures.merged,
   TEMPERATURA_STR,
   TEMPERATURA_FACTOR_STR,
-  c(-4, 6, 12, 18, Inf)
+  c(-5, 9, 14, 19, Inf)
 )
 
 head(df_temperatures.merged)
@@ -231,7 +231,7 @@ plot_list.df_temperatures <- plot_observationsByMonth(df_temperatures.merged, TE
 
 for (month in names(plot_list.df_temperatures)) {
   # print(plot_list.df_temperatures[[month]])
-  ggsave(paste0(TEMPE_PLOTS_DIR, "/map_temperaturesXmunicipios_", month, ".png"), plot_list.df_temperatures[[month]])
+  ggsave(paste0(TEMPE_PLOTS_DIR, "/map_temperaturesXmunicipios_", month, ".png"), plot_list.df_temperatures[[month]], width = 7, height = 7, dpi = 300, limitsize = TRUE)
 }
 
 
