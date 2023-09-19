@@ -867,8 +867,7 @@ rm(
 mapS.municipios <- read_shapefile("Municipios_IGN.shp")
 mapS.provincias <- read_shapefile("Provincias_ETRS89_30N.shp")
 mapRailwayLines <- read_shapefile("RailwayLines_int.shp")
-mapWaterways1st_int <- read_shapefile("Waterways1st_int.shp")
-mapWaterways2nd_int <- read_shapefile("Waterways2nd_int.shp")
+mapRivers <- read_shapefile("Rius.shp")
 
 
 # format "Texto" of mapS.provincias and "NAMEUNIT" of mapS.municipios, and remove from maps the Canary Islands, "Ceuta" and "Melilla"
@@ -1449,7 +1448,7 @@ tmap_save(m611.murcia_castellon_alicante, filename = paste(COLERA_MAPS_DIR, "m61
 
 
 # invasión colérica en las cuencas del Guadalaviar y Jucar ----------------
-
+# Guadalaviar, se convierte en Río Blanco y desemboca como Turia
 
 df_colera_eda.month.guadalaviar_jucar <- subset(df_colera_eda.month.merged.municipios, Provincia %in% c("teruel", "cuenca", "albacete", "valencia"))
 df_colera_eda.month.guadalaviar_jucar <- df_colera_eda.month.guadalaviar_jucar %>%
@@ -1477,7 +1476,7 @@ m611.guadalaviar_jucar <-
   ) + 
   tm_shape(df_colera_eda.month.guadalaviar_jucar[df_colera_eda.month.guadalaviar_jucar$Total_invasiones > 253, ]) + tm_text(NAMEUNIT_STR, size = 0.7) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
-  tm_shape(mapWaterways1st_int) + tm_lines(lwd = 1, col = "blue") +
+  tm_shape(mapRivers) + tm_lines(lwd = 1, col = "blue") +
   tm_add_legend(
     type = "line",
     labels = c("Líneas de tren", "Ríos"),
@@ -1517,7 +1516,7 @@ m611.guadiana_guadalquivir <-
   ) + 
   tm_shape(df_colera_eda.month.guadiana_guadalquivir[df_colera_eda.month.guadiana_guadalquivir$Total_invasiones > 263, ]) + tm_text(NAMEUNIT_STR, size = 0.7) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
-  tm_shape(mapWaterways1st_int) + tm_lines(lwd = 1, col = "blue") +
+  tm_shape(mapRivers) + tm_lines(lwd = 1, col = "blue") +
   tm_add_legend(
     type = "line",
     labels = c("Líneas de tren", "Ríos"),
@@ -1557,7 +1556,7 @@ m611.tajo <-
   ) + 
   tm_shape(df_colera_eda.month.tajo[df_colera_eda.month.tajo$Total_invasiones > 156, ]) + tm_text(NAMEUNIT_STR, size = 0.7) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
-  tm_shape(mapWaterways1st_int) + tm_lines(lwd = 1, col = "blue") +
+  tm_shape(mapRivers) + tm_lines(lwd = 1, col = "blue") +
   tm_add_legend(
     type = "line",
     labels = c("Líneas de tren", "Ríos"),
@@ -1597,7 +1596,7 @@ m611.ebro <-
   ) + 
   tm_shape(df_colera_eda.month.ebro[df_colera_eda.month.ebro$Total_invasiones > 316, ]) + tm_text(NAMEUNIT_STR, size = 0.7) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
-  tm_shape(mapWaterways1st_int) + tm_lines(lwd = 1, col = "blue") +
+  tm_shape(mapRivers) + tm_lines(lwd = 1, col = "blue") +
   tm_add_legend(
     type = "line",
     labels = c("Líneas de tren", "Ríos"),

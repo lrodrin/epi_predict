@@ -196,10 +196,6 @@ df_peste.total.agg.month <- df_peste.total %>%
 
 df_peste.merged.month <- rbind(df_peste.agg.month, df_peste.total.agg.month)
 
-
-# TASA - MUNICIPIOS -------------------------------------------------------
-
-
 # add "Poblacion"
 df_peste.sexo.agg.day <- add_poblacion(df_peste.sexo.agg.day)
 df_peste.sexo.agg.month <- add_poblacion(df_peste.sexo.agg.month)
