@@ -51,12 +51,15 @@ rsconnect/
 # project data folders
 data/
 colera_data/
+peste_data/
 
 # project plots folders
 colera_plots/
 colera_maps/
 tempe_plots/
 rain_plots/
+peste_plots/
+peste_maps/
 
 # project data files
 *.csv
