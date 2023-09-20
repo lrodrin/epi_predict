@@ -11,14 +11,13 @@ DATA_DIR <- "data"
 dir.create(DATA_DIR, showWarnings = FALSE)
 PESTE_DATA_DIR <- "peste_data"
 dir.create(PESTE_DATA_DIR, showWarnings = FALSE)
-# PESTE_PLOTS_DIR <- "peste_plots"
-# dir.create(PESTE_PLOTS_DIR, showWarnings = FALSE)
 
 ANO_STR <- "1820"
 DATE_FORMAT <- "%Y-%m-%d"
 INFECTADOS_STR <- "Infectados"
 MUERTOS_STR <- "Muertos"
 CURADOS_STR <- "Curados"
+SUPERVIVIENTES_STR <- "Supervivientes"
 LOCALIDADES_STR <- c("Artà", "Capdepera", "Sant Llorenç des Cardassar", "Son Servera")
 
 
