@@ -866,8 +866,10 @@ rm(
 
 mapS.municipios <- read_shapefile("Municipios_IGN.shp")
 mapS.provincias <- read_shapefile("Provincias_ETRS89_30N.shp")
-mapRailwayLines <- read_shapefile("RailwayLines_int.shp")
-mapRivers <- read_shapefile("Rius.shp")
+mapRailwayLines <- read_shapefile("Railways_1887.shp")
+mapRailwayStations <- read_shapefile("RailStations_1887.shp")
+mapRailwayStations.subset <- subset(mapRailwayStations, Station %in% unique(mapS.municipios$NAMEUNIT)) # filter stations in mapS.municipios 
+mapRivers <- read_shapefile("Rius_proj.shp")
 
 
 # format "Texto" of mapS.provincias and "NAMEUNIT" of mapS.municipios, and remove from maps the Canary Islands, "Ceuta" and "Melilla"
@@ -926,7 +928,7 @@ head(df_colera_eda.week.merged)
 # clean environment -------------------------------------------------------
 
 
-rm(df_colera_coord, df_colera_eda.month, df_colera_eda.day, df_colera_eda.week)
+rm(df_colera_coord, df_colera_eda.month, df_colera_eda.day, df_colera_eda.week, mapRailwayStations)
 
 
 # plot maps ---------------------------------------------------------------
@@ -968,10 +970,11 @@ m6 <-
   ) + 
   tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 6,]) + tm_text(PROVINCIA_STR, size = 0.7) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRivers) + tm_lines(lwd = 1, col = "blue") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = c("Líneas de tren", "Ríos"),
+    col = c("red", "blue"),
     title = "Transporte multimodal"
   )
 
@@ -988,10 +991,11 @@ m7 <-
   ) + 
   tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 7,]) + tm_text(PROVINCIA_STR, size = 0.7) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRivers) + tm_lines(lwd = 1, col = "blue") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = c("Líneas de tren", "Ríos"),
+    col = c("red", "blue"),
     title = "Transporte multimodal"
   )
 
@@ -1008,10 +1012,11 @@ m8 <-
   ) + 
   tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 8,]) + tm_text(PROVINCIA_STR, size = 0.7) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRivers) + tm_lines(lwd = 1, col = "blue") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = c("Líneas de tren", "Ríos"),
+    col = c("red", "blue"),
     title = "Transporte multimodal"
   )
 
@@ -1028,10 +1033,11 @@ m9 <-
   ) + 
   tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 9,]) + tm_text(PROVINCIA_STR, size = 0.7) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRivers) + tm_lines(lwd = 1, col = "blue") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = c("Líneas de tren", "Ríos"),
+    col = c("red", "blue"),
     title = "Transporte multimodal"
   )
 
@@ -1048,10 +1054,11 @@ m10 <-
   ) + 
   tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 10,]) + tm_text(PROVINCIA_STR, size = 0.7) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRivers) + tm_lines(lwd = 1, col = "blue") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = c("Líneas de tren", "Ríos"),
+    col = c("red", "blue"),
     title = "Transporte multimodal"
   )
 
@@ -1068,10 +1075,11 @@ m11 <-
   ) + 
   tm_shape(df_colera_eda.month.provincias[df_colera_eda.month.provincias$Fecha == 11,]) + tm_text(PROVINCIA_STR, size = 0.7) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRivers) + tm_lines(lwd = 1, col = "blue") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = c("Líneas de tren", "Ríos"),
+    col = c("red", "blue"),
     title = "Transporte multimodal"
   )
 
@@ -1092,10 +1100,11 @@ m611 <-
   ) + 
   tm_shape(df_colera_eda.month.provincias) + tm_text(PROVINCIA_STR, size = 0.7) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRivers) + tm_lines(lwd = 1, col = "blue") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = c("Líneas de tren", "Ríos"),
+    col = c("red", "blue"),
     title = "Transporte multimodal"
   )
 
@@ -1122,12 +1131,25 @@ m2526 <-
   ) + 
   tm_shape(df_colera_eda.week.1aquin.junio[df_colera_eda.week.1aquin.junio$Total_invasiones > 131, ]) + tm_text(NAMEUNIT_STR, size = 0.6) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRivers) + tm_lines(lwd = 1, col = "blue") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = c("Líneas de tren", "Ríos"),
+    col = c("red", "blue"),
     title = "Transporte multimodal"
   )
+  # tm_shape(mapRailwayStations.subset) + tm_symbols(size = 0.1, col = "red") +
+  # tm_add_legend(
+  #   type = "line",
+  #   labels = "Líneas de tren",
+  #   col = "red",
+  #   title = "Transporte multimodal"
+  # ) +
+  # tm_add_legend(
+  #   type = "symbol",
+  #   labels = "Estaciones de tren",
+  #   col = "red"
+  # )
 
 tmap_save(m2526, filename = paste(COLERA_MAPS_DIR, "m2526.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
@@ -1152,10 +1174,11 @@ m2728 <-
   ) + 
   tm_shape(df_colera_eda.week.2aquin.junio[df_colera_eda.week.2aquin.junio$Total_invasiones > 81, ]) + tm_text(NAMEUNIT_STR, size = 0.6) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRivers) + tm_lines(lwd = 1, col = "blue") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = c("Líneas de tren", "Ríos"),
+    col = c("red", "blue"),
     title = "Transporte multimodal"
   )
 
@@ -1182,10 +1205,11 @@ m2930 <-
   ) + 
   tm_shape(df_colera_eda.week.1aquin.julio[df_colera_eda.week.1aquin.julio$Total_invasiones > 202, ]) + tm_text(NAMEUNIT_STR, size = 0.6) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRivers) + tm_lines(lwd = 1, col = "blue") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = c("Líneas de tren", "Ríos"),
+    col = c("red", "blue"),
     title = "Transporte multimodal"
   )
 
@@ -1212,10 +1236,11 @@ m3132 <-
   ) + 
   tm_shape(df_colera_eda.week.2aquin.julio[df_colera_eda.week.2aquin.julio$Total_invasiones > 274, ]) + tm_text(NAMEUNIT_STR, size = 0.6) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRivers) + tm_lines(lwd = 1, col = "blue") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = c("Líneas de tren", "Ríos"),
+    col = c("red", "blue"),
     title = "Transporte multimodal"
   )
 
@@ -1250,10 +1275,11 @@ m89 <-
   ) + 
   tm_shape(df_colera_eda.month.89[df_colera_eda.month.89$Total_invasiones > 615, ]) + tm_text(NAMEUNIT_STR, size = 0.6) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRivers) + tm_lines(lwd = 1, col = "blue") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = c("Líneas de tren", "Ríos"),
+    col = c("red", "blue"),
     title = "Transporte multimodal"
   )
 
@@ -1281,11 +1307,17 @@ m6.valencia <-
   ) + 
   tm_shape(df_colera_eda.month.valencia.6[df_colera_eda.month.valencia.6$Total_invasiones > 64, ]) + tm_text(NAMEUNIT_STR, size = 0.6) + # 0.7 for interactive map
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRailwayStations.subset) + tm_symbols(size = 0.1, col = "red") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = "Líneas de tren",
+    col = "red",
     title = "Transporte multimodal"
+  ) +
+  tm_add_legend(
+    type = "symbol",
+    labels = "Estaciones de tren",
+    col = "red"
   ) # for non interactive map
 
 tmap_save(m6.valencia, filename = paste(COLERA_MAPS_DIR, "m6.valencia.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
@@ -1320,12 +1352,18 @@ m78.valencia <-
   ) + 
   tm_shape(df_colera_eda.month.valencia.78[df_colera_eda.month.valencia.78$Total_invasiones > 164, ]) + tm_text(NAMEUNIT_STR, size = 0.7) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRailwayStations.subset) + tm_symbols(size = 0.1, col = "red") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = "Líneas de tren",
+    col = "red",
     title = "Transporte multimodal"
-  ) 
+  ) +
+  tm_add_legend(
+    type = "symbol",
+    labels = "Estaciones de tren",
+    col = "red"
+  )
 
 tmap_save(m78.valencia, filename = paste(COLERA_MAPS_DIR, "m78.valencia.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
@@ -1359,11 +1397,17 @@ m611.zaragoza <-
   ) + 
   tm_shape(df_colera_eda.month.zaragoza[df_colera_eda.month.zaragoza$Total_invasiones > 261, ]) + tm_text(NAMEUNIT_STR, size = 0.7) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRailwayStations.subset) + tm_symbols(size = 0.1, col = "red") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = "Líneas de tren",
+    col = "red",
     title = "Transporte multimodal"
+  ) +
+  tm_add_legend(
+    type = "symbol",
+    labels = "Estaciones de tren",
+    col = "red"
   )
 
 tmap_save(m611.zaragoza, filename = paste(COLERA_MAPS_DIR, "m611.zaragoza.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
@@ -1398,12 +1442,18 @@ m611.granada_malaga <-
   ) + 
   tm_shape(df_colera_eda.month.granada_malaga[df_colera_eda.month.granada_malaga$Total_invasiones > 270, ]) + tm_text(NAMEUNIT_STR, size = 0.7) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRailwayStations.subset) + tm_symbols(size = 0.1, col = "red") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = "Líneas de tren",
+    col = "red",
     title = "Transporte multimodal"
-  ) 
+  ) +
+  tm_add_legend(
+    type = "symbol",
+    labels = "Estaciones de tren",
+    col = "red"
+  )
 
 tmap_save(m611.granada_malaga, filename = paste(COLERA_MAPS_DIR, "m611.granada_malaga.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
@@ -1437,11 +1487,17 @@ m611.murcia_castellon_alicante <-
   ) + 
   tm_shape(df_colera_eda.month.murcia_castellon_alicante[df_colera_eda.month.murcia_castellon_alicante$Total_invasiones > 574, ]) + tm_text(NAMEUNIT_STR, size = 0.7) +
   tm_shape(mapRailwayLines) + tm_lines(lwd = 1, col = "red") +
+  tm_shape(mapRailwayStations.subset) + tm_symbols(size = 0.1, col = "red") +
   tm_add_legend(
     type = "line",
-    labels = c("Líneas de tren"),
-    col = c("red"),
+    labels = "Líneas de tren",
+    col = "red",
     title = "Transporte multimodal"
+  ) +
+  tm_add_legend(
+    type = "symbol",
+    labels = "Estaciones de tren",
+    col = "red"
   )
 
 tmap_save(m611.murcia_castellon_alicante, filename = paste(COLERA_MAPS_DIR, "m611.murcia_castellon_alicante.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
@@ -1449,6 +1505,7 @@ tmap_save(m611.murcia_castellon_alicante, filename = paste(COLERA_MAPS_DIR, "m61
 
 # invasión colérica en las cuencas del Guadalaviar y Jucar ----------------
 # Guadalaviar, se convierte en Río Blanco y desemboca como Turia
+
 
 df_colera_eda.month.guadalaviar_jucar <- subset(df_colera_eda.month.merged.municipios, Provincia %in% c("teruel", "cuenca", "albacete", "valencia"))
 df_colera_eda.month.guadalaviar_jucar <- df_colera_eda.month.guadalaviar_jucar %>%
@@ -1611,26 +1668,9 @@ tmap_save(m611.ebro, filename = paste(COLERA_MAPS_DIR, "m611.ebro.png", sep = "/
 
 
 rm(
-  m6,
-  m7,
-  m8,
-  m9,
-  m10,
-  m11,
-  m611,
-  m2526,
-  m2728,
-  m2930,
-  m3132,
-  m89,
-  m6.valencia,
-  m78.valencia,
-  m611.zaragoza,
-  m611.barcelona,
-  m611.granada_malaga,
-  m611.murcia_castellon_alicante,
-  m611.guadalaviar_jucar,
-  m611.guadiana_guadalquivir,
-  m611.tajo,
-  m611.ebro
+  m6, m7, m8, m9, m10, m11, m611, m2526, m2728, m2930, m3132, m89,
+  m6.valencia, m78.valencia, m611.zaragoza, m611.granada_malaga, m611.murcia_castellon_alicante,
+  m611.guadalaviar_jucar, m611.guadiana_guadalquivir, m611.tajo, m611.ebro,
+  mapS.ebro, mapS.guadalaviar_jucar, mapS.guadiana_guadalquivir, mapS.tajo,
+  mapS.granada_malaga, mapS.murcia_castellon_alicante, mapS.valencia, mapS.zaragoza
 )
