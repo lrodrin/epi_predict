@@ -21,7 +21,7 @@ dir.create(PESTE_MAPS_DIR, showWarnings = FALSE)
 FECHA_STR <- "Fecha"
 MUNICIPIO_STR <- "Municipio"
 NAMEUNIT_STR <- "NAMEUNIT"
-LOCALIDADES_STR <- c("Artà", "Capdepera", "Son Servera")
+LOCALIDADES_STR <- c("Artà", "Capdepera", "Sant Llorenç des Cardassar", "Son Servera")
 CATEGORIAS_STR <- c(INFECTADOS_STR, MUERTOS_STR, CURADOS_STR, SUPERVIVIENTES_STR)
 MONTHS_INT <- c(6, 7, 8, 9, 10)
 MONTHS_STR <- c("Junio", "Julio", "Agosto", "Septiembre", "Octubre")
@@ -83,8 +83,8 @@ add_tasas <- function(df_peste) {
 # raw data ----------------------------------------------------------------
 
 
-df_peste.eda.day <- subset(df_peste.merged.day, Municipio %in% LOCALIDADES_STR)
-df_peste.eda.month <- subset(df_peste.merged.month, Municipio %in% LOCALIDADES_STR)
+df_peste.eda.day <- df_peste.merged.day
+df_peste.eda.month <- df_peste.merged.month
 
 
 # maps --------------------------------------------------------------------
@@ -118,6 +118,63 @@ cat(
   paste0(FECHA_STR, " de finalización: ", format(max(df_peste.merged.day$Fecha, na.rm = TRUE), format = "%d de %B de %Y")), "\n",
   paste0("Duración de la epidemia: ", max(df_peste.merged.day$Fecha, na.rm = TRUE) - min(df_peste.merged.day$Fecha, na.rm = TRUE), " días")
 )
+
+
+# plots
+
+ggplot(subset(df_peste.eda.day, Municipio == LOCALIDADES_STR[1]), aes(x = Fecha, y = Casos, color = Categoria)) +
+  geom_line() +   
+  geom_vline(xintercept = as.numeric(as.Date("1820-07-15")), color = "black", linetype = "dashed") +
+  geom_text(x = as.numeric(as.Date("1820-07-15")) + 1, y = max(df_peste.eda.day$Casos), label = "Se levanta el cordón sanitario", hjust = 0, vjust = 0, color = "black", size = 3.5) +
+  labs(x = NULL, y = "Casos", title = paste0("Cronología de la epidemia en ", LOCALIDADES_STR[1], ", ", ANO_STR)) +
+  scale_y_continuous(breaks = seq(0, 310, 10), limits = c(0, 310), labels = number) +
+  scale_x_continuous(
+    breaks = df_peste.eda.day$Fecha,
+    labels = df_peste.eda.day$Fecha
+  ) +
+  theme_bw() +
+  theme(text = element_text(), axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.1), legend.position = "bottom", legend.title = element_blank())
+
+ggplot(subset(df_peste.eda.day, Municipio == LOCALIDADES_STR[2]), aes(x = Fecha, y = Casos, color = Categoria)) +
+  geom_line() +   
+  geom_vline(xintercept = as.numeric(as.Date("1820-07-15")), color = "black", linetype = "dashed") +
+  geom_text(x = as.numeric(as.Date("1820-07-15")) + 1, y = max(df_peste.eda.day$Casos), label = "Se levanta el cordón sanitario", hjust = 0, vjust = 0, color = "black", size = 3.5) +
+  labs(x = NULL, y = "Casos", title = paste0("Cronología de la epidemia en ", LOCALIDADES_STR[2], ", ", ANO_STR)) +
+  scale_y_continuous(breaks = seq(0, 100, 5), limits = c(0, 100), labels = number) +
+  scale_x_continuous(
+    breaks = df_peste.eda.day$Fecha,
+    labels = df_peste.eda.day$Fecha
+  ) +
+  theme_bw() +
+  theme(text = element_text(), axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.1), legend.position = "bottom", legend.title = element_blank())
+
+ggplot(subset(df_peste.eda.day, Municipio == LOCALIDADES_STR[3]), aes(x = Fecha, y = Casos, color = Categoria)) +
+  geom_line() +   
+  geom_vline(xintercept = as.numeric(as.Date("1820-07-15")), color = "black", linetype = "dashed") +
+  geom_text(x = as.numeric(as.Date("1820-07-15")) + 1, y = max(df_peste.eda.day$Casos), label = "Se levanta el cordón sanitario", hjust = 0, vjust = 0, color = "black", size = 3.5) +
+  labs(x = NULL, y = "Casos", title = paste0("Cronología de la epidemia en ", LOCALIDADES_STR[3], ", ", ANO_STR)) +
+  scale_y_continuous(breaks = seq(0, 110, 5), limits = c(0, 110), labels = number) +
+  scale_x_continuous(
+    breaks = df_peste.eda.day$Fecha,
+    labels = df_peste.eda.day$Fecha
+  ) +
+  theme_bw() +
+  theme(text = element_text(), axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.1), legend.position = "bottom", legend.title = element_blank())
+
+ggplot(subset(df_peste.eda.day, Municipio == LOCALIDADES_STR[4]), aes(x = Fecha, y = Casos, color = Categoria)) +
+  geom_line() +   
+  geom_vline(xintercept = as.numeric(as.Date("1820-07-15")), color = "black", linetype = "dashed") +
+  geom_text(x = as.numeric(as.Date("1820-07-15")) + 1, y = max(df_peste.eda.day$Casos), label = "Se levanta el cordón sanitario", hjust = 0, vjust = 0, color = "black", size = 3.5) +
+  labs(x = NULL, y = "Casos", title = paste0("Cronología de la epidemia en ", LOCALIDADES_STR[4], ", ", ANO_STR)) +
+  scale_y_continuous(breaks = seq(0, 125, 5), limits = c(0, 125), labels = number) +
+  scale_x_continuous(
+    breaks = df_peste.eda.day$Fecha,
+    labels = df_peste.eda.day$Fecha
+  ) +
+  theme_bw() +
+  theme(text = element_text(), axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.1), legend.position = "bottom", legend.title = element_blank())
+
+# TODO: add missing dates ???
 
 
 # Número de habitantes y personas infectadas, -----------------------------
@@ -177,17 +234,18 @@ ggsave(paste(PESTE_PLOTS_DIR, "total_supervivientes.png", sep = "/"), width = 6,
 
 # table (2)
 
-table_2 <- data.frame(matrix(ncol = 6, nrow = 4))
+table_2 <- data.frame(matrix(ncol = 6, nrow = 5))
 colnames(table_2) <- c("Municipio", "Número de habitantes antes de la epidemia", "Número de personas infectadas", "Número de muertes", "Número de personas curadas", "Número de supervivientes")
 table_2$Municipio <- c(LOCALIDADES_STR, "TOTAL")
 
 table_2[1,2] <- 3626
 table_2[2,2] <- 1179
-table_2[3,2] <- 1684
-table_2[4,2] <- sum(table_2[1:3, 2])
+table_2[3,2] <- 1338
+table_2[4,2] <- 1684
+table_2[5,2] <- sum(table_2[1:4, 2])
 
 for (j in 3:6) {
-  for (i in 1:3) {
+  for (i in 1:4) {
     
     table_2[i, j] <- df_peste.eda.month %>%
       filter(Categoria == CATEGORIAS_STR[j - 2] & Municipio == LOCALIDADES_STR[i]) %>%
@@ -195,7 +253,7 @@ for (j in 3:6) {
       sum()
   }
   
-  table_2[4, j] <- sum(table_2[1:3, j])
+  table_2[5, j] <- sum(table_2[1:4, j])
 }
 
 
@@ -263,25 +321,29 @@ ggsave(paste(PESTE_PLOTS_DIR, "tasa_supervivientes.png", sep = "/"), width = 6, 
 
 # table (3)
 
-table_3 <- data.frame(matrix(ncol = 5, nrow = 3))
+table_3 <- data.frame(matrix(ncol = 5, nrow = 4))
 colnames(table_3) <- c("Municipio", "% mortalidad", "% morbilidad", "% curados", "% supervivientes")
 table_3$Municipio <- LOCALIDADES_STR
 
 table_3[1,2] <- round((table_2[1,4] / table_2[[1,2]]) * 1000, 2)
 table_3[2,2] <- round((table_2[2,4] / table_2[2,2]) * 1000, 2)
 table_3[3,2] <- round((table_2[3,4] / table_2[3,2]) * 1000, 2)
+table_3[4,2] <- round((table_2[4,4] / table_2[4,2]) * 1000, 2)
 
 table_3[1,3] <- round((table_2[1,3] / table_2[1,2]) * 1000, 2)
 table_3[2,3] <- round((table_2[2,3] / table_2[2,2]) * 1000, 2)
 table_3[3,3] <- round((table_2[3,3] / table_2[3,2]) * 1000, 2)
+table_3[4,3] <- round((table_2[4,3] / table_2[4,2]) * 1000, 2)
 
 table_3[1,4] <- round((table_2[1,5] / table_2[1,3]) * 100, 2)
 table_3[2,4] <- round((table_2[2,5] / table_2[2,3]) * 100, 2)
 table_3[3,4] <- round((table_2[3,5] / table_2[3,3]) * 100, 2)
+table_3[4,4] <- round((table_2[4,5] / table_2[4,3]) * 100, 2)
 
 table_3[1,5] <- round((table_2[1,6] / table_2[1,3]) * 100, 2)
 table_3[2,5] <- round((table_2[2,6] / table_2[2,3]) * 100, 2)
 table_3[3,5] <- round((table_2[3,6] / table_2[2,3]) * 100, 2)
+table_3[4,5] <- round((table_2[4,6] / table_2[4,3]) * 100, 2)
 
 
 # clean environment -------------------------------------------------------

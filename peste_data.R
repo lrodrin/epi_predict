@@ -39,7 +39,7 @@ add_poblacion <- function(df_peste) {
              Poblacion = case_when(
                Municipio == LOCALIDADES_STR[1] ~ 3626,
                Municipio == LOCALIDADES_STR[2] ~ 1179,
-               Municipio == LOCALIDADES_STR[3] ~ 0,
+               Municipio == LOCALIDADES_STR[3] ~ 1338,
                Municipio == LOCALIDADES_STR[4] ~ 1684
              )
            ))
