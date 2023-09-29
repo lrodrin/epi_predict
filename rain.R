@@ -174,7 +174,7 @@ if(.Platform$OS.type == "windows") {
 df_rain.parsed$mes <- as.yearmon(df_rain.parsed$mes) 
 
 # save rain 
-write.csv(df_rain.parsed, "rain.csv", fileEncoding = "UTF-8")
+write.csv(df_rain.parsed, "rain.csv", fileEncoding = "UTF-8", row.names = FALSE)
 
 # generate all time series of each "localidad"
 rain_localidades <- unique(df_rain.parsed$localidad)

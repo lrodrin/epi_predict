@@ -171,7 +171,7 @@ if(.Platform$OS.type == "windows") {
 df_temperatures.parsed$mes <- as.yearmon(df_temperatures.parsed$mes) 
 
 # save temperatures 
-write.csv(df_temperatures.parsed, "temperatures.csv", fileEncoding = "UTF-8")
+write.csv(df_temperatures.parsed, "temperatures.csv", fileEncoding = "UTF-8", row.names = FALSE)
 
 # generate all time series of each "localidad"
 tempe_localidades <- unique(df_temperatures.parsed$localidad)

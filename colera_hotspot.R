@@ -8,9 +8,11 @@ library(tmap)
 library(sfdep)
 library(spdep)
 library(ggplot2)
+library(tidyr)
 
 
 # load("colera_data.RData")
+# load("distances.RData")
 
 
 # constants ---------------------------------------------------------------
@@ -27,19 +29,12 @@ LONG_STR <- "long"
 LAT_STR <- "lat"
 CODIGOINE_STR <- "CODIGOINE"
 NAMEUNIT_STR <- "NAMEUNIT"
-TASA_INCIDENCIA_STR <- "Tasa_incidencia"
-TASA_MORTALIDAD_STR <- "Tasa_mortalidad"
-TASA_INCIDENCIA_FACTOR_STR <- "incidencia_factor"
-TASA_MORTALIDAD_FACTOR_STR <- "mortalidad_factor"
+INVASIONES_FACTOR_STR <- paste0(INVASIONES_STR, "_factor")
+DEFUNCIONES_FACTOR_STR <- paste0(DEFUNCIONES_STR, "_factor")
 
 MONTHS_INT <- c(6, 7, 8, 9, 10, 11)
 PLOT_LABELS <- c("low", "mid-low", "mid-high", "high")
-PLOT_COLORS_BY_LABELS <- c(
-  "low" = "#FEE4D8",
-  "mid-low" = "#FCB195",
-  "mid-high" = "#FB795A", # EF3C2D
-  "high" = "#BB1419"
-)
+PLOT_COLORS_BY_LABELS <- c("low" = "#FEE4D8", "mid-low" = "#FCB195", "mid-high" = "#FB795A", "high" = "#BB1419")
 
 
 # functions ---------------------------------------------------------------
@@ -150,8 +145,6 @@ create_tmap <- function(df_mes, map, var_col, legend_title, style, coords) {
       tm_shape(map) + tm_borders() +
       tm_layout(
         legend.position =  c("right", "bottom"),
-        legend.outside = TRUE,
-        frame = FALSE,
         inner.margins = c(0, 0, 0, 0)
       ) +
       tm_view(bbox = coords)
@@ -192,8 +185,6 @@ create_tmapByFecha <- function(df_mes, map, var_col, legend_title, style, coords
       tm_shape(map) + tm_borders() +
       tm_layout(
         legend.position =  c("right", "bottom"),
-        legend.outside = TRUE,
-        frame = FALSE,
         inner.margins = c(0, 0, 0, 0)
       ) +
       tm_view(bbox = coords)
@@ -256,8 +247,13 @@ localMoran <- function(df_colera, var_col, neighbours, map)  {
         title = "local moran statistic",
         style = "quantile"
       ) +
-      tm_shape(map) + tm_borders()
-  ) # TODO: save plot
+      tm_shape(map) + tm_borders() +
+      tm_layout(
+        legend.position =  c("right", "bottom"),
+        inner.margins = c(0, 0, 0, 0)
+      ) +
+      tm_view(bbox = moran.map)
+  ) 
   
   return(localMoran)
   
@@ -304,6 +300,30 @@ hotspots_classification <- function(hotspots) {
 # main --------------------------------------------------------------------
 
 
+# explore raw data --------------------------------------------------------
+
+
+df_covdist <- df_distances[, c(1, 3:6, 9:12)]
+df_colera.merged.month <- df_colera.merged.month[, c(1, 4:9)]
+df_colera.merged.month$`Codigo Ine` <- as.numeric(df_colera.merged.month$`Codigo Ine`)
+head(df_covdist)
+head(df_colera.merged.month)
+
+
+# merge df_covdist with df_colera.merged.month as df_colera_hotspot
+
+df_colera_hotspot <- merge(df_colera.merged.month, df_covdist, by.x = CODIGO_INE_STR, by.y = "COD_INE")
+df_colera_hotspot <- df_colera_hotspot[, c(1, 8:9, 2, 3:7, 12:15, 10:11)]
+colnames(df_colera_hotspot)[c(2:3, 14:15)] <- c(PROVINCIA_STR, MUNICIPIO_STR, LONG_STR, LAT_STR)
+head(df_colera_hotspot)
+
+
+# clean environment -------------------------------------------------------
+
+
+rm(df_distances, df_covdist)
+
+
 # map ---------------------------------------------------------------------
 
 
@@ -313,30 +333,7 @@ mapS.municipios <- subset(mapS.municipios, !(CODIGOINE %in% c(51001, 52001))) # 
 head(mapS.municipios)
 
 
-# explore raw data --------------------------------------------------------
-
-
-df_colera.merged.month$`Codigo Ine` <- as.numeric(df_colera.merged.month$`Codigo Ine`)
-rownames(df_colera.merged.month) <- 1:nrow(df_colera.merged.month)
-head(df_colera.merged.month)
-
-
-# add coordinates from df_colera and save as df_colera_hotspot
-
-df_colera_coord <- df_colera[, c(CODIGO_INE_STR, "LAT_POB_new_num", "LNG_POB_new_num")]
-df_colera_coord <- distinct(df_colera_coord, .keep_all = TRUE)
-df_colera_coord <- na.omit(df_colera_coord)
-colnames(df_colera_coord)[2:3] <- c(LAT_STR, LONG_STR)
-head(df_colera_coord)
-
-df_colera_hotspot <- merge(df_colera.merged.month, df_colera_coord, by = CODIGO_INE_STR)
-df_colera_hotspot <- df_colera_hotspot[, !colnames(df_colera_hotspot) %in% c(PROVINCIA_STR, MUNICIPIO_STR)]
-df_colera_hotspot <- df_colera_hotspot %>%
-  mutate(
-    lat = ifelse(lat < 36.0, 36.0, ifelse(lat > 43.0, 43.0, lat)),
-    long = ifelse(long < -10.0, -10.0, ifelse(long > 4.0, 4.0, long))
-  )
-head(df_colera_hotspot)
+# observations ------------------------------------------------------------
 
 
 # merge mapS.municipios and df_colera_hotspot
@@ -345,117 +342,125 @@ df_colera_hotspot <- merge(mapS.municipios, df_colera_hotspot, by.x = CODIGOINE_
 head(df_colera_hotspot)
 
 
-# visualize "Tasa_incidencia" and "Tasa_mortalidad" distribution
+# box plot of "Total_invasiones" and "Total_defunciones"
 
-ggplot(df_colera_hotspot, aes(x = Tasa_incidencia)) +
-  geom_density(fill = "blue", alpha = 0.5) +
-  labs(title = paste0("Distribution of ", TASA_INCIDENCIA_STR), x = TASA_INCIDENCIA_STR, y = "Density") +
-  scale_x_continuous(breaks = seq(0, max(df_colera_hotspot$Tasa_incidencia), by = 1)) +
-  theme_bw() +
-  theme(text = element_text(), axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
-
-ggplot(df_colera_hotspot, aes(x = Tasa_mortalidad)) +
-  geom_density(fill = "blue", alpha = 0.5) +
-  labs(title = paste0("Distribution of ", TASA_MORTALIDAD_STR), x = TASA_MORTALIDAD_STR, y = "Density") +
-  scale_x_continuous(breaks = seq(0, max(df_colera_hotspot$Tasa_mortalidad), by = 1)) +
-  theme_bw() +
-  theme(text = element_text(), axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+boxplot(list(df_colera_hotspot$Total_invasiones, df_colera_hotspot$Total_defunciones),
+  names = c(TOTAL_INVASIONES_STR, TOTAL_DEFUNCIONES_STR),
+  main = "Boxplot of Cholera Data",
+  ylab = "Values")
 
 
-# factorize "Tasa_incidencia" and "Tasa_mortalidad"
+# factorize "Total_invasiones" and "Total_defunciones"
 
-df_colera_hotspot.copy <- df_colera_hotspot
-
-df_colera_hotspot.copy <- factorize(
-  df_colera_hotspot.copy,
-  TASA_INCIDENCIA_STR,
-  TASA_INCIDENCIA_FACTOR_STR,
-  c(-1, 0.5, 1, 2, Inf)
+df_colera_hotspot <- factorize(
+  df_colera_hotspot,
+  TOTAL_INVASIONES_STR,
+  INVASIONES_FACTOR_STR,
+  c(-1, 10, 50, 90, Inf) 
 )
 
-df_colera_hotspot.copy <- factorize(
-  df_colera_hotspot.copy,
-  TASA_MORTALIDAD_STR,
-  TASA_MORTALIDAD_FACTOR_STR,
-  c(-1, 0.5, 1, 2, Inf)
+df_colera_hotspot <- factorize(
+  df_colera_hotspot,
+  TOTAL_DEFUNCIONES_STR,
+  DEFUNCIONES_FACTOR_STR,
+  c(-1, 10, 50, 90, Inf)  
 )
 
-plot_observations(df_colera_hotspot.copy, TASA_INCIDENCIA_FACTOR_STR, TASA_INCIDENCIA_STR)
-plot_observations(df_colera_hotspot.copy, TASA_MORTALIDAD_FACTOR_STR, TASA_MORTALIDAD_STR)
+plot_observations(df_colera_hotspot, INVASIONES_FACTOR_STR, TOTAL_INVASIONES_STR)
+plot_observations(df_colera_hotspot, DEFUNCIONES_FACTOR_STR, TOTAL_DEFUNCIONES_STR)
 
 
 # for each month
 
-plot_list.incidencia <- plot_observationsByMonth(df_colera_hotspot.copy, TASA_INCIDENCIA_FACTOR_STR, TASA_INCIDENCIA_STR)
-plot_list.mortalidad <- plot_observationsByMonth(df_colera_hotspot.copy, TASA_MORTALIDAD_FACTOR_STR, TASA_MORTALIDAD_STR)
+plot_list.invasiones <- plot_observationsByMonth(df_colera_hotspot, INVASIONES_FACTOR_STR, TOTAL_INVASIONES_STR)
+plot_list.defunciones <- plot_observationsByMonth(df_colera_hotspot, DEFUNCIONES_FACTOR_STR, TOTAL_DEFUNCIONES_STR)
 
-for (month in names(plot_list.incidencia)) { # TODO: change type of plots ???
-  # print(plot_list.incidencia[[month]])
-  # print(plot_list.mortalidad[[month]])
-  ggsave(paste0(COLERA_MAPS_DIR, "/map_hotspot.incidenciaXmunicipios_", month, ".png"), plot_list.incidencia[[month]])
-  ggsave(paste0(COLERA_MAPS_DIR, "/map_hotspot.mortalidadXmunicipios_", month, ".png"), plot_list.mortalidad[[month]])
+for (month in names(plot_list.invasiones)) { # TODO: change type of plots ???
+  # print(plot_list.invasiones[[month]])
+  # print(plot_list.defunciones[[month]])
+  ggsave(paste0(COLERA_MAPS_DIR, "/map_hotspot.invasionesXmunicipios_", month, ".png"), plot_list.invasiones[[month]])
+  ggsave(paste0(COLERA_MAPS_DIR, "/map_hotspot.defuncionesXmunicipios_", month, ".png"), plot_list.defunciones[[month]])
   
 }
 
-
-# visualize "Tasa_incidencia" and "Tasa_mortalidad" across neighbourhoods 
-
-map.incidencia_factor <- 
-  create_tmap(
-    df_colera_hotspot.copy,
-    mapS.municipios,
-    TASA_INCIDENCIA_FACTOR_STR,
-    TASA_INCIDENCIA_STR,
-    "cat",
-    c(min(df_colera_hotspot.copy$long), min(df_colera_hotspot.copy$lat), max(df_colera_hotspot.copy$long), max(df_colera_hotspot.copy$lat))
-  ) 
-
-map.mortalidad_factor <- 
-  create_tmap(
-    df_colera_hotspot.copy,
-    mapS.municipios,
-    TASA_MORTALIDAD_FACTOR_STR,
-    TASA_MORTALIDAD_STR,
-    "cat",
-    c(min(df_colera_hotspot.copy$long), min(df_colera_hotspot.copy$lat), max(df_colera_hotspot.copy$long), max(df_colera_hotspot.copy$lat))
-  ) 
-
-tmap_save(map.incidencia_factor, filename = paste(COLERA_MAPS_DIR, "tmap.incidencia_factor.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-tmap_save(map.mortalidad_factor, filename = paste(COLERA_MAPS_DIR, "tmap.mortalidad_factor.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+df_colera_hotspot$invasiones_factor <- NULL
+df_colera_hotspot$defunciones_factor <- NULL
 
 
-# for each month (animation)
+# visualize "Total_invasiones" and "Total_defunciones" across neighbourhoods 
 
-map.incidencia_factorByMonth <- 
+breaksinvasiones <- c(412, 677, 1189, 293, 71, 20)
+breaksdefunciones <- c(98, 342, 457, 93, 40, 8.8)
+  
+for (month in MONTHS_INT) {
+  
+  map.invasiones <-
+    create_tmap(
+      df_colera_hotspot[df_colera_hotspot$Fecha == month,],
+      mapS.municipios,
+      TOTAL_INVASIONES_STR,
+      TOTAL_INVASIONES_STR,
+      "jenks",
+      c(min(df_colera_hotspot$long), min(df_colera_hotspot$lat), max(df_colera_hotspot$long), max(df_colera_hotspot$lat))
+    ) +
+    tm_shape(df_colera_hotspot[df_colera_hotspot$Total_invasiones > breaksinvasiones[month - 5],]) + tm_text(CODIGOINE_STR, size = 0.6) +
+    tm_compass(type = "8star", position = c("right", "top")) +
+    tm_scale_bar(breaks = c(0, 25, 50, 100), text.size = 1, position = c("center", "bottom"))
+
+  map.defunciones <-
+    create_tmap(
+      df_colera_hotspot[df_colera_hotspot$Fecha == month,],
+      mapS.municipios,
+      TOTAL_DEFUNCIONES_STR,
+      TOTAL_DEFUNCIONES_STR,
+      "jenks",
+      c(min(df_colera_hotspot$long), min(df_colera_hotspot$lat), max(df_colera_hotspot$long), max(df_colera_hotspot$lat))
+    ) +
+    tm_shape(df_colera_hotspot[df_colera_hotspot$Total_defunciones > breaksdefunciones[month - 5],]) + tm_text(CODIGOINE_STR, size = 0.6) +
+    tm_compass(type = "8star", position = c("right", "top")) +
+    tm_scale_bar(breaks = c(0, 25, 50, 100), text.size = 1, position = c("center", "bottom"))
+
+  tmap_save(map.invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.invasiones", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+  tmap_save(map.defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.defunciones", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+
+}
+
+map.invasiones611 <- 
   create_tmapByFecha(
-    df_colera_hotspot.copy,
+    df_colera_hotspot,
     mapS.municipios,
-    TASA_INCIDENCIA_FACTOR_STR,
-    TASA_INCIDENCIA_STR,
-    "cat",
-    c(min(df_colera_hotspot.copy$long), min(df_colera_hotspot.copy$lat), max(df_colera_hotspot.copy$long), max(df_colera_hotspot.copy$lat)),
+    TOTAL_INVASIONES_STR,
+    TOTAL_INVASIONES_STR,
+    "jenks",
+    c(min(df_colera_hotspot$long), min(df_colera_hotspot$lat), max(df_colera_hotspot$long), max(df_colera_hotspot$lat)),
     2
-  )
+  ) + 
+  # tm_shape(df_colera_hotspot) + tm_text(CODIGOINE_STR, size = 0.7) +
+  tm_compass(type = "8star", position = c("right", "top")) +
+  tm_scale_bar(breaks = c(0, 25, 50, 100), text.size = 1, position = c("center", "bottom"))
 
-map.mortalidad_factorByMonth <- 
+map.defunciones611 <- 
   create_tmapByFecha(
-    df_colera_hotspot.copy,
+    df_colera_hotspot,
     mapS.municipios,
-    TASA_MORTALIDAD_FACTOR_STR,
-    TASA_MORTALIDAD_STR,
-    "cat",
-    c(min(df_colera_hotspot.copy$long), min(df_colera_hotspot.copy$lat), max(df_colera_hotspot.copy$long), max(df_colera_hotspot.copy$lat)),
+    TOTAL_DEFUNCIONES_STR,
+    TOTAL_DEFUNCIONES_STR,
+    "jenks",
+    c(min(df_colera_hotspot$long), min(df_colera_hotspot$lat), max(df_colera_hotspot$long), max(df_colera_hotspot$lat)),
     2
-  )
+  ) +
+  # tm_shape(df_colera_hotspot) + tm_text(CODIGOINE_STR, size = 0.7) +
+  tm_compass(type = "8star", position = c("right", "top")) +
+  tm_scale_bar(breaks = c(0, 25, 50, 100), text.size = 1, position = c("center", "bottom"))
 
-tmap_save(map.incidencia_factorByMonth, filename = paste(COLERA_MAPS_DIR, "tmap.incidencia_factorByMonth.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-tmap_save(map.mortalidad_factorByMonth, filename = paste(COLERA_MAPS_DIR, "tmap.mortalidad_factorByMonth.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+tmap_save(map.invasiones611, filename = paste(COLERA_MAPS_DIR, "tmap.invasiones611.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+tmap_save(map.defunciones611, filename = paste(COLERA_MAPS_DIR, "tmap.defunciones611.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # clean environment -------------------------------------------------------
 
 
-rm(df_colera_coord, df_colera_hotspot.copy, plot_list.incidencia, plot_list.mortalidad, map.incidencia_factor, map.incidencia_factorByMonth, map.mortalidad_factor, map.mortalidad_factorByMonth)
+rm(plot_list.invasiones, plot_list.defunciones, map.invasiones, map.defunciones, map.invasiones611, map.defunciones611, breaksinvasiones, breaksdefunciones)
 
 
 # neighbour structure ----------------------------------------------------
@@ -479,15 +484,15 @@ listw
 
 # global Moran test
 
-globalMoran_test.incidencia <- globalMoran_test(df_colera_hotspot, TASA_INCIDENCIA_STR, listw)
-globalMoran_test.mortalidad <- globalMoran_test(df_colera_hotspot, TASA_MORTALIDAD_STR, listw)
+globalMoran_test.invasiones <- globalMoran_test(df_colera_hotspot, TOTAL_INVASIONES_STR, listw)
+globalMoran_test.defunciones <- globalMoran_test(df_colera_hotspot, TOTAL_DEFUNCIONES_STR, listw)
 
 
 # local spatial autocorrelation -------------------------------------------
 
 
-localMoran.incidencia <- localMoran(df_colera_hotspot, TASA_INCIDENCIA_STR, neighbours2, mapS.municipios)
-localMoran.mortalidad <- localMoran(df_colera_hotspot, TASA_MORTALIDAD_STR, neighbours2, mapS.municipios)
+localMoran.invasiones <- localMoran(df_colera_hotspot, TOTAL_INVASIONES_STR, neighbours2, mapS.municipios)
+localMoran.defunciones <- localMoran(df_colera_hotspot, TOTAL_DEFUNCIONES_STR, neighbours2, mapS.municipios)
 
 
 # Getis-Ord approach ------------------------------------------------------
@@ -505,16 +510,16 @@ nb
 w_binary <- nb2listw(nb, style = "B")
 
 
-# calculate spatial lag for "Tasa_incidencia" and "Tasa_mortalidad"
+# calculate spatial lag for "Total_invasiones" and "Total_defunciones"
 
-spatial_lag.i <- lag.listw(w_binary, df_colera_hotspot$Tasa_incidencia)
-spatial_lag.m <- lag.listw(w_binary, df_colera_hotspot$Tasa_mortalidad)
+spatial_lag.i <- lag.listw(w_binary, df_colera_hotspot$Total_invasiones)
+spatial_lag.d <- lag.listw(w_binary, df_colera_hotspot$Total_defunciones)
 
 
-# test for global G statistic of "Tasa_incidencia" and "Tasa_mortalidad"
+# test for global G statistic of "Total_invasiones" and "Total_defunciones"
 
-globalG.test(df_colera_hotspot$Tasa_incidencia, w_binary)
-globalG.test(df_colera_hotspot$Tasa_mortalidad, w_binary)
+globalG.test(df_colera_hotspot$Total_invasiones, w_binary)
+globalG.test(df_colera_hotspot$Total_defunciones, w_binary)
 
 
 # local Gi test -----------------------------------------------------------
@@ -529,14 +534,14 @@ nbs.i <- df_colera_hotspot |>
   mutate(
     nb = st_contiguity(geometry),                 # neighbours share border/vertex
     wt = st_weights(nb),                          # row-standardized weights
-    tes_lag = st_lag(Tasa_incidencia, nb, wt)     # calculate spatial lag of "Tasa_incidencia"
+    tes_lag = st_lag(Total_invasiones, nb, wt)    # calculate spatial lag of "Total_invasiones"
   ) 
 
-nbs.m <- df_colera_hotspot |> 
+nbs.d <- df_colera_hotspot |> 
   mutate(
     nb = st_contiguity(geometry),                 
     wt = st_weights(nb),                          
-    tes_lag = st_lag(Tasa_mortalidad, nb, wt)     # calculate spatial lag of "Tasa_mortalidad"
+    tes_lag = st_lag(Total_defunciones, nb, wt)     # calculate spatial lag of "Total_defunciones"
   ) 
 
 
@@ -544,41 +549,27 @@ nbs.m <- df_colera_hotspot |>
 
 hot_spots.i <- nbs.i |> 
   mutate(
-    Gi = local_g_perm(Tasa_incidencia, nb, wt, nsim = 999)
+    Gi = local_g_perm(Total_invasiones, nb, wt, nsim = 999)
     # nsim = number of Monte Carlo simulations (999 is default)
   ) |> 
   # new "Gi" column itself contains a data frame 
   # can't work with that, need to "unnest" it
   unnest(Gi)
 
-hot_spots.m <- nbs.m |> 
+hot_spots.d <- nbs.d |> 
   mutate(
-    Gi = local_g_perm(Tasa_mortalidad, nb, wt, nsim = 999)
+    Gi = local_g_perm(Total_defunciones, nb, wt, nsim = 999)
   ) |> 
   unnest(Gi)
 
 
 # TODO: plot looks at Gi values for all locations
 
-ggplot() +
-  geom_sf(data = mapS.municipios) +
-  geom_sf(data = hot_spots.i, aes(fill = gi), color = "black", lwd = 0.15) +
-  scale_fill_gradient2() + # makes the value 0 (random) be the middle
-  theme(axis.title = element_blank(), axis.text = element_blank(), axis.ticks = element_blank()) +
-  theme_void()
-  
-ggplot() +
-  geom_sf(data = mapS.municipios) +
-  geom_sf(data = hot_spots.m, aes(fill = gi), color = "black", lwd = 0.15) +
-  scale_fill_gradient2() + 
-  theme(axis.title = element_blank(), axis.text = element_blank(), axis.ticks = element_blank()) +
-  theme_void()
-
 
 # hotspots classification
 
 hot_spots.i <- hotspots_classification(hot_spots.i)
-hot_spots.m <- hotspots_classification(hot_spots.m)
+hot_spots.d <- hotspots_classification(hot_spots.d)
 
 
 # visualize the classification
@@ -588,44 +579,47 @@ ggplot() +
   geom_sf(data = hot_spots.i, aes(fill = classification), color = "black", lwd = 0.1) +
   scale_fill_brewer(type = "div", palette = 5) +
   theme_void() +
-  labs(fill = "hotspot classification", title = paste0(TASA_INCIDENCIA_STR, " hotspots"))
+  labs(fill = "hotspot classification", title = paste0(TOTAL_INVASIONES_STR, " hotspots"))
 
-ggsave(paste(COLERA_MAPS_DIR, paste0("map_hotspot.incidencia_classification.png"), sep = "/"), dpi = 300, limitsize = TRUE)
+ggsave(paste(COLERA_MAPS_DIR, paste0("map_hotspot.invasiones_classification.png"), sep = "/"), dpi = 300, limitsize = TRUE)
 
 ggplot() +
   geom_sf(data = mapS.municipios) +
-  geom_sf(data = hot_spots.m, aes(fill = classification), color = "black", lwd = 0.1) +
+  geom_sf(data = hot_spots.d, aes(fill = classification), color = "black", lwd = 0.1) +
   scale_fill_brewer(type = "div", palette = 5) +
   theme_void() +
-  labs(fill = "hotspot classification", title = paste0(TASA_MORTALIDAD_STR, " hotspots"))
+  labs(fill = "hotspot classification", title = paste0(TOTAL_DEFUNCIONES_STR, " hotspots"))
 
-ggsave(paste(COLERA_MAPS_DIR, paste0("map_hotspot.mortalidad_classification.png"), sep = "/"), dpi = 300, limitsize = TRUE)
+ggsave(paste(COLERA_MAPS_DIR, paste0("map_hotspot.defunciones_classification.png"), sep = "/"), dpi = 300, limitsize = TRUE)
+
+
+# TODO: create tmaps
 
 
 # save results
 
 df_hot_spots.i <- hot_spots.i %>%
   select(
-    CODIGOINE, NAMEUNIT, Fecha, Total_invasiones, Tasa_incidencia, Total_defunciones, Tasa_mortalidad, Total_poblacion,
+    CODIGOINE, NAMEUNIT, Fecha, Total_invasiones, Total_defunciones, Total_poblacion,
     lat, long, nb, wt, gi, e_gi, var_gi, p_value, p_sim, p_folded_sim, skewness, kurtosis, classification 
   )
 
-df_hot_spots.m <- hot_spots.m %>%
+df_hot_spots.d <- hot_spots.d %>%
   select(
-    CODIGOINE, NAMEUNIT, Fecha, Total_invasiones, Tasa_incidencia, Total_defunciones, Tasa_mortalidad, Total_poblacion,
+    CODIGOINE, NAMEUNIT, Fecha, Total_invasiones, Total_defunciones, Total_poblacion,
     lat, long, nb, wt, gi, e_gi, var_gi, p_value, p_sim, p_folded_sim, skewness, kurtosis, classification
   )
 
 df_hot_spots.i$nb <- sapply(df_hot_spots.i$nb, function(x) paste(x, collapse = ", "))
 df_hot_spots.i$wt <- sapply(df_hot_spots.i$wt, function(x) paste(x, collapse = ", "))
-df_hot_spots.m$nb <- sapply(df_hot_spots.m$nb, function(x) paste(x, collapse = ", "))
-df_hot_spots.m$wt <- sapply(df_hot_spots.m$wt, function(x) paste(x, collapse = ", "))
+df_hot_spots.d$nb <- sapply(df_hot_spots.d$nb, function(x) paste(x, collapse = ", "))
+df_hot_spots.d$wt <- sapply(df_hot_spots.d$wt, function(x) paste(x, collapse = ", "))
 
 df_hot_spots.i$geometry <- NULL
-df_hot_spots.m$geometry <- NULL
+df_hot_spots.d$geometry <- NULL
 
 df_hot_spots.i$NAMEUNIT <- tolower(iconv(df_hot_spots.i$NAMEUNIT, from = "UTF-8", to = "ASCII//TRANSLIT"))
-df_hot_spots.m$NAMEUNIT <- tolower(iconv(df_hot_spots.m$NAMEUNIT, from = "UTF-8", to = "ASCII//TRANSLIT"))
+df_hot_spots.d$NAMEUNIT <- tolower(iconv(df_hot_spots.d$NAMEUNIT, from = "UTF-8", to = "ASCII//TRANSLIT"))
 
-write.csv(df_hot_spots.i, paste(COLERA_DATA_DIR, "colera_hot_spots.incidencia.csv", sep = "/"), row.names = FALSE)
-write.csv(df_hot_spots.m, paste(COLERA_DATA_DIR, "colera_hot_spots.mortalidad.csv", sep = "/"), row.names = FALSE)
+write.csv(df_hot_spots.i, paste(COLERA_DATA_DIR, "colera_hot_spots.invasiones.csv", sep = "/"), row.names = FALSE)
+write.csv(df_hot_spots.d, paste(COLERA_DATA_DIR, "colera_hot_spots.defunciones.csv", sep = "/"), row.names = FALSE)
