@@ -4,20 +4,15 @@
 # install.packages("INLA", repos = c(getOption("repos"), INLA = "https://inla.r-inla-download.org/R/stable"), dep = TRUE)
 
 
-library(ggplot2)
 library(sf)
 library(dplyr)
 library(zoo)
-library(mapview)
-library(RColorBrewer)
 library(leafpop)
 library(INLA)
 library(spdep)
 library(doParallel)
-library(leafsync)
 library(lubridate)
 library(tmap)
-library(pscl)
 
 
 # load("colera_data.RData")
