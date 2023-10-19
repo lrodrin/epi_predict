@@ -146,22 +146,14 @@ df_colera$dia <- NULL
 df_colera$mes <- NULL
 df_colera$ano <- NULL
 
-# fix column "Provincia" using df_distances
-df_provincias <- df_distances[, c(1, 3)] %>% group_by(COD_INE)
-df_provincias$PROVINCIA <- tolower(stri_trans_general(df_provincias$PROVINCIA, "Latin-ASCII"))
-colnames(df_provincias) <- c(CODIGO_INE_STR, PROVINCIA_STR)
-df_colera <- df_colera %>% 
-  mutate(Provincia = ifelse(`Codigo Ine` %in% df_provincias$`Codigo Ine`, df_provincias$Provincia[match(`Codigo Ine`, df_provincias$`Codigo Ine`)], Provincia))
-
 # format column "municipio_harmo"  
 colnames(df_colera)[4] <- MUNICIPIO_STR
 df_colera$Municipio <- tolower(stri_trans_general(df_colera$Municipio, "Latin-ASCII")) # remove accents and to lower
 df_colera$Municipio <- gsub("/.*", "", df_colera$Municipio) # remove Spanish/Catalan names, we keep Spanish names
 
 # divide dataset for "invasiones" and "defunciones"
-rows_odd <- seq_len(nrow(df_colera)) %% 2
-df_colera_invasiones <- df_colera[rows_odd == 1,]
-df_colera_defunciones <- df_colera[rows_odd == 0,]
+df_colera_invasiones <- subset(df_colera, `Causa (Invasion, Defuncion)` == INVASIONES_STR)
+df_colera_defunciones <- subset(df_colera, `Causa (Invasion, Defuncion)` == DEFUNCIONES_STR)
 
 # create columns with number of "invasiones" and "defunciones" 
 colnames(df_colera_invasiones)[c(3, 6:7)] <- c(INVASIONES_STR, LAT_STR, LONG_STR)
@@ -175,7 +167,7 @@ df_colera_defunciones <- df_colera_defunciones[, c(4, 1, 3, 7, 2, 5:6)]
 df_colera_invasiones <- df_colera_invasiones[order(df_colera_invasiones$`Codigo Ine`, df_colera_invasiones$Fecha),]
 df_colera_defunciones <- df_colera_defunciones[order(df_colera_defunciones$`Codigo Ine`, df_colera_defunciones$Fecha),]
 
-rm(df_colera, df_provincias, rows_odd)
+rm(df_colera)
 
 
 # TOTALES -----------------------------------------------------------------
@@ -195,7 +187,7 @@ ggplot() +
   geom_line(data = df_colera_defunciones.groupByFecha, aes(Fecha, Total_defunciones, color = "Deaths")) +
   ylab("Invasions/Deaths") + xlab("Day-Month") +
   ggtitle(paste0("Total of deaths and invasions, ", ANO_STR)) +
-  scale_y_continuous(breaks=seq(0, 6000, 100), limits=c(0, 6000)) +
+  scale_y_continuous(breaks=seq(0, 6070, 100), limits=c(0, 6070)) +
   scale_x_continuous(
     breaks = df_colera_invasiones.groupByFecha$Fecha,
     labels = df_colera_invasiones.groupByFecha$Fecha
@@ -230,7 +222,7 @@ df_colera.groupByProvinciaFecha <- df_colera.groupByProvinciaFecha %>% mutate(CC
   (Provincia %in% c("huesca", "teruel", "zaragoza")) ~ "aragon",
   (Provincia %in% c("avila", "burgos", "palencia", "salamanca", "segovia", "soria", "valladolid", "zamora")) ~ "castilla-y-leon",
   (Provincia %in% c("albacete", "ciudad real", "cuenca", "guadalajara", "toledo")) ~ "castilla-la-mancha", 
-  (Provincia %in% c("barcelona", "girona", "lleida", "tarragona"))  ~ "cataluña",
+  (Provincia %in% c("barcelona", "gerona", "lerida", "tarragona"))  ~ "cataluña",
   (Provincia %in% c("alicante", "castellon", "valencia")) ~ "comunitat-valenciana",
   (Provincia %in% c("badajoz", "caceres")) ~ "extremadura",
   (Provincia == "gipuzkoa") ~ "pais-vasco",
@@ -303,7 +295,7 @@ df_colera.groupByCCAA <- df_colera.groupByCCAAFecha %>% group_by(CCAA) %>% summa
 ggplot(df_colera.groupByProvincia, aes(x = Total_invasiones, y = Provincia, fill = Provincia)) +
   geom_bar(stat = "identity") + 
   ylab("Province") + xlab("Invasions") +
-  scale_x_continuous(breaks = seq(0, 25290, 1000), limits = c(0, 25290), labels = number) +
+  scale_x_continuous(breaks = seq(0, max(df_colera.groupByProvincia$Total_invasiones), 1000), limits = c(0, max(df_colera.groupByProvincia$Total_invasiones)), labels = number) +
   geom_text(aes(label = Total_invasiones), hjust = -0.2, size = 3) + 
   theme_bw() + theme(legend.position = "none")
 
@@ -313,7 +305,7 @@ ggsave(paste(COLERA_PLOTS_DIR, "barplot.colera_total_invasionesXprovincia.png", 
 ggplot(df_colera.groupByProvincia, aes(x = Total_defunciones, y = Provincia, fill = Provincia)) +
   geom_bar(stat = "identity") + 
   ylab("Province") + xlab("Deaths") +
-  scale_x_continuous(breaks = seq(0, 12090, 500), limits = c(0, 12090), labels = number) +
+  scale_x_continuous(breaks = seq(0, max(df_colera.groupByProvincia$Total_defunciones), 500), limits = c(0, max(df_colera.groupByProvincia$Total_defunciones)), labels = number) +
   geom_text(aes(label = Total_defunciones), hjust = -0.2, size = 3) + 
   theme_bw() + theme(legend.position = "none")
 
@@ -323,7 +315,7 @@ ggsave(paste(COLERA_PLOTS_DIR, "barplot.colera_total_defuncionesXprovincia.png",
 ggplot(df_colera.groupByCCAA, aes(x = Total_invasiones, y = CCAA, fill = CCAA)) +
   geom_bar(stat = "identity") + 
   ylab("Autonomous Community") + xlab("Invasions") +
-  scale_x_continuous(breaks = seq(0, 47810, 2000), limits = c(0, 47810), labels = number) +
+  scale_x_continuous(breaks = seq(0, max(df_colera.groupByCCAA$Total_invasiones), 2000), limits = c(0, max(df_colera.groupByCCAA$Total_invasiones)), labels = number) +
   geom_text(aes(label = Total_invasiones), hjust = -0.2, size = 3) + 
   theme_bw() + theme(legend.position = "none")
 
@@ -333,7 +325,7 @@ ggsave(paste(COLERA_PLOTS_DIR, "barplot.colera_total_invasionesXccaa.png", sep =
 ggplot(df_colera.groupByCCAA, aes(x = Total_defunciones, y = CCAA, fill = CCAA)) +
   geom_bar(stat = "identity") + 
   ylab("Autonomous Community") + xlab("Deaths") +
-  scale_x_continuous(breaks = seq(0, 22350, 1000), limits = c(0, 22350), labels = number) +
+  scale_x_continuous(breaks = seq(0, max(df_colera.groupByCCAA$Total_invasiones), 1000), limits = c(0, 33835), labels = number) +
   geom_text(aes(label = Total_defunciones), hjust = -0.2, size = 3) + 
   theme_bw() + theme(legend.position = "none")
 
@@ -363,9 +355,3 @@ rm(df_colera_invasiones.groupByMunicipioFecha, df_colera_defunciones.groupByMuni
 df_colera.merged.month <- generate_totalsByMonth(df_colera_invasiones, df_colera_defunciones, Pob1887, "months")
 df_colera.merged.week <- generate_totalsByMonth(df_colera_invasiones, df_colera_defunciones, Pob1887, "weeks")
 df_colera.merged.day <- generate_totalsByMonth(df_colera_invasiones, df_colera_defunciones, Pob1887, "days")
-
-
-# clean environment -------------------------------------------------------
-
-
-rm(df_colera_invasiones, df_colera_defunciones, Pob1887)
