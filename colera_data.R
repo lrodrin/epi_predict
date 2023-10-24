@@ -113,7 +113,6 @@ df_colera <- read_excel(paste(DATA_DIR, "Base colera harmo_codigos_newlatitudlon
 
 # read "poblaciones del 1887" dataset
 Pob1887 <- read_excel(paste(DATA_DIR, "poblaciones habitantes municipios de colera.xlsx", sep = "/"))[, c(1, 3)]
-Pob1887$`Codigo Ine` <- ifelse(nchar(Pob1887$`Codigo Ine`) == 4, paste0("0", Pob1887$`Codigo Ine`), as.character(Pob1887$`Codigo Ine`)) # add the first 0 in "Codigo Ine" for numbers with 4 elements
 Pob1887$`habitantes 1887` <- as.numeric(Pob1887$`habitantes 1887`)
 colnames(Pob1887)[2] <- TOTAL_POBLACION_STR
 
@@ -132,6 +131,11 @@ df_colera <-
       !(df_colera[,CODIGO_INE_STR] == "99998") &
       !(df_colera[,CODIGO_INE_STR] == "9999")
   ), ]
+
+
+# add the first 0 in "Codigo Ine" for numbers with 4 elements
+df_colera$`Codigo Ine` <- ifelse(nchar(df_colera$`Codigo Ine`) == 4, paste0("0", df_colera$`Codigo Ine`), as.character(df_colera$`Codigo Ine`))
+Pob1887$`Codigo Ine` <- ifelse(nchar(Pob1887$`Codigo Ine`) == 4, paste0("0", Pob1887$`Codigo Ine`), as.character(Pob1887$`Codigo Ine`))
 
 # remove NA
 df_colera <- na.omit(df_colera)
