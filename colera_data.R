@@ -6,7 +6,7 @@ library(scales)
 library(stringi)
 
 
-source("covariates.R")
+# source("covariates.R")
 
 
 # constants ---------------------------------------------------------------

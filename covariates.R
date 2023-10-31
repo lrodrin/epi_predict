@@ -2,6 +2,7 @@ library(readxl)
 library(ggplot2)
 library(data.table)
 library(zoo)
+library(sf)
 library(dplyr)
 library(tidyr)
 library(tmap)
@@ -317,4 +318,8 @@ if(.Platform$OS.type == "windows") {
 # clean environment -------------------------------------------------------
 
 
-rm(df_temperatures, df_rain, df_rain.parsed.merged, mapS.municipios, mapS.temperatures, mapS.rain, map_tempe, map_rain, col_classes)
+rm(
+  df_temperatures, df_rain, mapS.municipios, mapS.temperatures, mapS.rain, map_tempe, map_rain, col_classes, municipio, month, tempe_municipios, 
+  rain_municipios, TEMPE_AND_RAIN_FILENAME
+)
+

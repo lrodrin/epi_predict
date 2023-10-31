@@ -72,3 +72,7 @@ peste_maps/
 
 # shapefiles
 shapes/
+
+# nb2INLA files
+*.adj
+
