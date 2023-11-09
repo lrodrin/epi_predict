@@ -1,12 +1,13 @@
 library(readxl)
 library(ggplot2)
 library(dplyr)
-library(tidyverse)
+library(lubridate)
+library(tidyr)
 library(scales)
 library(stringi)
 
 
-# source("covariates.R")
+source("covariates.R")
 
 
 # constants ---------------------------------------------------------------
@@ -359,3 +360,5 @@ rm(df_colera_invasiones.groupByMunicipioFecha, df_colera_defunciones.groupByMuni
 df_colera.merged.month <- generate_totalsByMonth(df_colera_invasiones, df_colera_defunciones, Pob1887, "months")
 df_colera.merged.week <- generate_totalsByMonth(df_colera_invasiones, df_colera_defunciones, Pob1887, "weeks")
 df_colera.merged.day <- generate_totalsByMonth(df_colera_invasiones, df_colera_defunciones, Pob1887, "days")
+
+save.image("colera_data.RData")
