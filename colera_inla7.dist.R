@@ -7,6 +7,7 @@ library(spdep)
 library(lubridate)
 library(tmap)
 library(openxlsx)
+library(Dict)
 
 
 load("colera_data.RData")
@@ -19,6 +20,8 @@ SHAPES_DATA_DIR <- "shapes"
 dir.create(SHAPES_DATA_DIR, showWarnings = FALSE)
 COLERA_MAPS_DIR <- "colera_maps"
 dir.create(COLERA_MAPS_DIR, showWarnings = FALSE)
+COLERA_INLA_DIR <- "colera_inla"
+dir.create(COLERA_INLA_DIR, showWarnings = FALSE)
 
 COVPROV_STR <- "covdist_caprov"
 COVSTATION_STR <- "covdist_station"
@@ -27,7 +30,8 @@ COVRIVER_STR <- "covdist_river"
 COVROAD_STR <- "covdist_road"
 COVCOAST_STR <- "covdist_coast"
 COVPORT_STR <- "covdist_port"
-COVALL_STR <- c(COVPROV_STR, COVSTATION_STR, COVRAIL_STR, COVRIVER_STR, COVROAD_STR, COVCOAST_STR, COVPORT_STR)
+COVALL_STR <- c(COVPROV_STR, COVSTATION_STR, COVRAIL_STR, COVRIVER_STR, COVCOAST_STR, COVPORT_STR)
+PROVINCIAS_STR <- c("zaragoza", "valencia", "granada", "murcia", "teruel", "castellon", "alicante", "navarra", "cuenca", "albacete")
 MONTHS_INT <- c(6, 7, 8, 9, 10, 11)
 MONTHS_STR <- c("June", "July", "August", "September", "October", "November")
 COEFFICIENTS <- c("mean", "0.025quant", "0.975quant")
@@ -81,7 +85,6 @@ mapS_byProvincias <- function(map, provincias) {
   #' @param provincias A character vector containing the names of provinces to subset.
   #' 
   #' @return A subset of the input spatial map containing only the specified provinces.
-  #' 
   
   if (length(provincias) != 1) { mapS.tmp <- subset(map, Provincia %in% provincias) }
   else {mapS.tmp <- subset(map, Provincia == provincias) }
@@ -89,157 +92,176 @@ mapS_byProvincias <- function(map, provincias) {
 }
 
 
-create_inla.graph <- function(map, mapname) {
-  #' Create an INLA graph representation for a spatial map
+run_inla <- function(mapS, province, covariate) {
+  #' Run INLA Analysis for Disease Data
   #'
-  #' This function creates an INLA graph representation for a given spatial map.
-  # The graph is useful for spatial modelling with the Integrated Nested Laplace Approximation (INLA).
-  # The function generates an adjacency matrix and returns it as an INLA graph object.
-  # The adjacency matrix is used to define spatial neighbourhood relationships in INLA models.
-  # 
-  #' @param map A spatial map for which you want to create an INLA graph.
-  #' @param mapname A character string representing the name of the map.
-  # 
-  #' @return An INLA graph object that represents the adjacency matrix for the provided spatial map.
+  #' This function runs an Integrated Nested Laplace Approximation (INLA) analysis for disease data.
+  #'
+  #' @param mapS A spatial map data frame.
+  #' @param province A character vector specifying the province for the analysis. If left blank ("") or NULL, the analysis is performed on the entire dataset.
+  #' @param covariate A character vector specifying the covariate to include in the analysis.
+  #'
+  #' @return A list of results including INLA analysis results for "invasiones" and "defunciones".
   
-  outputname <- paste0("map.", mapname, ".adj")
+  # create a neighbor list by province
+  if (province != "") { mapS.tmp <- mapS_byProvincias(mapS, province) }
+  else { mapS.tmp <- mapS}
+  nb <- poly2nb(mapS.tmp)
+  head(nb)
   
-  # neighbourhood matrix
-  nb <- poly2nb(map)
+  # create a graph
+  nb2INLA("map.adj", nb)
+  g <- inla.read.graph(filename = "map.adj")
   
-  nb2INLA(outputname, nb)
-  g <- inla.read.graph(filename = outputname)
-  return(g)
+  # assign IDs
+  mapS.tmp$idarea <- as.numeric(as.factor(mapS.tmp$CODIGOINE))
+  mapS.tmp$idarea1 <- mapS.tmp$idarea
+  mapS.tmp$idtime <- 1 + mapS.tmp$Fecha - min(mapS.tmp$Fecha)
+  
+  # define the formula
+  covariates <- c(covariate, "f(idarea, model = 'bym', graph = g)", "f(idarea1, idtime, model = 'iid')", "idtime")
+  formula_invasiones <- as.formula(paste(paste(TOTAL_INVASIONES_STR, "~"), paste(covariates, collapse = " + ")))
+  formula_defunciones <- as.formula(paste(paste(TOTAL_DEFUNCIONES_STR, "~"), paste(covariates, collapse = " + ")))
+  print(formula_invasiones)
+  print(formula_defunciones)
+  
+  # run the INLA analysis
+  res_invasiones <- inla(formula_invasiones, family = "poisson", data = mapS.tmp, offset = log(Total_poblacion), control.predictor = list(compute = TRUE), verbose = TRUE)
+  res_defunciones <- inla(formula_defunciones, family = "poisson", data = mapS.tmp, offset = log(Total_poblacion), control.predictor = list(compute = TRUE), verbose = TRUE)
+  return(dict(invasiones = res_invasiones, defunciones = res_defunciones, .class = "any", .overwrite = TRUE))
 }
 
 
-create_index.vectors <- function(map) {
-  #' Create Index Vectors for Spatial and Temporal Variables
+run_inla.provincias <- function(provincia) {
+  #' Run INLA Analysis for Multiple Covariates in a Specific Province
   #'
-  #' This function creates index vectors for spatial and temporal variables in a given spatial map.
-  # The index vectors are used to uniquely identify areas and time points in the map, which can be
-  # useful for various spatial and temporal analyses.
-  # 
-  #' @param map A spatial map containing the relevant variables, including "CODIGOINE" and "Fecha".
-  # 
-  #' @return The map with two additional columns: "idarea" and "idtime", which represent the index vectors
-  # for the spatial and temporal variables, respectively.
+  #' This function runs an Integrated Nested Laplace Approximation (INLA) analysis for multiple covariates in a specific province.
+  #'
+  #' @param provincia A character vector specifying the province for the analysis.
+  #'
+  #' @return A list of INLA analysis results for each covariate in the specified province.
+  #'
   
-  map$idarea <- as.numeric(as.factor(map$CODIGOINE))
-  map$idarea1 <- map$idarea
-  map$idtime <- 1 + map$Fecha - min(map$Fecha)
-  return(map)
+  model <- list()
+  for (i in 1:length(COVALL_STR)) {
+    
+    model_i <- run_inla(mapS.colera_inla7, provincia, COVALL_STR[i])
+    print(model_i[INVASIONES_STR]$summary.fixed)
+    print(model_i[DEFUNCIONES_STR]$summary.fixed) 
+    model[[i]] <- model_i
+  }
+  return(model)
 }
 
 
-formula_inla <- function(response_var, covariates, g) {
-  #' Create INLA Formula with Spatial and Temporal Terms
+create_empty.table <- function(isAll=FALSE) {
+  #' Create an Empty Table for Coefficients and RR (Risk Ratios)
   #'
-  #' This function generates a formula for use in the INLA package by combining a response variable,
-  #' covariates, spatial terms, and a time term.
-  # 
-  #' @param response_var The name of the response variable.
-  #' @param covariates A character vector of covariates to include in the formula.
-  #' @param g The graph structure for the spatial term (e.g., neighbourhood relationships).
-  # 
-  #' @return An INLA formula that combines the response variable, covariates, spatial terms, and a time term.
-  
-  spatial_terms <- c(paste("f(idarea, model = 'bym', graph =", g, ")"), "f(idarea1, idtime, model = 'iid')")
-  time_term <- "idtime"
-  
-  formula <- as.formula(paste(response_var, "~", paste(covariates, collapse = " + "), "+", paste(spatial_terms, collapse = " + "), "+", time_term))
-  return(formula)
-}
-
-
-run_inla <- function(distribution, formula, df_colera, var_col) {
-  #' Run an INLA model for regression analysis.
+  #' This function creates an empty table for storing coefficients and risk ratios (RR) with their corresponding 95% credible intervals.
   #'
-  #' This function runs an Integrated Nested Laplace Approximations (INLA) model for regression analysis.
-  #' It uses the specified distribution, formula, and data frame to fit the model.
-  #'
-  #' @param distribution Distribution family for the model (e.g., "gaussian", "poisson").
-  #' @param formula Model formula.
-  #' @param df_colera Data frame containing the observations.
-  #'
-  #' @return The result of the INLA model fitting.
+  #' @param isAll A logical value indicating whether the table should include all covariates or only a subset.
+  #' 
+  #' @return A data frame representing the empty table with column names and structure.
   
-  res <- inla(formula, family = distribution, data = df_colera, offset = log(Total_poblacion), control.predictor = list(compute = TRUE), control.compute = list())
-  return(res)
-}
-
-
-create_empty.table <- function() {
-  #' Create an Empty Covariate Table
-  #'
-  #' This function creates an empty table for storing covariate coefficients and relative risks
-  #' with default column names and place holders for covariate names.
-  # 
-  #' @return An empty data frame with predefined column names and placeholders for covariate names.
+  columnames <- c("Covariates", "Coefficient (95% CrI)", "RR (95% CrI)", "Coefficient (95% CrI)", "RR (95% CrI)")
   
-  table <- data.frame(matrix(ncol = 5, nrow = 9))
-  colnames(table) <- c("Covariates", "Coefficient (95% CrI)", "RR (95% CrI)", "Coefficient (95% CrI)", "RR (95% CrI)")
+  if (isAll) {
   
-  # add covariates names
-  
-  table[1,1] <- "Intercept*"
-  table[2,1] <- COVPROV_STR
-  table[3,1] <- COVSTATION_STR
-  table[4,1] <- COVRAIL_STR
-  table[5,1] <- COVRIVER_STR
-  table[6,1] <- COVROAD_STR
-  table[7,1] <- COVCOAST_STR
-  table[8,1] <- COVPORT_STR
-  table[9,1] <- "Unstructured random effect"
-  
-  covariates <- table$Covariates
+    table <- data.frame(matrix(ncol = 5, nrow = 8))
+    colnames(table) <- columnames
+    table[1,1] <- "Intercept*"
+    table[2,1] <- COVPROV_STR
+    table[3,1] <- COVSTATION_STR
+    table[4,1] <- COVRAIL_STR
+    table[5,1] <- COVRIVER_STR
+    table[6,1] <- COVCOAST_STR
+    table[7,1] <- COVPORT_STR
+    table[8,1] <- "Unstructured random effect"
+  }
+  else {
+    
+    table <- data.frame(matrix(ncol = 5, nrow = 6))
+    colnames(table) <- columnames
+    table[1,1] <- COVPROV_STR
+    table[2,1] <- COVSTATION_STR
+    table[3,1] <- COVRAIL_STR
+    table[4,1] <- COVRIVER_STR
+    table[5,1] <- COVCOAST_STR
+    table[6,1] <- COVPORT_STR
+  }
   
   return(table)
 }
 
 
-add_results.table <- function(res_invasiones, res_defunciones, res_table) {
-  #' Add Results to a Covariate Table
+add_results.table <- function(res_invasiones, res_defunciones, res_table, isAll=FALSE) {
+  #' Add INLA Results to Coefficients and RR Table
   #'
-  #' This function adds coefficient and relative risk results from an INLA analysis to a predefined
-  #' covariate table for "Total_invasiones" and "Total_defunciones".
-  # 
-  #' @param res_invasiones A list of INLA model results for "Total_invasiones.
-  #' @param res_defunciones A list of INLA model results for Total_defunciones".
-  #' @param res_table A predefined covariate table data frame where the results will be added.
-  # 
-  #' @return The covariate table with added coefficient and relative risk results.
+  #' This function adds the results of INLA analyses for invasions and defunciones to a coefficients and risk ratios (RR) table.
+  #'
+  #' @param res_invasiones The result object for invasions from the INLA analysis.
+  #' @param res_defunciones The result object for defunciones from the INLA analysis.
+  #' @param res_table The coefficients and RR table to which the results will be added.
+  #' @param isAll A logical value indicating whether the table includes all covariates or only a subset.
+  #' 
+  #' @return The updated coefficients and RR table with INLA results.
   
-  # add coefficients and RRs for "Total_invasiones" and "Total_defunciones"
-  for (i in 1:9) {
+  if(isAll) {
     
-    # coefficients 
-    res_table[i, 2] <- paste0(
-      sprintf("%.7f", res_invasiones$summary.fixed[, COEFFICIENTS[1]][i]), " (",
-      sprintf("%.7f", res_invasiones$summary.fixed[, COEFFICIENTS[2]][i]), ", ",
-      sprintf("%.7f", res_invasiones$summary.fixed[, COEFFICIENTS[3]][i]), ")"
-    ) 
-    res_table[i, 4] <- paste0(
-      sprintf("%.7f", res_defunciones$summary.fixed[, COEFFICIENTS[1]][i]), " (",
-      sprintf("%.7f", res_defunciones$summary.fixed[, COEFFICIENTS[2]][i]), ", ",
-      sprintf("%.7f", res_defunciones$summary.fixed[, COEFFICIENTS[3]][i]), ")"
-    )
+    for (i in 1:8) {
+      # coefficients 
+      res_table[i, 2] <- paste0(
+        sprintf("%.7f", res_invasiones$summary.fixed[, COEFFICIENTS[1]][i]), " (",
+        sprintf("%.7f", res_invasiones$summary.fixed[, COEFFICIENTS[2]][i]), ", ",
+        sprintf("%.7f", res_invasiones$summary.fixed[, COEFFICIENTS[3]][i]), ")"
+      ) 
+      res_table[i, 4] <- paste0(
+        sprintf("%.7f", res_defunciones$summary.fixed[, COEFFICIENTS[1]][i]), " (",
+        sprintf("%.7f", res_defunciones$summary.fixed[, COEFFICIENTS[2]][i]), ", ",
+        sprintf("%.7f", res_defunciones$summary.fixed[, COEFFICIENTS[3]][i]), ")"
+      )
+      # RRs
+      if (!(i %in% c(1, 8))) {
+        res_table[i, 3] <- paste0(
+          sprintf("%.7f", exp(res_invasiones$summary.fixed[, COEFFICIENTS[1]][i] * 1000)), " (",
+          sprintf("%.7f", exp(res_invasiones$summary.fixed[, COEFFICIENTS[2]][i] * 1000)), ", ",
+          sprintf("%.7f", exp(res_invasiones$summary.fixed[, COEFFICIENTS[3]][i] * 1000)), ")"
+        ) 
+        res_table[i, 5] <- paste0(
+          sprintf("%.7f", exp(res_defunciones$summary.fixed[, COEFFICIENTS[1]][i] * 1000)), " (",
+          sprintf("%.7f", exp(res_defunciones$summary.fixed[, COEFFICIENTS[2]][i] * 1000)), ", ",
+          sprintf("%.7f", exp(res_defunciones$summary.fixed[, COEFFICIENTS[3]][i] * 1000)), ")"
+        )
+      }
+    }
+  }
+  else {
     
-    # RRs
-    if (!(i %in% c(1, 9))) {
+    for (i in 1:6) {
+      # coefficients 
+      res_table[i, 2] <- paste0(
+        sprintf("%.7f", res_invasiones[[i]][INVASIONES_STR]$summary.fixed[2, COEFFICIENTS[1]]), " (",
+        sprintf("%.7f", res_invasiones[[i]][INVASIONES_STR]$summary.fixed[2, COEFFICIENTS[2]]), ", ",
+        sprintf("%.7f", res_invasiones[[i]][INVASIONES_STR]$summary.fixed[2, COEFFICIENTS[3]]), ")"
+      ) 
+      res_table[i, 4] <- paste0(
+        sprintf("%.7f", res_defunciones[[i]][DEFUNCIONES_STR]$summary.fixed[2, COEFFICIENTS[1]]), " (",
+        sprintf("%.7f", res_defunciones[[i]][DEFUNCIONES_STR]$summary.fixed[2, COEFFICIENTS[2]]), ", ",
+        sprintf("%.7f", res_defunciones[[i]][DEFUNCIONES_STR]$summary.fixed[2, COEFFICIENTS[3]]), ")"
+      ) 
+      # RRs
       res_table[i, 3] <- paste0(
-        sprintf("%.7f", exp(res_invasiones$summary.fixed[, COEFFICIENTS[1]][i])), " (",
-        sprintf("%.7f", exp(res_invasiones$summary.fixed[, COEFFICIENTS[2]][i])), ", ",
-        sprintf("%.7f", exp(res_invasiones$summary.fixed[, COEFFICIENTS[3]][i])), ")"
+        sprintf("%.7f", exp(res_invasiones[[i]][INVASIONES_STR]$summary.fixed[2, COEFFICIENTS[1]] * 1000)), " (",
+        sprintf("%.7f", exp(res_invasiones[[i]][INVASIONES_STR]$summary.fixed[2, COEFFICIENTS[2]] * 1000)), ", ",
+        sprintf("%.7f", exp(res_invasiones[[i]][INVASIONES_STR]$summary.fixed[2, COEFFICIENTS[3]] * 1000)), ")"
       ) 
       res_table[i, 5] <- paste0(
-        sprintf("%.7f", exp(res_defunciones$summary.fixed[, COEFFICIENTS[1]][i])), " (",
-        sprintf("%.7f", exp(res_defunciones$summary.fixed[, COEFFICIENTS[2]][i])), ", ",
-        sprintf("%.7f", exp(res_defunciones$summary.fixed[, COEFFICIENTS[3]][i])), ")"
+        sprintf("%.7f", exp(res_defunciones[[i]][DEFUNCIONES_STR]$summary.fixed[2, COEFFICIENTS[1]] * 1000)), " (",
+        sprintf("%.7f", exp(res_defunciones[[i]][DEFUNCIONES_STR]$summary.fixed[2, COEFFICIENTS[2]] * 1000)), ", ",
+        sprintf("%.7f", exp(res_defunciones[[i]][DEFUNCIONES_STR]$summary.fixed[2, COEFFICIENTS[3]] * 1000)), ")"
       )
     }
   }
-  
   return(res_table)
 }
 
@@ -247,12 +269,12 @@ add_results.table <- function(res_invasiones, res_defunciones, res_table) {
 add_results_excel <- function(res_invasiones, res_defunciones, res_table, filename) {
   #' Add INLA Results to an Excel File
   #'
-  #' This function takes INLA results for "Total_invasiones" and "Total_defunciones," a covariate table, and a file name, 
-  #' and creates an Excel file with three worksheets: one for "Total_invasiones" results, one for "Total_defunciones" results,
+  #' This function takes INLA results for "invasiones" and "defunciones," a covariate table, and a file name, 
+  #' and creates an Excel file with three worksheets: one for "invasiones" results, one for "defunciones" results,
   #' and one for the covariate table.
   # 
-  #' @param res_invasiones A list of INLA model results for "Total_invasiones."
-  #' @param res_defunciones A list of INLA model results for "Total_defunciones."
+  #' @param res_invasiones A list of INLA model results for "invasiones"
+  #' @param res_defunciones A list of INLA model results for "defunciones"
   #' @param res_table A predefined covariate table data frame.
   #' @param filename The file name for the output Excel file.
   
@@ -268,7 +290,6 @@ add_results_excel <- function(res_invasiones, res_defunciones, res_table, filena
   writeData(wb, "res_table", res_table)
   
   saveWorkbook(wb, paste0("results", filename, ".xlsx"), overwrite = TRUE)
-  
 }
 
 
@@ -312,46 +333,17 @@ mapS.colera_inla7$Tasa_defunciones <- mapS.colera_inla7$Total_defunciones / mapS
 mapS.colera_inla7 <- mapS.colera_inla7[, c(1:14, 27, 15, 28, 16:26)]
 head(mapS.colera_inla7)
 
-
 for (month in MONTHS_INT) {
 
-  map_invasiones <-
-    create_tmap(
-      mapS.colera_inla7[mapS.colera_inla7$Fecha == month,],
-      c(MONTHS_STR[month-5]),
-      mapS.municipios,
-      TOTAL_INVASIONES_STR,
-      "jenks")
-
-  map_defunciones <-
-    create_tmap(
-      mapS.colera_inla7[mapS.colera_inla7$Fecha == month,],
-      c(MONTHS_STR[month-5]),
-      mapS.municipios,
-      TOTAL_DEFUNCIONES_STR,
-      "jenks")
-
-  map_tasa.invasiones <-
-    create_tmap(
-      mapS.colera_inla7[mapS.colera_inla7$Fecha == month,],
-      c(MONTHS_STR[month-5]),
-      mapS.municipios,
-      "Tasa_invasiones",
-      "jenks")
-
-  map_tasa.defunciones <-
-    create_tmap(
-      mapS.colera_inla7[mapS.colera_inla7$Fecha == month,],
-      c(MONTHS_STR[month-5]),
-      mapS.municipios,
-      "Tasa_defunciones",
-      "jenks")
+  map_invasiones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, TOTAL_INVASIONES_STR, "jenks")
+  map_defunciones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, TOTAL_DEFUNCIONES_STR, "jenks")
+  map_tasa.invasiones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, "Tasa_invasiones", "jenks")
+  map_tasa.defunciones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, "Tasa_defunciones", "jenks")
 
   tmap_save(map_invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.invasiones", month,".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
   tmap_save(map_defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.defunciones", month,".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
   tmap_save(map_tasa.invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.tasa_invasiones", month,".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
   tmap_save(map_tasa.defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.tasa_defunciones", month,".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-
 }
 
 
@@ -364,242 +356,50 @@ rm(map_invasiones, map_defunciones, map_tasa.invasiones, map_tasa.defunciones, c
 # modelling ---------------------------------------------------------------
 
 
-# maps by "provincias"
-
-# mapS.colera_inla7.comunitat_valenciana <- mapS_byProvincias(mapS.colera_inla7, c("alicante", "castellon", "valencia"))
-mapS.colera_inla7.alicante <- mapS_byProvincias(mapS.colera_inla7, "alicante")
-mapS.colera_inla7.castellon <- mapS_byProvincias(mapS.colera_inla7, "castellon")
-mapS.colera_inla7.valencia <- mapS_byProvincias(mapS.colera_inla7, "valencia")
-# mapS.colera_inla7.aragon <- mapS_byProvincias(mapS.colera_inla7, c("huesca", "teruel", "zaragoza"))
-mapS.colera_inla7.huesca<- mapS_byProvincias(mapS.colera_inla7, "huesca")
-mapS.colera_inla7.teruel <- mapS_byProvincias(mapS.colera_inla7, "teruel")
-mapS.colera_inla7.zaragoza <- mapS_byProvincias(mapS.colera_inla7, "zaragoza")
-# mapS.colera_inla7.andalucia <- mapS_byProvincias(mapS.colera_inla7, c("almeria", "cadiz", "cordoba", "granada", "jaen", "malaga"))
-mapS.colera_inla7.murcia <- mapS_byProvincias(mapS.colera_inla7, "murcia")
+model_all <- run_inla(mapS.colera_inla7, "", COVALL_STR)
+model_all[INVASIONES_STR]$summary.fixed
+model_all[DEFUNCIONES_STR]$summary.fixed
 
 
-# graphs by "provincias"
+# by province
 
-g <- create_inla.graph(mapS.colera_inla7, "")
-# g.comunitat_valenciana <- create_inla.graph(mapS.colera_inla7.comunitat_valenciana, "comunitat_valenciana")
-g.alicante <- create_inla.graph(mapS.colera_inla7.alicante, "alicante")
-g.castellon <- create_inla.graph(mapS.colera_inla7.castellon, "castellon")
-g.valencia <- create_inla.graph(mapS.colera_inla7.valencia, "valencia")
-# g.aragon <- create_inla.graph(mapS.colera_inla7.aragon, "aragon")
-g.huesca <- create_inla.graph(mapS.colera_inla7.huesca, "huesca")
-g.teruel <- create_inla.graph(mapS.colera_inla7.teruel, "teruel")
-g.zaragoza <- create_inla.graph(mapS.colera_inla7.zaragoza, "zaragoza")
-# g.andalucia <- create_inla.graph(mapS.colera_inla7.andalucia, "andalucia")
-g.murcia <- create_inla.graph(mapS.colera_inla7.murcia, "murcia")
-
-
-# create index vectors by "provincias"
-
-mapS.colera_inla7 <- create_index.vectors(mapS.colera_inla7)
-# mapS.colera_inla7.comunitat_valenciana <- create_index.vectors(mapS.colera_inla7.comunitat_valenciana)
-mapS.colera_inla7.alicante <- create_index.vectors(mapS.colera_inla7.alicante)
-mapS.colera_inla7.castellon <- create_index.vectors(mapS.colera_inla7.castellon)
-mapS.colera_inla7.valencia <- create_index.vectors(mapS.colera_inla7.valencia)
-# mapS.colera_inla7.aragon <- create_index.vectors(mapS.colera_inla7.aragon)
-mapS.colera_inla7.huesca <- create_index.vectors(mapS.colera_inla7.huesca)
-mapS.colera_inla7.teruel <- create_index.vectors(mapS.colera_inla7.teruel)
-mapS.colera_inla7.zaragoza <- create_index.vectors(mapS.colera_inla7.zaragoza)
-# mapS.colera_inla7.andalucia <- create_index.vectors(mapS.colera_inla7.andalucia)
-mapS.colera_inla7.murcia <- create_index.vectors(mapS.colera_inla7.murcia)
-
-
-# formulas of the Bernardinelli model
-
-# formula_all.invasiones <- Total_invasiones ~ covdist_caprov + covdist_station + covdist_rail + covdist_river + covdist_road + covdist_coast + covdist_port +
-#   f(idarea, model = "bym", graph = g) + f(idarea1, idtime, model = "iid") + idtime
-# 
-# formula_all.defunciones <- Total_defunciones ~ covdist_caprov + covdist_station + covdist_rail + covdist_river + covdist_road + covdist_coast + covdist_port +
-#   f(idarea, model = "bym", graph = g) + f(idarea1, idtime, model = "iid") + idtime
-
-formula_all.invasiones <- formula_inla(TOTAL_INVASIONES_STR, COVALL_STR, "g")
-formula_all.defunciones <- formula_inla(TOTAL_DEFUNCIONES_STR, COVALL_STR, "g")
-# formula_all.invasiones.comunitat_valenciana <- formula_inla(TOTAL_INVASIONES_STR, COVALL_STR, "g.comunitat_valenciana")
-# formula_all.defunciones.comunitat_valenciana <- formula_inla(TOTAL_DEFUNCIONES_STR, COVALL_STR, "g.comunitat_valenciana")
-formula_all.invasiones.alicante <- formula_inla(TOTAL_INVASIONES_STR, COVALL_STR, "g.alicante")
-formula_all.defunciones.alicante <- formula_inla(TOTAL_DEFUNCIONES_STR, COVALL_STR, "g.alicante")
-formula_all.invasiones.castellon <- formula_inla(TOTAL_INVASIONES_STR, COVALL_STR, "g.castellon")
-formula_all.defunciones.castellon <- formula_inla(TOTAL_DEFUNCIONES_STR, COVALL_STR, "g.castellon")
-formula_all.invasiones.valencia <- formula_inla(TOTAL_INVASIONES_STR, COVALL_STR, "g.valencia")
-formula_all.defunciones.valencia <- formula_inla(TOTAL_DEFUNCIONES_STR, COVALL_STR, "g.valencia")
-# formula_all.invasiones.aragon <- formula_inla(TOTAL_INVASIONES_STR, COVALL_STR, "g.aragon")
-# formula_all.defunciones.aragon <- formula_inla(TOTAL_DEFUNCIONES_STR, COVALL_STR, "g.aragon")
-formula_all.invasiones.huesca <- formula_inla(TOTAL_INVASIONES_STR, COVALL_STR, "g.huesca")
-formula_all.defunciones.huesca <- formula_inla(TOTAL_DEFUNCIONES_STR, COVALL_STR, "g.huesca")
-formula_all.invasiones.teruel <- formula_inla(TOTAL_INVASIONES_STR, COVALL_STR, "g.teruel")
-formula_all.defunciones.teruel <- formula_inla(TOTAL_DEFUNCIONES_STR, COVALL_STR, "g.teruel")
-formula_all.invasiones.zaragoza <- formula_inla(TOTAL_INVASIONES_STR, COVALL_STR, "g.zaragoza")
-formula_all.defunciones.zaragoza <- formula_inla(TOTAL_DEFUNCIONES_STR, COVALL_STR, "g.zaragoza")
-# formula_all.invasiones.andalucia <- formula_inla(TOTAL_INVASIONES_STR, COVALL_STR, "g.andalucia")
-# formula_all.defunciones.andalucia <- formula_inla(TOTAL_DEFUNCIONES_STR, COVALL_STR, "g.andalucia")
-formula_all.invasiones.murcia <- formula_inla(TOTAL_INVASIONES_STR, COVALL_STR, "g.murcia")
-formula_all.defunciones.murcia <- formula_inla(TOTAL_DEFUNCIONES_STR, COVALL_STR, "g.murcia")
-
-# formula_covdist_caprov.invasiones <- formula_inla(TOTAL_INVASIONES_STR, COVPROV_STR, "g")
-# formula_covdist_caprov.defunciones <- formula_inla(TOTAL_DEFUNCIONES_STR, COVPROV_STR, "g")
-# formula_covdist_station.invasiones <- formula_inla(TOTAL_INVASIONES_STR, COVSTATION_STR, "g")
-# formula_covdist_station.defunciones <- formula_inla(TOTAL_DEFUNCIONES_STR, COVSTATION_STR, "g")
-# formula_covdist_rail.invasiones <- formula_inla(TOTAL_INVASIONES_STR, COVRAIL_STR, "g")
-# formula_covdist_rail.defunciones <- formula_inla(TOTAL_DEFUNCIONES_STR, COVRAIL_STR, "g")
-# formula_covdist_river.invasiones <- formula_inla(TOTAL_INVASIONES_STR, COVRIVER_STR, "g")
-# formula_covdist_river.defunciones <- formula_inla(TOTAL_DEFUNCIONES_STR, COVRIVER_STR, "g")
-# formula_covdist_road.invasiones <- formula_inla(TOTAL_INVASIONES_STR, COVROAD_STR, "g")
-# formula_covdist_road.defunciones <- formula_inla(TOTAL_DEFUNCIONES_STR, COVROAD_STR, "g")
-# formula_covdist_coast.invasiones <- formula_inla(TOTAL_INVASIONES_STR, COVCOAST_STR, "g")
-# formula_covdist_coast.defunciones <- formula_inla(TOTAL_DEFUNCIONES_STR, COVCOAST_STR, "g")
-# formula_covdist_port.invasiones <- formula_inla(TOTAL_INVASIONES_STR, COVPORT_STR, "g")
-# formula_covdist_port.defunciones <- formula_inla(TOTAL_DEFUNCIONES_STR, COVPORT_STR, "g")
-  
-
-# inference using INLA
-
-res_all.invasiones <- run_inla("poisson", formula_all.invasiones, mapS.colera_inla7)
-res_all.defunciones <- run_inla("poisson", formula_all.defunciones, mapS.colera_inla7)
-# res_all.invasiones.comunitat_valenciana <- run_inla("poisson", formula_all.invasiones.comunitat_valenciana, mapS.colera_inla7.comunitat_valenciana)
-# res_all.defunciones.comunitat_valenciana <- run_inla("poisson", formula_all.defunciones.comunitat_valenciana, mapS.colera_inla7.comunitat_valenciana)
-res_all.invasiones.alicante <- run_inla("poisson", formula_all.invasiones.alicante, mapS.colera_inla7.alicante)
-res_all.defunciones.alicante <- run_inla("poisson", formula_all.defunciones.alicante, mapS.colera_inla7.alicante)
-res_all.invasiones.castellon <- run_inla("poisson", formula_all.invasiones.castellon, mapS.colera_inla7.castellon)
-res_all.defunciones.castellon <- run_inla("poisson", formula_all.defunciones.castellon, mapS.colera_inla7.castellon)
-res_all.invasiones.valencia <- run_inla("poisson", formula_all.invasiones.valencia, mapS.colera_inla7.valencia)
-res_all.defunciones.valencia <- run_inla("poisson", formula_all.defunciones.valencia, mapS.colera_inla7.valencia)
-# res_all.invasiones.aragon <- run_inla("poisson", formula_all.invasiones.aragon, mapS.colera_inla7.aragon)
-# res_all.defunciones.aragon <- run_inla("poisson", formula_all.defunciones.aragon, mapS.colera_inla7.aragon)
-res_all.invasiones.huesca <- run_inla("poisson", formula_all.invasiones.huesca, mapS.colera_inla7.huesca)
-res_all.defunciones.huesca <- run_inla("poisson", formula_all.defunciones.huesca, mapS.colera_inla7.huesca)
-res_all.invasiones.teruel <- run_inla("poisson", formula_all.invasiones.teruel, mapS.colera_inla7.teruel)
-res_all.defunciones.teruel <- run_inla("poisson", formula_all.defunciones.teruel, mapS.colera_inla7.teruel)
-res_all.invasiones.zaragoza <- run_inla("poisson", formula_all.invasiones.zaragoza, mapS.colera_inla7.zaragoza)
-res_all.defunciones.zaragoza <- run_inla("poisson", formula_all.defunciones.zaragoza, mapS.colera_inla7.zaragoza)
-# res_all.invasiones.andalucia <- run_inla("poisson", formula_all.invasiones.andalucia, mapS.colera_inla7.andalucia)
-# res_all.defunciones.andalucia <- run_inla("poisson", formula_all.defunciones.andalucia, mapS.colera_inla7.andalucia)
-# res_all.invasiones.murcia <- run_inla("poisson", formula_all.invasiones.murcia, mapS.colera_inla7.murcia)
-res_all.defunciones.murcia <- run_inla("poisson", formula_all.defunciones.murcia, mapS.colera_inla7.murcia)
-
-# res_covdist_caprov.invasiones <- run_inla("poisson", formula_covdist_caprov.invasiones, mapS.colera_inla7)
-# res_covdist_caprov.defunciones <- run_inla("poisson", formula_covdist_caprov.defunciones, mapS.colera_inla7)
-# res_covdist_station.invasiones <- run_inla("poisson", formula_covdist_station.invasiones, mapS.colera_inla7)
-# res_covdist_station.defunciones <- run_inla("poisson", formula_covdist_station.defunciones, mapS.colera_inla7)
-# res_covdist_rail.invasiones <- run_inla("poisson", formula_covdist_rail.invasiones, mapS.colera_inla7)
-# res_covdist_rail.defunciones <- run_inla("poisson", formula_covdist_rail.defunciones, mapS.colera_inla7)
-# res_covdist_river.invasiones <- run_inla("poisson", formula_covdist_river.invasiones, mapS.colera_inla7)
-# res_covdist_river.defunciones <- run_inla("poisson", formula_covdist_river.defunciones, mapS.colera_inla7)
-# res_covdist_road.invasiones <- run_inla("poisson", formula_covdist_road.invasiones, mapS.colera_inla7)
-# res_covdist_road.defunciones <- run_inla("poisson", formula_covdist_road.defunciones, mapS.colera_inla7)
-# res_covdist_coast.invasiones <- run_inla("poisson", formula_covdist_coast.invasiones, mapS.colera_inla7)
-# res_covdist_coast.defunciones <- run_inla("poisson", formula_covdist_coast.defunciones, mapS.colera_inla7)
-# res_covdist_port.invasiones <- run_inla("poisson", formula_covdist_port.invasiones, mapS.colera_inla7)
-# res_covdist_port.defunciones <- run_inla("poisson", formula_covdist_port.defunciones, mapS.colera_inla7)
+# for (provincia in PROVINCIA_STR) { assign(paste0("model_", provincia), run_inla.provincias(provincia), envir = .GlobalEnv) }
+model_zaragoza <- run_inla.provincias("zaragoza")
+model_valencia <- run_inla.provincias("valencia")
+model_granada <- run_inla.provincias("granada")
+model_murcia <- run_inla.provincias("murcia")
+model_teruel <- run_inla.provincias("teruel")
+model_castellon <- run_inla.provincias("castellon")
+model_alicante <- run_inla.provincias("alicante")
+model_navarra <- run_inla.provincias("navarra")
+model_cuenca <- run_inla.provincias("cuenca")
+model_albacete <- run_inla.provincias("albacete")
 
 
 # results -----------------------------------------------------------------
 
 
-res_all.invasiones$summary.fixed
-res_all.defunciones$summary.fixed
-# res_all.invasiones.comunitat_valenciana$summary.fixed
-# res_all.defunciones.comunitat_valenciana$summary.fixed
-res_all.invasiones.alicante$summary.fixed
-res_all.defunciones.alicante$summary.fixed
-res_all.invasiones.castellon$summary.fixed
-res_all.defunciones.castellon$summary.fixed
-res_all.invasiones.valencia$summary.fixed
-res_all.defunciones.valencia$summary.fixed
-# res_all.invasiones.aragon$summary.fixed
-# res_all.defunciones.aragon$summary.fixed
-res_all.invasiones.huesca$summary.fixed
-res_all.defunciones.huesca$summary.fixed
-res_all.invasiones.teruel$summary.fixed
-res_all.defunciones.teruel$summary.fixed
-res_all.invasiones.zaragoza$summary.fixed
-res_all.defunciones.zaragoza$summary.fixed
-# res_all.invasiones.andalucia$summary.fixed
-# res_all.defunciones.andalucia$summary.fixed
-res_all.invasiones.murcia$summary.fixed
-res_all.defunciones.murcia$summary.fixed
-
-res_all.invasiones.list <-
-  list(
-    res_all.invasiones,
-    # res_all.invasiones.comunitat_valenciana,
-    res_all.invasiones.alicante, res_all.invasiones.castellon, res_all.invasiones.valencia,
-    # res_all.invasiones.aragon,
-    res_all.invasiones.huesca, res_all.invasiones.teruel, res_all.invasiones.zaragoza,
-    # res_all.invasiones.andalucia,
-    res_all.invasiones.murcia
-  )
-
-res_all.defunciones.list <-
-  list(
-    res_all.defunciones,
-    # res_all.defunciones.comunitat_valenciana,
-    res_all.defunciones.alicante, res_all.defunciones.castellon, res_all.defunciones.valencia,
-    # res_all.defunciones.aragon,
-    res_all.defunciones.huesca, res_all.defunciones.teruel, res_all.defunciones.zaragoza,
-    # res_all.defunciones.andalucia,
-    res_all.defunciones.murcia
-  )
-
-# res_covdist_caprov.invasiones
-# res_covdist_caprov.defunciones
-# res_covdist_station.invasiones
-# res_covdist_station.defunciones
-# res_covdist_rail.invasiones
-# res_covdist_rail.defunciones
-# res_covdist_river.invasiones
-# res_covdist_river.defunciones
-# res_covdist_road.invasiones
-# res_covdist_river.defunciones
-# es_covdist_coast.invasiones
-# res_covdist_coast.defunciones
-# res_covdist_port.invasiones
-# res_covdist_port.defunciones
+res_table <- create_empty.table(TRUE)
+res_table <- add_results.table(model_all[INVASIONES_STR], model_all[DEFUNCIONES_STR], res_table, TRUE)
+add_results_excel(model_all[INVASIONES_STR], model_all[DEFUNCIONES_STR], res_table, "") 
 
 
-# save coefficients and RRs in res_table
+# by province
 
-res_table <- create_empty.table()
-# res_table.comunitat_valenciana <- create_empty.table()
-res_table.alicante <- create_empty.table()
-res_table.castellon <- create_empty.table()
-res_table.valencia<- create_empty.table()
-# res_table.aragon <- create_empty.table()
-res_table.huesca <- create_empty.table()
-res_table.teruel <- create_empty.table()
-res_table.zaragoza<- create_empty.table()
-# res_table.andalucia <- create_empty.table()
-res_table.murcia <- create_empty.table()
-
-res_table <- add_results.table(res_all.invasiones.list[[1]], res_all.defunciones.list[[1]], res_table)
-# res_table.comunitat_valenciana <- add_results.table(res_all.invasiones.list[[2]], res_all.defunciones.list[[2]], res_table.comunitat_valenciana)
-res_table.alicante <- add_results.table(res_all.invasiones.list[[2]], res_all.defunciones.list[[2]], res_table.alicante)
-res_table.castellon <- add_results.table(res_all.invasiones.list[[3]], res_all.defunciones.list[[3]], res_table.castellon)
-res_table.valencia <- add_results.table(res_all.invasiones.list[[4]], res_all.defunciones.list[[4]], res_table.valencia)
-# res_table.aragon <- add_results.table(res_all.invasiones.list[[3]], res_all.defunciones.list[[3]], res_table.aragon)
-res_table.huesca <- add_results.table(res_all.invasiones.list[[5]], res_all.defunciones.list[[5]], res_table.huesca)
-res_table.teruel <- add_results.table(res_all.invasiones.list[[6]], res_all.defunciones.list[[6]], res_table.teruel)
-res_table.zaragoza <- add_results.table(res_all.invasiones.list[[7]], res_all.defunciones.list[[7]], res_table.zaragoza)
-# res_table.andalucia <- add_results.table(res_all.invasiones.list[[4]], res_all.defunciones.list[[4]], res_table.andalucia)
-# res_table.murcia <- add_results.table(res_all.invasiones.list[[5]], res_all.defunciones.list[[5]], res_table.murcia)
-res_table.murcia <- add_results.table(res_all.invasiones.list[[8]], res_all.defunciones.list[[8]], res_table.murcia)
-
-# res_table.list <- list(res_table, res_table.comunitat_valenciana, res_table.aragon, res_table.andalucia, res_table.murcia)
-res_table.list <- list(res_table, res_table.alicante, res_table.castellon, res_table.valencia, res_table.huesca, res_table.teruel, res_table.zaragoza, res_table.murcia)
+for (provincia in PROVINCIAS_STR) { assign(paste0("res_table.", provincia), create_empty.table(), envir = .GlobalEnv) }
+res_table.zaragoza <- add_results.table(model_zaragoza, model_zaragoza, res_table.zaragoza)
+res_table.valencia <-  add_results.table(model_valencia, model_valencia, res_table.valencia)
+res_table.granada <-  add_results.table(model_granada, model_granada, res_table.granada)
+res_table.murcia <-  add_results.table(model_murcia, model_murcia, res_table.murcia)
+res_table.teruel <-  add_results.table(model_teruel, model_teruel, res_table.teruel)
+res_table.castellon <-  add_results.table(model_castellon, model_castellon, res_table.castellon)
+res_table.alicante <-  add_results.table(model_alicante, model_alicante, res_table.alicante)
+res_table.navarra <-  add_results.table(model_navarra, model_navarra, res_table.navarra)
+res_table.cuenca <-  add_results.table(model_cuenca, model_cuenca, res_table.cuenca)
+res_table.albacete <-  add_results.table(model_albacete, model_albacete, res_table.albacete)
 
 
-# save results as workbook
+# TODO: save to excel 
 
-# provincias <- c("", ".comunitat_valenciana", ".aragon", ".andalucia", ".murcia")
-provincias <- c("", ".alicante", ".castellon", ".valencia", ".huesca", ".teruel", ".zaragoza", ".murcia")
-# for (i in 1:5) {
-for (i in 1:8) {
-  
-  add_results_excel(res_all.invasiones.list[[i]], res_all.defunciones.list[[i]], res_table.list[i], provincias[i])
-  
-}
 
-# save.image("colera_inla7.dist.RData")
+save.image("colera_inla7.dist.RData")
