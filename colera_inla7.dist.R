@@ -54,25 +54,24 @@ create_tmap <- function(df_mes, mes, map, var_col, style) {
   #'
   #' @return A thematic map visualization.
   
-  return(
-    tm_shape(df_mes, bbox = map) +
-      tm_polygons(
-        col = var_col,
-        border.col = NULL,
-        title = "",
-        palette = "Reds",
-        style = style,
-        legend.is.portrait = FALSE
-      ) +
-      tm_shape(map) + tm_borders() +
-      tm_layout(
-        legend.position =  c("right", "bottom"),
-        inner.margins = c(0, 0, 0, 0),
-        panel.labels = mes,
-        panel.label.size = 1.5, panel.label.color = "black",
-        panel.label.bg.color = "gray", panel.label.height = 1.1
-      )
-  )
+  map.tmp <- tm_shape(df_mes, bbox = map) +
+    tm_polygons(
+      col = var_col,
+      border.col = NULL,
+      title = "",
+      palette = "Reds",
+      style = style,
+      legend.is.portrait = FALSE
+    ) +
+    tm_shape(map) + tm_borders() +
+    tm_layout(
+      legend.position =  c("right", "bottom"),
+      inner.margins = c(0, 0, 0, 0),
+      panel.label.size = 1.5, panel.label.color = "black",
+      panel.label.bg.color = "gray", panel.label.height = 1.1
+    )
+  if (!is.null(mes)) { map.tmp <- map.tmp + tm_layout(panel.labels = mes) }
+  return(map.tmp)
 }
 
 
@@ -280,11 +279,11 @@ add_results_excel <- function(res_invasiones, res_defunciones, res_table, filena
   
   wb <- createWorkbook()
   
-  addWorksheet(wb, "res_invasiones_summary")
-  writeData(wb, "res_invasiones_summary", res_invasiones$summary.fixed, rowNames = TRUE)
+  addWorksheet(wb, paste0("res_", INVASIONES_STR, "_summary"))
+  writeData(wb, paste0("res_", INVASIONES_STR, "_summary"), res_invasiones$summary.fixed, rowNames = TRUE)
   
-  addWorksheet(wb, "res_defunciones_summary")
-  writeData(wb, "res_defunciones_summary", res_defunciones$summary.fixed, rowNames = TRUE)
+  addWorksheet(wb, paste0("res_", DEFUNCIONES_STR, "_summary"))
+  writeData(wb, paste0("res_", DEFUNCIONES_STR, "_summary"), res_defunciones$summary.fixed, rowNames = TRUE)
   
   addWorksheet(wb, "res_table")
   writeData(wb, "res_table", res_table)
@@ -309,6 +308,10 @@ df_colera_inla7 <- merge(df_colera.merged.month, df_distances, by = CODIGO_INE_S
 df_colera_inla7 <- df_colera_inla7[, c(1, 6:7, 2, 3:5, 8:9, 10:16)]
 head(df_colera_inla7)
 
+# group df_colera_inla7 by municipalities
+
+df_colera_inla7.grouped <- df_colera_inla7 %>% group_by(`Codigo Ine`, Municipio, Total_poblacion) %>%  summarize(Total_invasiones = sum(Total_invasiones), Total_defunciones = sum(Total_defunciones))
+
 
 # map ---------------------------------------------------------------------
 
@@ -319,14 +322,18 @@ mapS.municipios <- subset(mapS.municipios, !(CODIGOINE %in% c(51001, 52001))) # 
 head(mapS.municipios)
 
 
-# merge mapS.municipios and df_colera_inla7
+# merge mapS.municipios with df_colera_inla7 and mapS.colera_inla7.grouped
 
 mapS.colera_inla7 <- merge(mapS.municipios, df_colera_inla7, by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR)
+mapS.colera_inla7.grouped <- merge(mapS.municipios, df_colera_inla7.grouped, by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR)
 head(mapS.colera_inla7)
+head(mapS.colera_inla7.grouped)
 
 
 # observed cases ----------------------------------------------------------
 
+
+# by month
 
 mapS.colera_inla7$Tasa_invasiones <- mapS.colera_inla7$Total_invasiones / mapS.colera_inla7$Total_poblacion
 mapS.colera_inla7$Tasa_defunciones <- mapS.colera_inla7$Total_defunciones / mapS.colera_inla7$Total_poblacion
@@ -340,17 +347,35 @@ for (month in MONTHS_INT) {
   map_tasa.invasiones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, "Tasa_invasiones", "jenks")
   map_tasa.defunciones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, "Tasa_defunciones", "jenks")
 
-  tmap_save(map_invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.invasiones", month,".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-  tmap_save(map_defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.defunciones", month,".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+  tmap_save(map_invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.", INVASIONES_STR, month,".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+  tmap_save(map_defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.", DEFUNCIONES_STR, month,".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
   tmap_save(map_tasa.invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.tasa_invasiones", month,".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
   tmap_save(map_tasa.defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.tasa_defunciones", month,".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 }
 
 
+# by municipalities
+
+mapS.colera_inla7.grouped$Tasa_invasiones <- mapS.colera_inla7.grouped$Total_invasiones / mapS.colera_inla7.grouped$Total_poblacion
+mapS.colera_inla7.grouped$Tasa_defunciones <- mapS.colera_inla7.grouped$Total_defunciones / mapS.colera_inla7.grouped$Total_poblacion
+mapS.colera_inla7.grouped <- mapS.colera_inla7.grouped[, c(1:13, 16, 14, 17)]
+head(mapS.colera_inla7.grouped)
+
+map_all_invasiones <- create_tmap(mapS.colera_inla7.grouped, NULL, mapS.municipios, TOTAL_INVASIONES_STR, "jenks")
+map_all_defunciones <- create_tmap(mapS.colera_inla7.grouped, NULL, mapS.municipios, TOTAL_DEFUNCIONES_STR, "jenks")
+map_all_tasa.invasiones <- create_tmap(mapS.colera_inla7.grouped, NULL, mapS.municipios, "Tasa_invasiones", "jenks")
+map_all_tasa.defunciones <- create_tmap(mapS.colera_inla7.grouped, NULL, mapS.municipios, "Tasa_defunciones", "jenks")
+
+tmap_save(map_all_invasiones, filename = paste(COLERA_MAPS_DIR, "tmap_all.", INVASIONES_STR, ".png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+tmap_save(map_all_defunciones, filename = paste(COLERA_MAPS_DIR, "tmap_all.", DEFUNCIONES_STR, ".png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+tmap_save(map_all_tasa.invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.tasa_invasiones.png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+tmap_save(map_all_tasa.defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.tasa_defunciones.png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+
+
 # clean environment -------------------------------------------------------
 
 
-rm(map_invasiones, map_defunciones, map_tasa.invasiones, map_tasa.defunciones, create_covariatesTS, generate_totalsByMonth, df_colera_inla7)
+rm(map_invasiones, map_defunciones, map_tasa.invasiones, map_tasa.defunciones, create_covariatesTS, generate_totalsByMonth, df_colera_inla7, df_colera_inla7.grouped, map_all_invasiones, map_all_defunciones)
 
 
 # modelling ---------------------------------------------------------------
