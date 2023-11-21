@@ -8,6 +8,7 @@ library(lubridate)
 library(tmap)
 library(openxlsx)
 library(Dict)
+library(stringi)
 
 
 load("colera_data.RData")
@@ -60,18 +61,39 @@ create_tmap <- function(df_mes, mes, map, var_col, style) {
       border.col = NULL,
       title = "",
       palette = "Reds",
-      style = style,
-      legend.is.portrait = FALSE
+      style = style
     ) +
     tm_shape(map) + tm_borders() +
     tm_layout(
-      legend.position =  c("right", "bottom"),
+      legend.position =  c("right", "bottom"), legend.text.size = 1.5,
       inner.margins = c(0, 0, 0, 0),
-      panel.label.size = 1.5, panel.label.color = "black",
-      panel.label.bg.color = "gray", panel.label.height = 1.1
+      panel.label.size = 1.5, panel.label.height = 1.1, 
+      panel.label.color = "black", panel.label.bg.color = "gray"
     )
+  
   if (!is.null(mes)) { map.tmp <- map.tmp + tm_layout(panel.labels = mes) }
   return(map.tmp)
+}
+
+
+create_tmap.transport <- function(map) {
+  #' Add Transportation Features to a Tmap
+  #'
+  #' This function adds transportation features, such as railway lines and rivers, to a Tmap.
+  #'
+  #' @param map The base map to which transportation features will be added.
+  #' 
+  #' @return A Tmap with added transportation features (railway lines and rivers).
+  
+  return(map +
+    tm_shape(mapS.railways) + tm_lines(lwd = 1.5, col = "red") +
+    tm_shape(mapS.rivers) + tm_lines(lwd = 1.5, col = "blue") +
+    tm_add_legend(
+     type = "line",
+     labels = c("Railway lines", "Rivers"),
+     col = c("red", "blue")
+    )
+  )
 }
 
 
@@ -139,11 +161,9 @@ run_inla.provincias <- function(provincia) {
   #' @param provincia A character vector specifying the province for the analysis.
   #'
   #' @return A list of INLA analysis results for each covariate in the specified province.
-  #'
   
   model <- list()
   for (i in 1:length(COVALL_STR)) {
-    
     model_i <- run_inla(mapS.colera_inla7, provincia, COVALL_STR[i])
     print(model_i[INVASIONES_STR]$summary.fixed)
     print(model_i[DEFUNCIONES_STR]$summary.fixed) 
@@ -188,7 +208,6 @@ create_empty.table <- function(isAll=FALSE) {
     table[5,1] <- COVCOAST_STR
     table[6,1] <- COVPORT_STR
   }
-  
   return(table)
 }
 
@@ -208,7 +227,7 @@ add_results.table <- function(res_invasiones, res_defunciones, res_table, isAll=
   if(isAll) {
     
     for (i in 1:8) {
-      # coefficients 
+      
       res_table[i, 2] <- paste0(
         sprintf("%.7f", res_invasiones$summary.fixed[, COEFFICIENTS[1]][i]), " (",
         sprintf("%.7f", res_invasiones$summary.fixed[, COEFFICIENTS[2]][i]), ", ",
@@ -219,7 +238,7 @@ add_results.table <- function(res_invasiones, res_defunciones, res_table, isAll=
         sprintf("%.7f", res_defunciones$summary.fixed[, COEFFICIENTS[2]][i]), ", ",
         sprintf("%.7f", res_defunciones$summary.fixed[, COEFFICIENTS[3]][i]), ")"
       )
-      # RRs
+      
       if (!(i %in% c(1, 8))) {
         res_table[i, 3] <- paste0(
           sprintf("%.7f", exp(res_invasiones$summary.fixed[, COEFFICIENTS[1]][i] * 1000)), " (",
@@ -237,7 +256,7 @@ add_results.table <- function(res_invasiones, res_defunciones, res_table, isAll=
   else {
     
     for (i in 1:6) {
-      # coefficients 
+      
       res_table[i, 2] <- paste0(
         sprintf("%.7f", res_invasiones[[i]][INVASIONES_STR]$summary.fixed[2, COEFFICIENTS[1]]), " (",
         sprintf("%.7f", res_invasiones[[i]][INVASIONES_STR]$summary.fixed[2, COEFFICIENTS[2]]), ", ",
@@ -248,7 +267,6 @@ add_results.table <- function(res_invasiones, res_defunciones, res_table, isAll=
         sprintf("%.7f", res_defunciones[[i]][DEFUNCIONES_STR]$summary.fixed[2, COEFFICIENTS[2]]), ", ",
         sprintf("%.7f", res_defunciones[[i]][DEFUNCIONES_STR]$summary.fixed[2, COEFFICIENTS[3]]), ")"
       ) 
-      # RRs
       res_table[i, 3] <- paste0(
         sprintf("%.7f", exp(res_invasiones[[i]][INVASIONES_STR]$summary.fixed[2, COEFFICIENTS[1]] * 1000)), " (",
         sprintf("%.7f", exp(res_invasiones[[i]][INVASIONES_STR]$summary.fixed[2, COEFFICIENTS[2]] * 1000)), ", ",
@@ -308,74 +326,103 @@ df_colera_inla7 <- merge(df_colera.merged.month, df_distances, by = CODIGO_INE_S
 df_colera_inla7 <- df_colera_inla7[, c(1, 6:7, 2, 3:5, 8:9, 10:16)]
 head(df_colera_inla7)
 
-# group df_colera_inla7 by municipalities
 
-df_colera_inla7.grouped <- df_colera_inla7 %>% group_by(`Codigo Ine`, Municipio, Total_poblacion) %>%  summarize(Total_invasiones = sum(Total_invasiones), Total_defunciones = sum(Total_defunciones))
+# group df_colera_inla7 by provinces
+
+df_colera_inla7.provincias <- df_colera_inla7 %>% group_by(Provincia) %>%  
+  summarize(Total_invasiones = sum(Total_invasiones), Total_defunciones = sum(Total_defunciones), Total_poblacion = sum(Total_poblacion))
 
 
-# map ---------------------------------------------------------------------
+# maps --------------------------------------------------------------------
 
 
 mapS.municipios <- st_read(paste(SHAPES_DATA_DIR, "Municipios_IGN.shp", sep = "/"), quiet = TRUE)
-mapS.municipios <- subset(mapS.municipios, CODNUT1 != "ES7") # remove Canary Islands
-mapS.municipios <- subset(mapS.municipios, !(CODIGOINE %in% c(51001, 52001))) # remove "Ceuta" and "Melilla"
-head(mapS.municipios)
+mapS.provincias <- st_read(paste(SHAPES_DATA_DIR, "Provincias_ETRS89_30N.shp", sep = "/"), quiet = TRUE)
+mapS.railways <- st_read(paste(SHAPES_DATA_DIR, "Railways_1887.shp", sep = "/"), quiet = TRUE)
+mapS.railways <- na.omit(mapS.railways)
+mapS.rivers <- st_read(paste(SHAPES_DATA_DIR, "Rius_proj.shp", sep = "/"), quiet = TRUE)
+
+mapS.provincias <- subset(mapS.provincias, !(Cod_CCAA %in% c("04", "05", "18", "19")))
+mapS.provincias$Texto <- tolower(stri_trans_general(mapS.provincias$Texto, "Latin-ASCII"))
+mapS.municipios <- subset(mapS.municipios, CODNUT1 != "ES7" & CODNUT2 != "ES53") 
+mapS.municipios <- subset(mapS.municipios, !(CODIGOINE %in% c(51001, 52001))) 
 
 
-# merge mapS.municipios with df_colera_inla7 and mapS.colera_inla7.grouped
+# merge mapS.provincias with df_colera_inla7.provincias
+
+mapS.colera_inla7.provincias <- merge(mapS.provincias, df_colera_inla7.provincias, by.x = "Texto", by.y = PROVINCIA_STR)
+mapS.colera_inla7.provincias$Texto_Alt <- NULL
+colnames(mapS.colera_inla7.provincias)[1:2] <- c(PROVINCIA_STR, paste0("Cod_", PROVINCIA_STR))
+head(mapS.colera_inla7.provincias)
+
+
+# merge mapS.municipios with df_colera_inla7
 
 mapS.colera_inla7 <- merge(mapS.municipios, df_colera_inla7, by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR)
-mapS.colera_inla7.grouped <- merge(mapS.municipios, df_colera_inla7.grouped, by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR)
 head(mapS.colera_inla7)
-head(mapS.colera_inla7.grouped)
 
 
 # observed cases ----------------------------------------------------------
 
 
+summary(mapS.colera_inla7)
+# mapS.colera_inla7$Tasa_invasiones <- mapS.colera_inla7$Total_invasiones / mapS.colera_inla7$Total_poblacion
+# mapS.colera_inla7$Tasa_defunciones <- mapS.colera_inla7$Total_defunciones / mapS.colera_inla7$Total_poblacion
+# mapS.colera_inla7 <- mapS.colera_inla7[, c(1:14, 27, 15, 28, 16:26)]
+# head(mapS.colera_inla7)
+
+
 # by month
 
-mapS.colera_inla7$Tasa_invasiones <- mapS.colera_inla7$Total_invasiones / mapS.colera_inla7$Total_poblacion
-mapS.colera_inla7$Tasa_defunciones <- mapS.colera_inla7$Total_defunciones / mapS.colera_inla7$Total_poblacion
-mapS.colera_inla7 <- mapS.colera_inla7[, c(1:14, 27, 15, 28, 16:26)]
-head(mapS.colera_inla7)
-
 for (month in MONTHS_INT) {
-
+  
+  map_invasiones.provincias <- create_tmap(mapS.colera_inla7.provincias[mapS.colera_inla7.provincias$Fecha == month,], c(MONTHS_STR[month-5]), mapS.provincias, TOTAL_INVASIONES_STR, "jenks") +
+    tm_shape(mapS.colera_inla7.provincias[mapS.colera_inla7.provincias$Fecha == month,]) + tm_text("Cod_Provincia", size = 1)
+  
+  map_defunciones.provincias <- create_tmap(mapS.colera_inla7.provincias[mapS.colera_inla7.provincias$Fecha == month,], c(MONTHS_STR[month-5]), mapS.provincias, TOTAL_DEFUNCIONES_STR, "jenks") +
+    tm_shape(mapS.colera_inla7.provincias[mapS.colera_inla7.provincias$Fecha == month,]) + tm_text("Cod_Provincia", size = 1)
+  
   map_invasiones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, TOTAL_INVASIONES_STR, "jenks")
   map_defunciones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, TOTAL_DEFUNCIONES_STR, "jenks")
-  map_tasa.invasiones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, "Tasa_invasiones", "jenks")
-  map_tasa.defunciones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, "Tasa_defunciones", "jenks")
-
-  tmap_save(map_invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.", INVASIONES_STR, month,".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-  tmap_save(map_defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.", DEFUNCIONES_STR, month,".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-  tmap_save(map_tasa.invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.tasa_invasiones", month,".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-  tmap_save(map_tasa.defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.tasa_defunciones", month,".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+  # map_tasa.invasiones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, "Tasa_invasiones", "jenks")
+  # map_tasa.defunciones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, "Tasa_defunciones", "jenks")
+  
+  tmap_save(map_invasiones.provincias, filename = paste(COLERA_MAPS_DIR, paste0("tmap.provincias.", INVASIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+  tmap_save(map_defunciones.provincias, filename = paste(COLERA_MAPS_DIR, paste0("tmap.provincias.", DEFUNCIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+  tmap_save(map_invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.", INVASIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+  tmap_save(map_defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.", DEFUNCIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+  # tmap_save(map_tasa.invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.tasa_", INVASIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+  # tmap_save(map_tasa.defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.tasa_", DEFUNCIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 }
 
 
-# by municipalities
+# totals 
 
-mapS.colera_inla7.grouped$Tasa_invasiones <- mapS.colera_inla7.grouped$Total_invasiones / mapS.colera_inla7.grouped$Total_poblacion
-mapS.colera_inla7.grouped$Tasa_defunciones <- mapS.colera_inla7.grouped$Total_defunciones / mapS.colera_inla7.grouped$Total_poblacion
-mapS.colera_inla7.grouped <- mapS.colera_inla7.grouped[, c(1:13, 16, 14, 17)]
+df_colera_inla7.grouped <- df_colera_inla7 %>% group_by(`Codigo Ine`, Municipio, Total_poblacion) %>% summarize(Total_invasiones = sum(Total_invasiones), Total_defunciones = sum(Total_defunciones))
+mapS.colera_inla7.grouped <- merge(mapS.municipios, df_colera_inla7.grouped, by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR)
 head(mapS.colera_inla7.grouped)
 
-map_all_invasiones <- create_tmap(mapS.colera_inla7.grouped, NULL, mapS.municipios, TOTAL_INVASIONES_STR, "jenks")
-map_all_defunciones <- create_tmap(mapS.colera_inla7.grouped, NULL, mapS.municipios, TOTAL_DEFUNCIONES_STR, "jenks")
-map_all_tasa.invasiones <- create_tmap(mapS.colera_inla7.grouped, NULL, mapS.municipios, "Tasa_invasiones", "jenks")
-map_all_tasa.defunciones <- create_tmap(mapS.colera_inla7.grouped, NULL, mapS.municipios, "Tasa_defunciones", "jenks")
+map_all_invasiones <- create_tmap(mapS.colera_inla7.grouped, NULL, mapS.municipios, TOTAL_INVASIONES_STR, "jenks") +
+  tm_shape(mapS.colera_inla7.grouped[mapS.colera_inla7.grouped$Total_invasiones > 3915, ]) + tm_text(CODIGOINE_STR, size = 1.3, xmod = 2, fontface = "bold")
 
-tmap_save(map_all_invasiones, filename = paste(COLERA_MAPS_DIR, "tmap_all.", INVASIONES_STR, ".png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-tmap_save(map_all_defunciones, filename = paste(COLERA_MAPS_DIR, "tmap_all.", DEFUNCIONES_STR, ".png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-tmap_save(map_all_tasa.invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.tasa_invasiones.png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-tmap_save(map_all_tasa.defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.tasa_defunciones.png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+map_all_defunciones <- create_tmap(mapS.colera_inla7.grouped, NULL, mapS.municipios, TOTAL_DEFUNCIONES_STR, "jenks") +
+  tm_shape(mapS.colera_inla7.grouped[mapS.colera_inla7.grouped$Total_defunciones > 1818, ]) + tm_text(CODIGOINE_STR, size = 1.3, xmod = 2, fontface = "bold")
+
+
+# adding railway lines and rivers
+
+map_all_invasiones <- create_tmap.transport(map_all_invasiones)
+map_all_defunciones <- create_tmap.transport(map_all_defunciones)
+
+tmap_save(map_all_invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.", INVASIONES_STR, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+tmap_save(map_all_defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.", DEFUNCIONES_STR, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # clean environment -------------------------------------------------------
 
 
-rm(map_invasiones, map_defunciones, map_tasa.invasiones, map_tasa.defunciones, create_covariatesTS, generate_totalsByMonth, df_colera_inla7, df_colera_inla7.grouped, map_all_invasiones, map_all_defunciones)
+rm(map_invasiones.provincias, map_defunciones.provincias, map_invasiones, map_defunciones, create_covariatesTS, generate_totalsByMonth, 
+  df_colera_inla7, df_colera_inla7.provincias, df_colera_inla7.grouped, map_all_invasiones, map_all_defunciones, mapS.colera_inla7.provincias, mapS.colera_inla7.grouped)
 
 
 # modelling ---------------------------------------------------------------
@@ -393,8 +440,8 @@ model_zaragoza <- run_inla.provincias("zaragoza")
 model_valencia <- run_inla.provincias("valencia")
 model_granada <- run_inla.provincias("granada")
 model_murcia <- run_inla.provincias("murcia")
-model_teruel <- run_inla.provincias("teruel")
 model_castellon <- run_inla.provincias("castellon")
+model_teruel <- run_inla.provincias("teruel")
 model_alicante <- run_inla.provincias("alicante")
 model_navarra <- run_inla.provincias("navarra")
 model_cuenca <- run_inla.provincias("cuenca")
