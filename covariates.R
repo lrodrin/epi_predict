@@ -121,10 +121,10 @@ df_rain <- read_excel(paste(DATA_DIR, TEMPE_AND_RAIN_FILENAME, sep = "/"), sheet
 colnames(df_temperatures)[c(1, 14:16)] <- c(MUNICIPIO_STR, LONG_STR, LAT_STR, CODIGO_INE_STR)
 colnames(df_rain)[c(1, 14:16)] <- c(MUNICIPIO_STR, LONG_STR, LAT_STR, CODIGO_INE_STR)
 
-col_classes <- rep(NA, 27)
-df_distances <- read.table(paste(DATA_DIR, "TaulaCovar_2.txt", sep = "/"), sep = ";", header = TRUE, fileEncoding = "UTF-8", quote = "", colClasses = col_classes[2] <- "character")
-df_distances <- df_distances %>% select(COD_INE, PROVINCIA, NOMBRE_ACT, LONGITUD_E, LATITUD_ET, Dist_CapPr, Dist_Stat, Dist_Rail, Dist_Rius, Dist_Road, Dist_coas, Dist_Port)
-colnames(df_distances) <- c(CODIGO_INE_STR, PROVINCIA_STR, MUNICIPIO_STR, LONG_STR, LAT_STR, "covdist_caprov", "covdist_station", "covdist_rail", "covdist_river", "covdist_road", "covdist_coast", "covdist_port")
+options(scipen = 999)
+df_distances <- read_excel(paste(DATA_DIR, "ArxiuDistancies_v3.xlsx", sep = "/"))
+df_distances <- df_distances %>% select(COD_INE, PROVINCIA, NOMBRE_ACT, LONGITUD_E, LATITUD_ET, Dist_CapProv, Dist_Stat, Dist_Rail, Dist_River, Dist_Water,Dist_Road, Dist_coas, Dist_Port)
+colnames(df_distances) <- c(CODIGO_INE_STR, PROVINCIA_STR, MUNICIPIO_STR, LONG_STR, LAT_STR, "covdist_caprov", "covdist_station", "covdist_rail", "covdist_river", "covdist_water","covdist_road", "covdist_coast", "covdist_port")
 
 
 # data preparation --------------------------------------------------------
@@ -143,7 +143,7 @@ df_temperatures$`Codigo Ine` <- ifelse(nchar(df_temperatures$`Codigo Ine`) == 4,
 df_rain$`Codigo Ine` <- ifelse(nchar(df_rain$`Codigo Ine`) == 4, paste0("0", df_rain$`Codigo Ine`), df_rain$`Codigo Ine`)
 
 # format
-df_distances[, c(4:12)] <- sapply(df_distances[, c(4:12)], as.numeric) # columns to numeric
+df_distances[, c(4:5)] <- sapply(df_distances[, c(4:5)], as.numeric) # columns to numeric
 df_distances$`Codigo Ine` <- substr(as.character(df_distances$`Codigo Ine`), 1, 5) # remove unnecessary numbers of "Codigo Ine"
 df_distances$Provincia <- gsub(".*/", "", df_distances$Provincia) # remove Spanish/Catalan names, we keep Spanish names
 df_distances$Municipio <- gsub("/.*$", "", df_distances$Municipio)
@@ -314,12 +314,10 @@ if(.Platform$OS.type == "windows") {
   Sys.setlocale("LC_TIME", "ca_ES.UTF-8")
 }
 
+options(scipen = 000)
+
 
 # clean environment -------------------------------------------------------
 
 
-rm(
-  df_temperatures, df_rain, mapS.municipios, mapS.temperatures, mapS.rain, map_tempe, map_rain, col_classes, municipio, month, tempe_municipios, 
-  rain_municipios, TEMPE_AND_RAIN_FILENAME
-)
-
+rm(df_temperatures, df_rain, mapS.municipios, mapS.temperatures, mapS.rain, map_tempe, map_rain, municipio, month, tempe_municipios, rain_municipios, TEMPE_AND_RAIN_FILENAME)
