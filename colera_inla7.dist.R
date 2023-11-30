@@ -306,7 +306,7 @@ add_results_excel <- function(res_invasiones, res_defunciones, res_table, filena
   addWorksheet(wb, "res_table")
   writeData(wb, "res_table", res_table)
   
-  saveWorkbook(wb, paste0("results", filename, ".xlsx"), overwrite = TRUE)
+  saveWorkbook(wb, paste(COLERA_INLA_DIR, paste0("results", filename, ".xlsx"), sep = "/"), overwrite = TRUE)
 }
 
 
