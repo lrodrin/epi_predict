@@ -28,10 +28,11 @@ COVPROV_STR <- "covdist_caprov"
 COVSTATION_STR <- "covdist_station"
 COVRAIL_STR <- "covdist_rail" 
 COVRIVER_STR <- "covdist_river"
+COVWATER_STR <- "covdist_water"
 COVROAD_STR <- "covdist_road"
 COVCOAST_STR <- "covdist_coast"
 COVPORT_STR <- "covdist_port"
-COVALL_STR <- c(COVPROV_STR, COVSTATION_STR, COVRAIL_STR, COVRIVER_STR, COVCOAST_STR, COVPORT_STR)
+COVALL_STR <- c(COVPROV_STR, COVSTATION_STR, COVRAIL_STR, COVRIVER_STR, COVWATER_STR, COVROAD_STR, COVCOAST_STR, COVPORT_STR)
 PROVINCIAS_STR <- c("zaragoza", "valencia", "granada", "murcia", "teruel", "castellon", "alicante", "navarra", "cuenca", "albacete")
 MONTHS_INT <- c(6, 7, 8, 9, 10, 11)
 MONTHS_STR <- c("June", "July", "August", "September", "October", "November")
@@ -146,9 +147,11 @@ run_inla <- function(mapS, province, covariate) {
   print(formula_invasiones)
   print(formula_defunciones)
   
-  # run the INLA analysis
+  # run the INLA analysis with futures
   res_invasiones <- inla(formula_invasiones, family = "poisson", data = mapS.tmp, offset = log(Total_poblacion), control.predictor = list(compute = TRUE), verbose = TRUE)
+  print(res_invasiones)
   res_defunciones <- inla(formula_defunciones, family = "poisson", data = mapS.tmp, offset = log(Total_poblacion), control.predictor = list(compute = TRUE), verbose = TRUE)
+  print(res_defunciones)
   return(dict(invasiones = res_invasiones, defunciones = res_defunciones, .class = "any", .overwrite = TRUE))
 }
 
@@ -186,27 +189,31 @@ create_empty.table <- function(isAll=FALSE) {
   
   if (isAll) {
   
-    table <- data.frame(matrix(ncol = 5, nrow = 8))
+    table <- data.frame(matrix(ncol = 5, nrow = 10))
     colnames(table) <- columnames
     table[1,1] <- "Intercept*"
     table[2,1] <- COVPROV_STR
     table[3,1] <- COVSTATION_STR
     table[4,1] <- COVRAIL_STR
     table[5,1] <- COVRIVER_STR
-    table[6,1] <- COVCOAST_STR
-    table[7,1] <- COVPORT_STR
-    table[8,1] <- "Unstructured random effect"
+    table[6,1] <- COVWATER_STR
+    table[7,1] <- COVROAD_STR
+    table[8,1] <- COVCOAST_STR
+    table[9,1] <- COVPORT_STR
+    table[10,1] <- "Unstructured random effect"
   }
   else {
     
-    table <- data.frame(matrix(ncol = 5, nrow = 6))
+    table <- data.frame(matrix(ncol = 5, nrow = 8))
     colnames(table) <- columnames
     table[1,1] <- COVPROV_STR
     table[2,1] <- COVSTATION_STR
     table[3,1] <- COVRAIL_STR
     table[4,1] <- COVRIVER_STR
-    table[5,1] <- COVCOAST_STR
-    table[6,1] <- COVPORT_STR
+    table[5,1] <- COVWATER_STR
+    table[6,1] <- COVROAD_STR
+    table[7,1] <- COVCOAST_STR
+    table[8,1] <- COVPORT_STR
   }
   return(table)
 }
@@ -226,7 +233,7 @@ add_results.table <- function(res_invasiones, res_defunciones, res_table, isAll=
   
   if(isAll) {
     
-    for (i in 1:8) {
+    for (i in 1:10) {
       
       res_table[i, 2] <- paste0(
         sprintf("%.7f", res_invasiones$summary.fixed[, COEFFICIENTS[1]][i]), " (",
@@ -239,7 +246,7 @@ add_results.table <- function(res_invasiones, res_defunciones, res_table, isAll=
         sprintf("%.7f", res_defunciones$summary.fixed[, COEFFICIENTS[3]][i]), ")"
       )
       
-      if (!(i %in% c(1, 8))) {
+      if (!(i %in% c(1, 10))) {
         res_table[i, 3] <- paste0(
           sprintf("%.7f", exp(res_invasiones$summary.fixed[, COEFFICIENTS[1]][i] * 1000)), " (",
           sprintf("%.7f", exp(res_invasiones$summary.fixed[, COEFFICIENTS[2]][i] * 1000)), ", ",
@@ -255,7 +262,7 @@ add_results.table <- function(res_invasiones, res_defunciones, res_table, isAll=
   }
   else {
     
-    for (i in 1:6) {
+    for (i in 1:8) {
       
       res_table[i, 2] <- paste0(
         sprintf("%.7f", res_invasiones[[i]][INVASIONES_STR]$summary.fixed[2, COEFFICIENTS[1]]), " (",
@@ -323,7 +330,7 @@ head(df_colera.merged.month)
 # merge df_distances with df_colera.merged.month as df_colera_inla7
 
 df_colera_inla7 <- merge(df_colera.merged.month, df_distances, by = CODIGO_INE_STR)
-df_colera_inla7 <- df_colera_inla7[, c(1, 6:7, 2, 3:5, 8:9, 10:16)]
+df_colera_inla7 <- df_colera_inla7[, c(1, 6:7, 2, 3:5, 8:9, 10:17)]
 head(df_colera_inla7)
 
 
@@ -340,7 +347,7 @@ mapS.municipios <- st_read(paste(SHAPES_DATA_DIR, "Municipios_IGN.shp", sep = "/
 mapS.provincias <- st_read(paste(SHAPES_DATA_DIR, "Provincias_ETRS89_30N.shp", sep = "/"), quiet = TRUE)
 mapS.railways <- st_read(paste(SHAPES_DATA_DIR, "Railways_1887.shp", sep = "/"), quiet = TRUE)
 mapS.railways <- na.omit(mapS.railways)
-mapS.rivers <- st_read(paste(SHAPES_DATA_DIR, "Rius_proj.shp", sep = "/"), quiet = TRUE)
+mapS.rivers <- st_read(paste(SHAPES_DATA_DIR, "Rivers_Primary_Miteco_proj.shp", sep = "/"), quiet = TRUE)
 
 mapS.provincias <- subset(mapS.provincias, !(Cod_CCAA %in% c("04", "05", "18", "19")))
 mapS.provincias$Texto <- tolower(stri_trans_general(mapS.provincias$Texto, "Latin-ASCII"))
