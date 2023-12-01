@@ -138,13 +138,12 @@ df_rain <- df_rain[!is.na(df_rain$Municipio) & !is.na(df_rain$`Codigo Ine`), ]
 df_temperatures <- df_temperatures %>% replace(is.na(.), 0)
 df_rain <- df_rain %>% replace(is.na(.), 0)
 
-# add the first 0 in "Codigo Ine" for numbers with 4 elements
-df_temperatures$`Codigo Ine` <- ifelse(nchar(df_temperatures$`Codigo Ine`) == 4, paste0("0", df_temperatures$`Codigo Ine`), df_temperatures$`Codigo Ine`)
-df_rain$`Codigo Ine` <- ifelse(nchar(df_rain$`Codigo Ine`) == 4, paste0("0", df_rain$`Codigo Ine`), df_rain$`Codigo Ine`)
-
 # format
 df_distances[, c(4:5)] <- sapply(df_distances[, c(4:5)], as.numeric) # columns to numeric
-df_distances$`Codigo Ine` <- substr(as.character(df_distances$`Codigo Ine`), 1, 5) # remove unnecessary numbers of "Codigo Ine"
+df_distances$`Codigo Ine` <- substr(as.character(df_distances$`Codigo Ine`), 1, ifelse(nchar(df_distances$`Codigo Ine`) == 10, 4, 5)) # remove unnecessary numbers of "Codigo Ine"
+df_temperatures$`Codigo Ine` <- ifelse(nchar(df_temperatures$`Codigo Ine`) == 4, paste0("0", df_temperatures$`Codigo Ine`), df_temperatures$`Codigo Ine`) # add the first 0 in "Codigo Ine" for numbers with 4 elements
+df_rain$`Codigo Ine` <- ifelse(nchar(df_rain$`Codigo Ine`) == 4, paste0("0", df_rain$`Codigo Ine`), df_rain$`Codigo Ine`)
+df_distances$`Codigo Ine` <- ifelse(nchar(df_distances$`Codigo Ine`) == 4, paste0("0", df_distances$`Codigo Ine`), df_distances$`Codigo Ine`)
 df_distances$Provincia <- gsub(".*/", "", df_distances$Provincia) # remove Spanish/Catalan names, we keep Spanish names
 df_distances$Municipio <- gsub("/.*$", "", df_distances$Municipio)
 
