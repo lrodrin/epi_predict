@@ -476,9 +476,7 @@ res_table.alicante <-  add_results.table(model_alicante, model_alicante, res_tab
 res_table.navarra <-  add_results.table(model_navarra, model_navarra, res_table.navarra)
 res_table.cuenca <-  add_results.table(model_cuenca, model_cuenca, res_table.cuenca)
 res_table.albacete <-  add_results.table(model_albacete, model_albacete, res_table.albacete)
-
-
-# TODO: save to excel 
-
+res_table.list <- list(res_table.zaragoza, res_table.valencia, res_table.granada, res_table.murcia, res_table.teruel, res_table.castellon, res_table.alicante, res_table.navarra, res_table.cuenca, res_table.albacete)
+for (i in 1:length(PROVINCIAS_STR)) { write.xlsx(res_table.list[i], file = paste(COLERA_INLA_DIR, paste0("results_", PROVINCIAS_STR[i], ".xlsx"), sep = "/")) }
 
 save.image("colera_inla7.dist.RData")
