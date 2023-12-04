@@ -11,8 +11,7 @@ library(ggplot2)
 library(tidyr)
 
 
-# load("colera_data.RData")
-# load("distances.RData")
+load("colera_data.RData")
 
 
 # constants ---------------------------------------------------------------
@@ -25,170 +24,46 @@ dir.create(COLERA_DATA_DIR, showWarnings = FALSE)
 COLERA_MAPS_DIR <- "colera_maps"
 dir.create(COLERA_MAPS_DIR, showWarnings = FALSE)
 
-LONG_STR <- "long"
-LAT_STR <- "lat"
-CODIGOINE_STR <- "CODIGOINE"
-NAMEUNIT_STR <- "NAMEUNIT"
-INVASIONES_FACTOR_STR <- paste0(INVASIONES_STR, "_factor")
-DEFUNCIONES_FACTOR_STR <- paste0(DEFUNCIONES_STR, "_factor")
-
 MONTHS_INT <- c(6, 7, 8, 9, 10, 11)
-PLOT_LABELS <- c("low", "mid-low", "mid-high", "high")
-PLOT_COLORS_BY_LABELS <- c("low" = "#FEE4D8", "mid-low" = "#FCB195", "mid-high" = "#FB795A", "high" = "#BB1419")
+MONTHS_STR <- c("June", "July", "August", "September", "October", "November")
 
 
 # functions ---------------------------------------------------------------
 
 
-factorize <- function(df_colera, var_col, factor_col, breaks) {
-  #' Factorize numeric values into discrete intervals.
+create_tmap <- function(df_mes, mes, map, var_col, style, color = "Reds") {
+  #' Create a thematic map using the tmap package.
   #'
-  #' This function takes a numeric column from a data frame and converts it into factors
-  #' by dividing it into discrete intervals specified by the parameters.
+  #' This function generates a thematic map using the tmap package. It allows you to visualize
+  #' spatial data with various styles and legends.
   #'
-  #' @param df_colera Data frame containing the data.
-  #' @param var_col Name of the column to be factorized.
-  #' @param factor_col Name of the new factor column.
-  #' @param breaks Vector defining the interval breakpoints.
+  #' @param df_mes A data frame containing spatial data to be plotted.
+  #' @param mes The label or title for the map panel.
+  #' @param map A shape file or spatial object used as the background map.
+  #' @param var_col The column in the data frame to be used for colouring the map.
+  #' @param style The style of colouring for the map.
+  #' @param color The colour palette to be used for the map.
   #'
-  #' @return The data frame with the new factor column added.
+  #' @return A thematic map visualization.
   
-  df_colera[[factor_col]] <- cut(df_colera[[var_col]], breaks = breaks, labels = PLOT_LABELS)
-  return(df_colera)
+  map.tmp <- tm_shape(df_mes, bbox = map) +
+    tm_polygons(
+      col = var_col,
+      border.col = NULL,
+      title = "",
+      palette = color,
+      style = style
+    ) +
+    tm_shape(map) + tm_borders() +
+    tm_layout(
+      legend.position =  c("right", "bottom"), legend.text.size = 1.5,
+      inner.margins = c(0, 0, 0, 0),
+      panel.label.size = 1.5, panel.label.height = 1.1, 
+      panel.label.color = "black", panel.label.bg.color = "gray"
+    )
   
-}
-
-
-plot_observations <- function(df_colera, var_col, var_colname) {
-  #' Create a plot of observations on a spatial map.
-  #'
-  #' This function generates a plot that displays observations on a spatial map.
-  #' It uses the specified data frame and variable column to visualize the observations.
-  #'
-  #' @param df_colera Data frame containing the observations.
-  #' @param var_col Column with numeric values for visualization.
-  #' @param var_colname Name of the variable used for colour representation.
-  
-  ggplot() +
-    geom_sf(data = mapS.municipios, aes(), fill = "white", color = "black") +
-    geom_sf(data = df_colera, aes(col = !!sym(var_col), fill = !!sym(var_col)), color = "black") +
-    scale_fill_manual(values = PLOT_COLORS_BY_LABELS) +
-    theme(axis.title = element_blank(), axis.text = element_blank(), axis.ticks = element_blank()) +
-    labs(color = var_colname, fill = var_colname) +
-    theme_void()
-  
-  ggsave(paste(COLERA_MAPS_DIR, paste0("map_hotspot.", var_col, ".png"), sep = "/"), dpi = 300, limitsize = TRUE)
-  
-}
-
-
-plot_observationsByMonth <- function(df_colera, var_col, var_colname) {
-  #' Create a list of plots displaying observations by month on spatial maps.
-  #'
-  #' This function generates a list of plots, one for each specified month, displaying observations on spatial maps.
-  #' It uses the provided data frame and variable column to visualize the observations.
-  #'
-  #' @param df_colera Data frame containing the observations.
-  #' @param var_col Column with numeric values for visualization.
-  #' @param var_colname Name of the variable used for colour representation.
-  #'
-  #' @return A list of plots displaying observations by month on spatial maps.
-  
-  plot_list <- list()
-  
-  for (month in MONTHS_INT) {  
-    
-    month_data <- df_colera[df_colera$Fecha == month, ]
-    
-    plot <- ggplot() +
-      geom_sf(data = mapS.municipios, aes(), fill = "white", color = "black") +
-      geom_sf(data = month_data, aes(col = !!sym(var_col), fill = !!sym(var_col)), color = "black") +
-      scale_fill_manual(values = PLOT_COLORS_BY_LABELS) +
-      theme(axis.title = element_blank(), axis.text = element_blank(), axis.ticks = element_blank()) +
-      labs(color = var_colname, fill = var_colname) +
-      theme_void() +
-      ggtitle(paste("month:", month))  # add month-specific title
-    
-    plot_list[[as.character(month)]] <- plot
-    
-  }
-  
-  return(plot_list)
-  
-}
-
-
-create_tmap <- function(df_mes, map, var_col, legend_title, style, coords) {
-  #' Create a thematic map using tmap package.
-  #'
-  #' This function creates a thematic map using the tmap package based on the provided data frame,
-  #' map object, variable column, legend title, style and coords.
-  #'
-  #' @param df_mes Data frame containing the data to be mapped.
-  #' @param map Spatial object representing the map background.
-  #' @param var_col Column containing the variable to be mapped.
-  #' @param legend_title Title for the legend.
-  #' @param style Style for mapping (e.g., "cat" for categorical).
-  #' @param coords Spatial boundaries based on coordinates.
-  #'
-  #' @return A thematic map.
-  
-  return(
-    tm_shape(df_mes) +
-      tm_polygons(
-        col = var_col,
-        border.col = NULL,
-        title = legend_title,
-        palette = "Reds",
-        style = style
-      ) +
-      tm_shape(map) + tm_borders() +
-      tm_layout(
-        legend.position =  c("right", "bottom"),
-        inner.margins = c(0, 0, 0, 0)
-      ) +
-      tm_view(bbox = coords)
-  )
-}
-
-
-create_tmapByFecha <- function(df_mes, map, var_col, legend_title, style, coords, nrows) {
-  #' Create a thematic map with facets by date using tmap package.
-  #'
-  #' This function creates a thematic map with facets by date using the tmap package.
-  #' It is designed to display temporal data on multiple map panels.
-  #'
-  #' @param df_mes Data frame containing the data to be mapped.
-  #' @param map Spatial object representing the map background.
-  #' @param var_col Column containing the variable to be mapped.
-  #' @param legend_title Title for the legend.
-  #' @param style Style for mapping (e.g., "cat" for categorical).
-  #' @param coords Spatial boundaries based on coordinates.
-  #' @param nrows Number of rows for arranging facets.
-  #'
-  #' @return A thematic map with facets.
-  
-  return(
-    tm_shape(df_mes) +
-      tm_polygons(
-        col = var_col,
-        border.col = NULL,
-        title = legend_title,
-        palette = "Reds",
-        style = style
-      ) +
-      tm_facets(
-        by = FECHA_STR,
-        nrow = nrows,
-        free.coords = FALSE
-      ) +
-      tm_shape(map) + tm_borders() +
-      tm_layout(
-        legend.position =  c("right", "bottom"),
-        inner.margins = c(0, 0, 0, 0)
-      ) +
-      tm_view(bbox = coords)
-  )
+  if (!is.null(mes)) { map.tmp <- map.tmp + tm_layout(panel.labels = mes) }
+  return(map.tmp)
 }
 
 
@@ -206,12 +81,9 @@ globalMoran_test <- function(df_colera, var_col, weights_matrix) {
   # compute global Moran
   globalMoran <- moran.test(df_colera[[var_col]], weights_matrix)
   print(globalMoran)
-  
   print(globalMoran[["estimate"]][["Moran I statistic"]])
   print(globalMoran[["p.value"]])
-  
   return(globalMoran)
-  
 }
 
 
@@ -239,24 +111,9 @@ localMoran <- function(df_colera, var_col, neighbours, map)  {
   
   # plot local Moran
   moran.map <- cbind(df_colera, localMoran)
-  print(
-    tm_shape(moran.map) +
-      tm_polygons(
-        col = "Ii",
-        border.col = NULL,
-        title = "local moran statistic",
-        style = "quantile"
-      ) +
-      tm_shape(map) + tm_borders() +
-      tm_layout(
-        legend.position =  c("right", "bottom"),
-        inner.margins = c(0, 0, 0, 0)
-      ) +
-      tm_view(bbox = moran.map)
-  ) 
-  
+  moran.map.plot <- create_tmap(moran.map, NULL, map, "Ii", "quantile", "RdYlGn")
+  tmap_save(moran.map.plot, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.hotspot.localMoran.", gsub("Total_", "", var_col), ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
   return(localMoran)
-  
 } 
 
 
@@ -293,187 +150,126 @@ hotspots_classification <- function(hotspots) {
       )
     )
   )
-  
 }
   
 
 # main --------------------------------------------------------------------
 
 
-# explore raw data --------------------------------------------------------
+# data --------------------------------------------------------------------
 
 
-df_covdist <- df_distances[, c(1, 3:6, 9:12)]
-df_colera.merged.month <- df_colera.merged.month[, c(1, 4:9)]
-df_colera.merged.month$`Codigo Ine` <- as.numeric(df_colera.merged.month$`Codigo Ine`)
-head(df_covdist)
+head(df_distances)
 head(df_colera.merged.month)
 
 
-# merge df_covdist with df_colera.merged.month as df_colera_hotspot
+# merge df_distances with df_colera.merged.month as df_colera_hotspot
 
-df_colera_hotspot <- merge(df_colera.merged.month, df_covdist, by.x = CODIGO_INE_STR, by.y = "COD_INE")
-df_colera_hotspot <- df_colera_hotspot[, c(1, 8:9, 2, 3:7, 12:15, 10:11)]
-colnames(df_colera_hotspot)[c(2:3, 14:15)] <- c(PROVINCIA_STR, MUNICIPIO_STR, LONG_STR, LAT_STR)
+df_colera_hotspot <- merge(df_colera.merged.month, df_distances, by = CODIGO_INE_STR)[, c(1:9)]
+df_colera_hotspot <- df_colera_hotspot[, c(1, 6:7, 2, 3:5, 8:9)]
 head(df_colera_hotspot)
-
-
-# clean environment -------------------------------------------------------
-
-
-rm(df_distances, df_covdist)
 
 
 # map ---------------------------------------------------------------------
 
 
 mapS.municipios <- st_read(paste(SHAPES_DATA_DIR, "Municipios_IGN.shp", sep = "/"), quiet = TRUE)
-mapS.municipios <- subset(mapS.municipios, CODNUT1 != "ES7") # remove Canary Islands
-mapS.municipios <- subset(mapS.municipios, !(CODIGOINE %in% c(51001, 52001))) # remove "Ceuta" and "Melilla"
+mapS.municipios <- subset(mapS.municipios, CODNUT1 != "ES7" & CODNUT2 != "ES53") 
+mapS.municipios <- subset(mapS.municipios, !(CODIGOINE %in% c(51001, 52001))) 
 head(mapS.municipios)
 
 
-# observations ------------------------------------------------------------
+# merge mapS.municipios with df_colera_hotspot
+
+mapS.colera_hotspot <- merge(mapS.municipios, df_colera_hotspot, by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR)
+head(mapS.colera_hotspot)
 
 
-# merge mapS.municipios and df_colera_hotspot
-
-df_colera_hotspot <- merge(mapS.municipios, df_colera_hotspot, by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR)
-head(df_colera_hotspot)
+# spatial distribution ----------------------------------------------------
 
 
-# box plot of "Total_invasiones" and "Total_defunciones"
-
-boxplot(list(df_colera_hotspot$Total_invasiones, df_colera_hotspot$Total_defunciones),
-  names = c(TOTAL_INVASIONES_STR, TOTAL_DEFUNCIONES_STR),
-  main = "Boxplot of Cholera Data",
-  ylab = "Values")
+boxplot(list(df_colera_hotspot$Total_invasiones, df_colera_hotspot$Total_defunciones), names = c(TOTAL_INVASIONES_STR, TOTAL_DEFUNCIONES_STR), 
+        main = "Boxplot of Cholera Data", ylab = "Values")
 
 
-# factorize "Total_invasiones" and "Total_defunciones"
+# by month
 
-df_colera_hotspot <- factorize(
-  df_colera_hotspot,
-  TOTAL_INVASIONES_STR,
-  INVASIONES_FACTOR_STR,
-  c(-1, 10, 50, 90, Inf) 
-)
-
-df_colera_hotspot <- factorize(
-  df_colera_hotspot,
-  TOTAL_DEFUNCIONES_STR,
-  DEFUNCIONES_FACTOR_STR,
-  c(-1, 10, 50, 90, Inf)  
-)
-
-plot_observations(df_colera_hotspot, INVASIONES_FACTOR_STR, TOTAL_INVASIONES_STR)
-plot_observations(df_colera_hotspot, DEFUNCIONES_FACTOR_STR, TOTAL_DEFUNCIONES_STR)
+# for (month in MONTHS_INT) {
+# 
+#   map_invasiones <- create_tmap(mapS.colera_hotspot[mapS.colera_hotspot$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, TOTAL_INVASIONES_STR, "jenks") +
+#     tm_compass(type = "8star", position = c("right", "top")) +
+#     tm_scale_bar(breaks = c(0, 25, 50, 100), text.size = 1, position = c("center", "bottom"))
+# 
+#   map_defunciones <- create_tmap(mapS.colera_hotspot[mapS.colera_hotspot$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, TOTAL_DEFUNCIONES_STR, "jenks") +
+#     tm_compass(type = "8star", position = c("right", "top")) +
+#     tm_scale_bar(breaks = c(0, 25, 50, 100), text.size = 1, position = c("center", "bottom"))
+# 
+#   tmap_save(map_invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.", INVASIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+#   tmap_save(map_defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.", DEFUNCIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+# }
 
 
-# for each month
+# totals 
 
-plot_list.invasiones <- plot_observationsByMonth(df_colera_hotspot, INVASIONES_FACTOR_STR, TOTAL_INVASIONES_STR)
-plot_list.defunciones <- plot_observationsByMonth(df_colera_hotspot, DEFUNCIONES_FACTOR_STR, TOTAL_DEFUNCIONES_STR)
+df_colera_hotspot.grouped <- df_colera_hotspot %>% group_by(`Codigo Ine`, Municipio, Total_poblacion) %>% summarize(Total_invasiones = sum(Total_invasiones), Total_defunciones = sum(Total_defunciones))
+mapS.colera_hotspot.grouped <- merge(mapS.municipios, df_colera_hotspot.grouped, by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR)
+head(mapS.colera_hotspot.grouped)
 
-for (month in names(plot_list.invasiones)) { # TODO: change type of plots ???
-  # print(plot_list.invasiones[[month]])
-  # print(plot_list.defunciones[[month]])
-  ggsave(paste0(COLERA_MAPS_DIR, "/map_hotspot.invasionesXmunicipios_", month, ".png"), plot_list.invasiones[[month]])
-  ggsave(paste0(COLERA_MAPS_DIR, "/map_hotspot.defuncionesXmunicipios_", month, ".png"), plot_list.defunciones[[month]])
-  
-}
+# map_all_invasiones <- create_tmap(mapS.colera_hotspot.grouped, NULL, mapS.municipios, TOTAL_INVASIONES_STR, "jenks") +
+#   tm_shape(mapS.colera_hotspot.grouped[mapS.colera_hotspot.grouped$Total_invasiones > 3915, ]) + tm_text(CODIGOINE_STR, size = 1.3, xmod = 2, fontface = "bold") +
+#   tm_compass(type = "8star", position = c("right", "top")) +
+#   tm_scale_bar(breaks = c(0, 25, 50, 100), text.size = 1, position = c("center", "bottom"))
+# 
+# map_all_defunciones <- create_tmap(mapS.colera_hotspot.grouped, NULL, mapS.municipios, TOTAL_DEFUNCIONES_STR, "jenks") +
+#   tm_shape(mapS.colera_hotspot.grouped[mapS.colera_hotspot.grouped$Total_defunciones > 1818, ]) + tm_text(CODIGOINE_STR, size = 1.3, xmod = 2, fontface = "bold") +
+#   tm_compass(type = "8star", position = c("right", "top")) +
+#   tm_scale_bar(breaks = c(0, 25, 50, 100), text.size = 1, position = c("center", "bottom"))
+# 
+# tmap_save(map_all_invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.", INVASIONES_STR, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+# tmap_save(map_all_defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.", DEFUNCIONES_STR, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
-df_colera_hotspot$invasiones_factor <- NULL
-df_colera_hotspot$defunciones_factor <- NULL
-
-
-# visualize "Total_invasiones" and "Total_defunciones" across neighbourhoods 
-
-breaksinvasiones <- c(412, 677, 1189, 293, 71, 20)
-breaksdefunciones <- c(98, 342, 457, 93, 40, 8.8)
-  
-for (month in MONTHS_INT) {
-  
-  map.invasiones <-
-    create_tmap(
-      df_colera_hotspot[df_colera_hotspot$Fecha == month,],
-      mapS.municipios,
-      TOTAL_INVASIONES_STR,
-      TOTAL_INVASIONES_STR,
-      "jenks",
-      c(min(df_colera_hotspot$long), min(df_colera_hotspot$lat), max(df_colera_hotspot$long), max(df_colera_hotspot$lat))
-    ) +
-    tm_shape(df_colera_hotspot[df_colera_hotspot$Total_invasiones > breaksinvasiones[month - 5],]) + tm_text(CODIGOINE_STR, size = 0.6) +
-    tm_compass(type = "8star", position = c("right", "top")) +
-    tm_scale_bar(breaks = c(0, 25, 50, 100), text.size = 1, position = c("center", "bottom"))
-
-  map.defunciones <-
-    create_tmap(
-      df_colera_hotspot[df_colera_hotspot$Fecha == month,],
-      mapS.municipios,
-      TOTAL_DEFUNCIONES_STR,
-      TOTAL_DEFUNCIONES_STR,
-      "jenks",
-      c(min(df_colera_hotspot$long), min(df_colera_hotspot$lat), max(df_colera_hotspot$long), max(df_colera_hotspot$lat))
-    ) +
-    tm_shape(df_colera_hotspot[df_colera_hotspot$Total_defunciones > breaksdefunciones[month - 5],]) + tm_text(CODIGOINE_STR, size = 0.6) +
-    tm_compass(type = "8star", position = c("right", "top")) +
-    tm_scale_bar(breaks = c(0, 25, 50, 100), text.size = 1, position = c("center", "bottom"))
-
-  tmap_save(map.invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.invasiones", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-  tmap_save(map.defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.defunciones", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-
-}
-
-map.invasiones611 <- 
-  create_tmapByFecha(
-    df_colera_hotspot,
-    mapS.municipios,
-    TOTAL_INVASIONES_STR,
-    TOTAL_INVASIONES_STR,
-    "jenks",
-    c(min(df_colera_hotspot$long), min(df_colera_hotspot$lat), max(df_colera_hotspot$long), max(df_colera_hotspot$lat)),
-    2
-  ) + 
-  # tm_shape(df_colera_hotspot) + tm_text(CODIGOINE_STR, size = 0.7) +
-  tm_compass(type = "8star", position = c("right", "top")) +
-  tm_scale_bar(breaks = c(0, 25, 50, 100), text.size = 1, position = c("center", "bottom"))
-
-map.defunciones611 <- 
-  create_tmapByFecha(
-    df_colera_hotspot,
-    mapS.municipios,
-    TOTAL_DEFUNCIONES_STR,
-    TOTAL_DEFUNCIONES_STR,
-    "jenks",
-    c(min(df_colera_hotspot$long), min(df_colera_hotspot$lat), max(df_colera_hotspot$long), max(df_colera_hotspot$lat)),
-    2
-  ) +
-  # tm_shape(df_colera_hotspot) + tm_text(CODIGOINE_STR, size = 0.7) +
-  tm_compass(type = "8star", position = c("right", "top")) +
-  tm_scale_bar(breaks = c(0, 25, 50, 100), text.size = 1, position = c("center", "bottom"))
-
-tmap_save(map.invasiones611, filename = paste(COLERA_MAPS_DIR, "tmap.invasiones611.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-tmap_save(map.defunciones611, filename = paste(COLERA_MAPS_DIR, "tmap.defunciones611.png", sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+map_all_invasiones <- create_tmap(mapS.colera_hotspot.grouped, NULL, mapS.municipios, TOTAL_INVASIONES_STR, "quantile") 
+map_all_defunciones <- create_tmap(mapS.colera_hotspot.grouped, NULL, mapS.municipios, TOTAL_DEFUNCIONES_STR, "quantile") 
+tmap_save(map_all_invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.hotspot.", INVASIONES_STR, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+tmap_save(map_all_defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.hotspot.", DEFUNCIONES_STR, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # clean environment -------------------------------------------------------
 
 
-rm(plot_list.invasiones, plot_list.defunciones, map.invasiones, map.defunciones, map.invasiones611, map.defunciones611, breaksinvasiones, breaksdefunciones)
+rm(map_invasiones, map_defunciones, df_colera_hotspot, df_colera_hotspot.grouped, generate_totalsByMonth, create_covariatesTS)
 
 
 # neighbour structure ----------------------------------------------------
 
 
-neighbours <- poly2nb(df_colera_hotspot) # queen neighbours
+# queen neighbours
+
+neighbours <- poly2nb(mapS.colera_hotspot.grouped) 
 neighbours
 
-neighbours2 <- poly2nb(df_colera_hotspot, queen = FALSE) # rook neighbours
+empty_neighbours <- which(card(neighbours) == 0)
+empty_neighbours
+
+
+# rook neighbours
+
+neighbours2 <- poly2nb(mapS.colera_hotspot.grouped, queen = FALSE) 
 neighbours2
+
+empty_neighbours <- which(card(neighbours2) == 0)
+empty_neighbours
+
+
+# remove polygons with empty neighbour sets from mapS.colera_hotspot.grouped
+mapS.colera_hotspot.grouped <- mapS.colera_hotspot.grouped[-empty_neighbours, ]
 
 
 # global spatial autocorrelation ------------------------------------------
+
+
+neighbours2 <- poly2nb(mapS.colera_hotspot.grouped, queen = FALSE) 
+neighbours2
 
 
 # weights matrix
@@ -484,15 +280,15 @@ listw
 
 # global Moran test
 
-globalMoran_test.invasiones <- globalMoran_test(df_colera_hotspot, TOTAL_INVASIONES_STR, listw)
-globalMoran_test.defunciones <- globalMoran_test(df_colera_hotspot, TOTAL_DEFUNCIONES_STR, listw)
+globalMoran_test.invasiones <- globalMoran_test(mapS.colera_hotspot.grouped, TOTAL_INVASIONES_STR, listw)
+globalMoran_test.defunciones <- globalMoran_test(mapS.colera_hotspot.grouped, TOTAL_DEFUNCIONES_STR, listw)
 
 
 # local spatial autocorrelation -------------------------------------------
 
 
-localMoran.invasiones <- localMoran(df_colera_hotspot, TOTAL_INVASIONES_STR, neighbours2, mapS.municipios)
-localMoran.defunciones <- localMoran(df_colera_hotspot, TOTAL_DEFUNCIONES_STR, neighbours2, mapS.municipios)
+localMoran.invasiones <- localMoran(mapS.colera_hotspot.grouped, TOTAL_INVASIONES_STR, neighbours2, mapS.municipios)
+localMoran.defunciones <- localMoran(mapS.colera_hotspot.grouped, TOTAL_DEFUNCIONES_STR, neighbours2, mapS.municipios)
 
 
 # Getis-Ord approach ------------------------------------------------------
@@ -500,26 +296,25 @@ localMoran.defunciones <- localMoran(df_colera_hotspot, TOTAL_DEFUNCIONES_STR, n
 
 # identify neighbours with queen contiguity (edge/vertex touching)
 
-nb <- poly2nb(df_colera_hotspot, queen = TRUE)
+nb <- poly2nb(mapS.colera_hotspot.grouped, queen = TRUE)
 nb
 
 
-# binary weighting assigns a weight of 1 to all neighbouring features 
-# and a weight of 0 to all other features
+# binary weighting assigns a weight of 1 to all neighbouring features and a weight of 0 to all other features
 
 w_binary <- nb2listw(nb, style = "B")
 
 
-# calculate spatial lag for "Total_invasiones" and "Total_defunciones"
+# calculate spatial lag for "invasiones" and "defunciones"
 
-spatial_lag.i <- lag.listw(w_binary, df_colera_hotspot$Total_invasiones)
-spatial_lag.d <- lag.listw(w_binary, df_colera_hotspot$Total_defunciones)
+spatial_lag.i <- lag.listw(w_binary, mapS.colera_hotspot.grouped$Total_invasiones)
+spatial_lag.d <- lag.listw(w_binary, mapS.colera_hotspot.grouped$Total_defunciones)
 
 
-# test for global G statistic of "Total_invasiones" and "Total_defunciones"
+# test for global G statistic of "invasiones" and "defunciones"
 
-globalG.test(df_colera_hotspot$Total_invasiones, w_binary)
-globalG.test(df_colera_hotspot$Total_defunciones, w_binary)
+globalG.test(mapS.colera_hotspot.grouped$Total_invasiones, w_binary)
+globalG.test(mapS.colera_hotspot.grouped$Total_defunciones, w_binary)
 
 
 # local Gi test -----------------------------------------------------------
@@ -530,18 +325,18 @@ globalG.test(df_colera_hotspot$Total_defunciones, w_binary)
 
 # identify neighbours, create weights, calculate spatial lag
 
-nbs.i <- df_colera_hotspot |> 
+nbs.i <- mapS.colera_hotspot.grouped |> 
   mutate(
     nb = st_contiguity(geometry),                 # neighbours share border/vertex
     wt = st_weights(nb),                          # row-standardized weights
-    tes_lag = st_lag(Total_invasiones, nb, wt)    # calculate spatial lag of "Total_invasiones"
+    tes_lag = st_lag(Total_invasiones, nb, wt)    # calculate spatial lag of "invasiones"
   ) 
 
-nbs.d <- df_colera_hotspot |> 
+nbs.d <- mapS.colera_hotspot.grouped |> 
   mutate(
     nb = st_contiguity(geometry),                 
     wt = st_weights(nb),                          
-    tes_lag = st_lag(Total_defunciones, nb, wt)     # calculate spatial lag of "Total_defunciones"
+    tes_lag = st_lag(Total_defunciones, nb, wt)     # calculate spatial lag of "defunciones"
   ) 
 
 
@@ -563,7 +358,10 @@ hot_spots.d <- nbs.d |>
   unnest(Gi)
 
 
-# TODO: plot looks at Gi values for all locations
+map_all_invasiones <- create_tmap(hot_spots.i, NULL, mapS.municipios, "gi", "jenks", "RdYlGn") 
+map_all_defunciones <- create_tmap(hot_spots.d, NULL, mapS.municipios, "gi", "jenks", "RdYlGn") 
+tmap_save(map_all_invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.hotspot.gi.", INVASIONES_STR, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+tmap_save(map_all_defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.hotspot.gi.", DEFUNCIONES_STR, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # hotspots classification
@@ -574,41 +372,21 @@ hot_spots.d <- hotspots_classification(hot_spots.d)
 
 # visualize the classification
 
-ggplot() +
-  geom_sf(data = mapS.municipios) +
-  geom_sf(data = hot_spots.i, aes(fill = classification), color = "black", lwd = 0.1) +
-  scale_fill_brewer(type = "div", palette = 5) +
-  theme_void() +
-  labs(fill = "hotspot classification", title = paste0(TOTAL_INVASIONES_STR, " hotspots"))
-
-ggsave(paste(COLERA_MAPS_DIR, paste0("map_hotspot.invasiones_classification.png"), sep = "/"), dpi = 300, limitsize = TRUE)
-
-ggplot() +
-  geom_sf(data = mapS.municipios) +
-  geom_sf(data = hot_spots.d, aes(fill = classification), color = "black", lwd = 0.1) +
-  scale_fill_brewer(type = "div", palette = 5) +
-  theme_void() +
-  labs(fill = "hotspot classification", title = paste0(TOTAL_DEFUNCIONES_STR, " hotspots"))
-
-ggsave(paste(COLERA_MAPS_DIR, paste0("map_hotspot.defunciones_classification.png"), sep = "/"), dpi = 300, limitsize = TRUE)
-
-
-# TODO: create tmaps
+map_all_invasiones <- create_tmap(hot_spots.i, NULL, mapS.municipios, "classification", "pretty", "RdBu") 
+map_all_defunciones <- create_tmap(hot_spots.d, NULL, mapS.municipios, "classification", "pretty", "RdBu") 
+tmap_save(map_all_invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.hotspot.", INVASIONES_STR, "_classification.png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
+tmap_save(map_all_defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.hotspot.", DEFUNCIONES_STR, "_classification.png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # save results
 
 df_hot_spots.i <- hot_spots.i %>%
-  select(
-    CODIGOINE, NAMEUNIT, Fecha, Total_invasiones, Total_defunciones, Total_poblacion,
-    lat, long, nb, wt, gi, e_gi, var_gi, p_value, p_sim, p_folded_sim, skewness, kurtosis, classification 
-  )
+  select( CODIGOINE, NAMEUNIT, Total_invasiones, Total_defunciones, Total_poblacion,
+    nb, wt, gi, e_gi, var_gi, p_value, p_sim, p_folded_sim, skewness, kurtosis, classification)
 
 df_hot_spots.d <- hot_spots.d %>%
-  select(
-    CODIGOINE, NAMEUNIT, Fecha, Total_invasiones, Total_defunciones, Total_poblacion,
-    lat, long, nb, wt, gi, e_gi, var_gi, p_value, p_sim, p_folded_sim, skewness, kurtosis, classification
-  )
+  select(CODIGOINE, NAMEUNIT, Total_invasiones, Total_defunciones, Total_poblacion,
+    nb, wt, gi, e_gi, var_gi, p_value, p_sim, p_folded_sim, skewness, kurtosis, classification)
 
 df_hot_spots.i$nb <- sapply(df_hot_spots.i$nb, function(x) paste(x, collapse = ", "))
 df_hot_spots.i$wt <- sapply(df_hot_spots.i$wt, function(x) paste(x, collapse = ", "))
@@ -621,5 +399,14 @@ df_hot_spots.d$geometry <- NULL
 df_hot_spots.i$NAMEUNIT <- tolower(iconv(df_hot_spots.i$NAMEUNIT, from = "UTF-8", to = "ASCII//TRANSLIT"))
 df_hot_spots.d$NAMEUNIT <- tolower(iconv(df_hot_spots.d$NAMEUNIT, from = "UTF-8", to = "ASCII//TRANSLIT"))
 
-write.csv(df_hot_spots.i, paste(COLERA_DATA_DIR, "colera_hot_spots.invasiones.csv", sep = "/"), row.names = FALSE)
-write.csv(df_hot_spots.d, paste(COLERA_DATA_DIR, "colera_hot_spots.defunciones.csv", sep = "/"), row.names = FALSE)
+df_hot_spots.i <- df_hot_spots.i[order(df_hot_spots.i$classification),]
+df_hot_spots.d <- df_hot_spots.d[order(df_hot_spots.d$classification),]
+
+write.csv(df_hot_spots.i, paste(COLERA_DATA_DIR, "colera_hotspots.invasiones.csv", sep = "/"), row.names = FALSE)
+write.csv(df_hot_spots.d, paste(COLERA_DATA_DIR, "colera_hotspots.defunciones.csv", sep = "/"), row.names = FALSE)
+
+
+# clean environment -------------------------------------------------------
+
+
+rm(map_all_invasiones, map_all_defunciones, listw, localMoran.defunciones, localMoran.invasiones, nb, nbs.d, nbs.i, neighbours, neighbours2, w_binary, empty_neighbours)
