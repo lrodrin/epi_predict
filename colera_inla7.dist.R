@@ -336,7 +336,7 @@ head(df_colera_inla7)
 
 # group df_colera_inla7 by provinces
 
-df_colera_inla7.provincias <- df_colera_inla7 %>% group_by(Provincia) %>%  
+df_colera_inla7.provincias <- df_colera_inla7 %>% group_by(Provincia, Fecha) %>%  
   summarize(Total_invasiones = sum(Total_invasiones), Total_defunciones = sum(Total_defunciones), Total_poblacion = sum(Total_poblacion))
 
 
