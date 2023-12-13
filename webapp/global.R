@@ -1,5 +1,6 @@
 library(shiny)
 library(shinyjs)
+library(dplyr)
 library(sf)
 library(rgdal)
 library(DT)
