@@ -59,16 +59,25 @@ ui <- fluidPage(
         choices = VARIABLES, 
         selected = VARIABLES[1] # invasions for default
       ),
+      br(), div(style = "border-bottom: 1px solid #ddd; margin-top: 10px; margin-bottom: 10px;"), br(),
       div(
-        # p("Made with", a("Shiny", href = "http://shiny.rstudio.com")), 
-        img(src = "imageShiny.png", width = "70px", height = "70px"),
-        HTML("<br>")
-      ),
-      div(
-        style = "text-align: center;",
-        HTML("<br>"),
-        p("© 2023 Laura Rodríguez-Navas. All rights reserved.")
-      )
+        fluidRow(
+          column(
+            width = 3,
+            img(src = "imageBBVA.jpg", width = "100px", height = "70px")
+          ),
+          column(
+            width = 3,
+            img(src = "imageUOC.jpg", width = "190px", height = "70px"),
+            style = "margin-right: 90px;"
+          ),
+          column(
+            width = 3,
+            img(src = "imageCED.png", width = "170px", height = "70px")
+          )
+        )
+      ), 
+      br(), br(), div(style = "text-align: center;", p("© 2023 Laura Rodríguez-Navas. All rights reserved."))
     ),
     
     # main panel for displaying outputs
