@@ -63,17 +63,13 @@ ui <- fluidPage(
       div(
         fluidRow(
           column(
-            width = 3,
-            img(src = "imageBBVA.jpg", width = "100px", height = "70px")
+            width = 4,
+            img(src = "imageBBVA.jpg", width = "100px", height = "70px"),
+            style = "margin-left: 30px;"
           ),
           column(
-            width = 3,
+            width = 4,
             img(src = "imageUOC.jpg", width = "190px", height = "70px"),
-            style = "margin-right: 90px;"
-          ),
-          column(
-            width = 3,
-            img(src = "imageCED.png", width = "170px", height = "70px")
           )
         )
       ), 
