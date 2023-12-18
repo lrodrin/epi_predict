@@ -62,14 +62,13 @@ ui <- fluidPage(
       br(), div(style = "border-bottom: 1px solid #ddd; margin-top: 10px; margin-bottom: 10px;"), br(),
       div(
         fluidRow(
-          column(
-            width = 4,
-            img(src = "imageBBVA.jpg", width = "100px", height = "70px"),
-            style = "margin-left: 30px;"
+          column(align = "right",
+            width = 6,
+            img(src = "imageBBVA.png", width = "100%", height = "70px")
           ),
-          column(
-            width = 4,
-            img(src = "imageUOC.jpg", width = "190px", height = "70px"),
+          column(align = "left",
+            width = 6,
+            img(src = "imageUOC.jpg", width = "100%", height = "70px")
           )
         )
       ), 
