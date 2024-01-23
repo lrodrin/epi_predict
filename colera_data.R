@@ -13,6 +13,9 @@ source("covariates.R")
 # constants ---------------------------------------------------------------
 
 
+COLERA_DATASET <- "Base colera harmo_codigos_newlatitudlongitud.xlsx"
+POPULATION_DATASET <- "poblaciones habitantes municipios de colera.xlsx"
+
 DATA_DIR <- "data"
 dir.create(DATA_DIR, showWarnings = FALSE)
 COLERA_DATA_DIR <- "colera_data"
@@ -110,10 +113,10 @@ generate_totalsByMonth <- function(df_colera_invasiones, df_colera_defunciones, 
 
 
 # read "colera" dataset
-df_colera <- read_excel(paste(DATA_DIR, "Base colera harmo_codigos_newlatitudlongitud.xlsx", sep = "/"), sheet = "Capitales_Pueblos")
+df_colera <- read_excel(paste(DATA_DIR, COLERA_DATASET, sep = "/"), sheet = "Capitales_Pueblos")
 
 # read "poblaciones del 1887" dataset
-Pob1887 <- read_excel(paste(DATA_DIR, "poblaciones habitantes municipios de colera.xlsx", sep = "/"))[, c(1, 3)]
+Pob1887 <- read_excel(paste(DATA_DIR, POPULATION_DATASET, sep = "/"))[, c(1, 3)]
 Pob1887$`habitantes 1887` <- as.numeric(Pob1887$`habitantes 1887`)
 colnames(Pob1887)[2] <- TOTAL_POBLACION_STR
 

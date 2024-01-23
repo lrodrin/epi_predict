@@ -13,6 +13,10 @@ library(scales)
 # constants ---------------------------------------------------------------
 
 
+TEMPE_AND_RAIN_FILENAME <- "Temperaturas 1885 BBVA Leonardo.xlsx"
+DISTANCE_FILENAME <- "ArxiuDistancies_v4.xlsx"
+MUNICIPIOS_SHAPEFILE <- "Municipios_IGN.shp"
+
 DATA_DIR <- "data"
 dir.create(DATA_DIR, showWarnings = FALSE)
 TEMPE_PLOTS_DIR <- "tempe_plots"
@@ -22,7 +26,6 @@ dir.create(RAIN_PLOTS_DIR, showWarnings = FALSE)
 SHAPES_DATA_DIR <- "shapes"
 dir.create(SHAPES_DATA_DIR, showWarnings = FALSE)
 
-TEMPE_AND_RAIN_FILENAME <- "Temperaturas 1885 BBVA Leonardo.xlsx"
 CODIGO_INE_STR <- "Codigo Ine"
 PROVINCIA_STR <- "Provincia"
 MUNICIPIO_STR <- "Municipio"
@@ -122,8 +125,8 @@ colnames(df_temperatures)[c(1, 14:16)] <- c(MUNICIPIO_STR, LONG_STR, LAT_STR, CO
 colnames(df_rain)[c(1, 14:16)] <- c(MUNICIPIO_STR, LONG_STR, LAT_STR, CODIGO_INE_STR)
 
 options(scipen = 999)
-df_distances <- read_excel(paste(DATA_DIR, "ArxiuDistancies_v3.xlsx", sep = "/"))
-df_distances <- df_distances %>% select(COD_INE, PROVINCIA, NOMBRE_ACT, LONGITUD_E, LATITUD_ET, Dist_CapProv, Dist_Stat, Dist_Rail, Dist_River, Dist_Water,Dist_Road, Dist_coas, Dist_Port)
+df_distances <- read_excel(paste(DATA_DIR, DISTANCE_FILENAME, sep = "/"))
+df_distances <- df_distances %>% dplyr::select(COD_INE, PROVINCIA, NOMBRE_ACT, LONGITUD_E, LATITUD_ET, Dist_CapProv, Dist_Stat, Dist_Rail, Dist_AllRivers, Dist_Water, Dist_Road, Dist_coas, Dist_Port)
 colnames(df_distances) <- c(CODIGO_INE_STR, PROVINCIA_STR, MUNICIPIO_STR, LONG_STR, LAT_STR, "covdist_caprov", "covdist_station", "covdist_rail", "covdist_river", "covdist_water","covdist_road", "covdist_coast", "covdist_port")
 
 
@@ -268,7 +271,7 @@ ggsave(paste0(RAIN_PLOTS_DIR, "/barplot_lluviaXmunicipios.png"), width = 20, hei
 # maps --------------------------------------------------------------------
 
 
-mapS.municipios <- st_read(paste(SHAPES_DATA_DIR, "Municipios_IGN.shp", sep = "/"), quiet = TRUE)
+mapS.municipios <- st_read(paste(SHAPES_DATA_DIR, MUNICIPIOS_SHAPEFILE, sep = "/"), quiet = TRUE)
 mapS.municipios <- subset(mapS.municipios, CODNUT1 != "ES7") # remove Canary Islands
 mapS.municipios <- subset(mapS.municipios, !(CODIGOINE %in% c(51001, 52001))) # remove "Ceuta" and "Melilla"
 head(mapS.municipios)
@@ -284,15 +287,15 @@ head(mapS.temperatures)
 head(mapS.rain)
 
 for (month in as.integer(NUMMONTHS_STR[6:11])) {
-  
+
   map_tempe <-
     create_tmap(
       mapS.temperatures[mapS.temperatures$Fecha == month,],
-      c(NUMMONTHS_STR[month]), 
-      mapS.municipios, 
-      COVTEMP_STR, 
+      c(NUMMONTHS_STR[month]),
+      mapS.municipios,
+      COVTEMP_STR,
       "jenks")
-      
+
   map_rain <-
     create_tmap(
       mapS.rain[mapS.rain$Fecha == month,],
@@ -300,8 +303,8 @@ for (month in as.integer(NUMMONTHS_STR[6:11])) {
       mapS.municipios,
       COVPREC_STR,
       "jenks")
-  
-  
+
+
   tmap_save(map_tempe, filename = paste(TEMPE_PLOTS_DIR, paste0("tmap.tempe", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
   tmap_save(map_rain, filename = paste(RAIN_PLOTS_DIR, paste0("tmap.rain", month,".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
