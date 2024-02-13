@@ -1,3 +1,3 @@
 # EPI-PREDICT
 
-Models of expansion of plague and cholera outbreaks that occurred in Spain throughout the 19th century.
+Models of expansion of black death and cholera outbreaks that occurred in Spain throughout the 19th century.
