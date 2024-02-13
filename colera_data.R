@@ -191,16 +191,16 @@ write.csv(df_colera_defunciones.groupByFecha, paste(COLERA_DATA_DIR, "colera_tot
 
 # plot "Total_invasiones" and "Total_defunciones"
 ggplot() + 
-  geom_line(data = df_colera_invasiones.groupByFecha, aes(Fecha, Total_invasiones, color = "Invasions")) +
+  geom_line(data = df_colera_invasiones.groupByFecha, aes(Fecha, Total_invasiones, color = "Cases")) +
   geom_line(data = df_colera_defunciones.groupByFecha, aes(Fecha, Total_defunciones, color = "Deaths")) +
-  ylab("Invasions/Deaths") + xlab("Day-Month") +
-  ggtitle(paste0("Total of deaths and invasions, ", ANO_STR)) +
+  ylab("Cases/Deaths") + xlab("") +
+  # ggtitle(paste0("Total of deaths and invasions, ", ANO_STR)) +
   scale_y_continuous(breaks=seq(0, 6070, 100), limits=c(0, 6070)) +
   scale_x_continuous(
     breaks = df_colera_invasiones.groupByFecha$Fecha,
     labels = df_colera_invasiones.groupByFecha$Fecha
   ) +
-  scale_color_manual(values = c("Invasions" = "blue", "Deaths" = "black")) + 
+  scale_color_manual(values = c("Cases" = "blue", "Deaths" = "black")) + 
   labs(color = "", linetype = "Legend") +
   theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.position = "bottom")
 
@@ -244,24 +244,26 @@ df_colera.groupByProvinciaFecha <- df_colera.groupByProvinciaFecha %>% mutate(CC
 # order df_colera.groupByProvinciaFecha 
 df_colera.groupByProvinciaFecha <- df_colera.groupByProvinciaFecha[, c(5, 1:4)]
 
+
 # plot "Total_invasiones" for "Provincia"
-gg_prov <- ggplot(subset(df_colera.groupByProvinciaFecha, !(Provincia %in% c("caceres", "gipuzkoa"))), aes(x = Fecha, y = Total_invasiones, group = Provincia, colour = Provincia)) + 
+gg_prov <- ggplot(subset(df_colera.groupByProvinciaFecha, !(Provincia %in% c("avila"))), aes(x = Fecha, y = Total_invasiones, group = Provincia, colour = Provincia)) + 
   geom_line() +
   scale_color_discrete(name = PROVINCIA_STR) +
-  ylab("Invasions") + xlab("Day-Month") +
-  ggtitle(paste0("Total of invasions for province, ", ANO_STR)) +
+  ylab("Cases") + xlab("") +
+  # ggtitle(paste0("Total of invasions for province, ", ANO_STR)) +
   scale_x_date(date_breaks = "1 month", date_labels = "%b") +
   facet_wrap(~ Provincia, scales = "free_y", ncol = 4) +  
   theme_bw() + theme(legend.position = "none")
 
 ggsave(paste(COLERA_PLOTS_DIR, "colera_total_invasionesXprovincia.png", sep = "/"), gg_prov, width = 20, height = 10, dpi = 300, limitsize = TRUE)
 
+
 # plot "Total_defunciones" for "Provincia"
-gg_prov <- ggplot(subset(df_colera.groupByProvinciaFecha, !(Provincia %in% c("caceres", "gipuzkoa"))), aes(x = Fecha, y = Total_defunciones, group = Provincia, colour = Provincia)) + 
+gg_prov <- ggplot(subset(df_colera.groupByProvinciaFecha, !(Provincia %in% c("avila"))), aes(x = Fecha, y = Total_defunciones, group = Provincia, colour = Provincia)) + 
   geom_line() +
   scale_color_discrete(name = PROVINCIA_STR) +
-  ylab("Deaths") + xlab("Day-Month") +
-  ggtitle(paste0("Total of deaths for province, ", ANO_STR)) +
+  ylab("Deaths") + xlab("") +
+  # ggtitle(paste0("Total of deaths for province, ", ANO_STR)) +
   scale_x_date(date_breaks = "1 month", date_labels = "%b") +
   facet_wrap(~ Provincia, scales = "free_y", ncol = 4) +  
   theme_bw() + theme(legend.position = "none")
@@ -302,7 +304,7 @@ df_colera.groupByCCAA <- df_colera.groupByCCAAFecha %>% group_by(CCAA) %>% summa
 # barplot "Total_invasiones" for "Provincia"
 ggplot(df_colera.groupByProvincia, aes(x = Total_invasiones, y = Provincia, fill = Provincia)) +
   geom_bar(stat = "identity") + 
-  ylab("Province") + xlab("Invasions") +
+  ylab("Province") + xlab("Cases") +
   scale_x_continuous(breaks = seq(0, max(df_colera.groupByProvincia$Total_invasiones), 1000), limits = c(0, max(df_colera.groupByProvincia$Total_invasiones)), labels = number) +
   geom_text(aes(label = Total_invasiones), hjust = -0.2, size = 3) + 
   theme_bw() + theme(legend.position = "none")
