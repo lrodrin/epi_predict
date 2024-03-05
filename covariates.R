@@ -27,7 +27,6 @@ SHAPES_DATA_DIR <- "shapes"
 dir.create(SHAPES_DATA_DIR, showWarnings = FALSE)
 
 CODIGO_INE_STR <- "Codigo Ine"
-PROVINCIA_STR <- "Provincia"
 MUNICIPIO_STR <- "Municipio"
 COVTEMP_STR <- "covtemp"
 COVPREC_STR <- "covprec"
@@ -134,7 +133,7 @@ df_distances <- read_excel(paste(DATA_DIR, DISTANCE_FILENAME, sep = "/"))
 df_distances <- df_distances %>% dplyr::select(COD_INE, PROVINCIA, NOMBRE_ACT, LONGITUD_E, LATITUD_ET, Dist_CapProv, Dist_Stat, Dist_Rail, Dist_AllRivers, Dist_Water, Dist_Road, Dist_coas, Dist_Port)
 
 # rename columns of distances data frame
-colnames(df_distances) <- c(CODIGO_INE_STR, PROVINCIA_STR, MUNICIPIO_STR, LONG_STR, LAT_STR, "covdist_caprov", "covdist_station", "covdist_rail", "covdist_river", "covdist_water", "covdist_road", "covdist_coast", "covdist_port")
+colnames(df_distances) <- c(CODIGO_INE_STR, "Provincia", MUNICIPIO_STR, LONG_STR, LAT_STR, "covdist_caprov", "covdist_station", "covdist_rail", "covdist_river", "covdist_water", "covdist_road", "covdist_coast", "covdist_port")
 
 
 # data preparation --------------------------------------------------------
