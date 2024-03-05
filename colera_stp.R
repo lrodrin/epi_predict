@@ -2,286 +2,194 @@ library(dplyr)
 library(lubridate)
 library(sf)
 library(spdep)
-library(rgdal)
 library(ggplot2)
 library(tmap)
 
-load("colera_data.RData")
 
+load("colera_data.RData") # load cholera data
+
+
+# constants ---------------------------------------------------------------
+
+
+COLERA_MAPS_DIR <- "colera_maps"
+dir.create(COLERA_MAPS_DIR, showWarnings = FALSE)
+SHAPES_DATA_DIR <- "shapes"
+dir.create(SHAPES_DATA_DIR, showWarnings = FALSE)
+
+PROVINCIAS_STR <- c("zaragoza", "valencia", "granada", "murcia", "teruel", "castellon", "alicante", "navarra", "cuenca", "albacete")
+TOTAL_INVASIONES_STR <- paste("Total", INVASIONES_STR, sep = "_")
+COLORS <- c("#ffffff", "#2c7bb6", "#abd9e9", "#fdae61", "#d7191c")
+COLORS_SPOTS <- c("#d1e5f0", "#f7f7f7", "#fddbc7", "#f4a582", "#d6604d", "#b2182b")
+CLUSTERS <- c("insignificant", "low-low", "low-high", "high-low", "high-high")
+CLUSTERS_SPOTS <-  c("insignificant", "very low", "low", "moderate", "high", "very high")
+
+
+# functions ---------------------------------------------------------------
+
+
+convert_to_spatial <- function(data, province) {
+  #' Convert data frame to spatial data frame.
+  #'
+  #' This function converts a data frame to a spatial data frame.
+  #'
+  #' @param data A data frame to be converted.
+  #' @param province Name of the province.
+  #'
+  #' @return Spatial data frame.
+
+  subset_data <- subset(data, Provincia == province) # subset data by province
+  spdf_data <- as_Spatial(subset_data) # convert to spatial data frame
+  return(spdf_data)
+}
+
+
+compute_weight_matrices <- function(data, province) {
+  #' Compute weight matrices.
+  #'
+  #' This function computes weight matrices for a given spatial data frame.
+  #'
+  #' @param data A spatial data frame.
+  #' @param province Name of the province.
+
+  for(i in sort(unique(data$Fecha))) { # iterate over 6 to 11 (june to november)
+
+    coords <- coordinates(subset(data, Fecha == i)) # get coordinates
+    knb <- knn2nb(knearneigh(coords, k = 8, longlat = FALSE)) # create knn neighbours
+    assign(paste0("knb_lw.", province, i), nb2listw(knb, style = "B"), envir = .GlobalEnv) # create listw object
+  }
+}
+
+
+compute_moran <- function(data, province) {
+  #' Compute Moran's I.
+  #'
+  #' This function computes Moran's I for a given spatial data frame.
+  #'
+  #' @param data A spatial data frame.
+  #' @param province Name of the province.
+
+  for(i in sort(unique(data$Fecha))) { # iterate over 6 to 11 (june to november)
+
+    var_names <- paste0("knb_lw.", province, i)
+    knb <- get(var_names, envir = globalenv()) # get listw object
+
+    localMI  <- paste0("lmoran_month.", province, i) # create local moran's I
+    cm_localMI <- paste0("cm_localMI_month.", province, i) # create combined local moran's I
+
+    assign(localMI, localmoran(data[data$Fecha == i, ][[TOTAL_INVASIONES_STR]], knb), envir = .GlobalEnv) # compute local moran's I
+    assign(cm_localMI, cbind(data[data$Fecha == i, ], eval(as.name(localMI))), envir = .GlobalEnv) # combine local moran's I with data
+  }
+}
+
+
+compute_lisaClusters <- function(data, province) {
+  #' Compute LISA clusters.
+  #'
+  #' This function computes LISA clusters for a given spatial data frame.
+  #'
+  #' @param data A spatial data frame.
+  #' @param province Name of the province.
+
+  LisaList <- list() # create list to store LISA clusters
+  LisaPlot <- list() # create list to store LISA plots
+
+  for(i in sort(unique(data$Fecha))) { # iterate over 6 to 11 (june to november)
+
+    localMI <- paste0("lmoran_month.", province, i) # get local moran's I
+    quadrant <- vector(mode = "numeric", length = nrow(eval(as.name(localMI)))) # create vector to store quadrants
+
+    # compute deviations
+    DV <- data[data$Fecha == i, ][[TOTAL_INVASIONES_STR]] - mean(data[data$Fecha == i, ][[TOTAL_INVASIONES_STR]])
+    C_mI <- eval(as.name(localMI))[,1]- mean(eval(as.name(localMI))[,1])
+    signif <- 0.05
+    quadrant[DV >0 & C_mI>0] <- 4
+    quadrant[DV <0 & C_mI<0] <- 1
+    quadrant[DV <0 & C_mI>0] <- 2
+    quadrant[DV >0 & C_mI<0] <- 3
+    quadrant[eval(as.name(localMI))[,5]>signif] <- 0
+    
+    cm_localMI <- paste0("cm_localMI_month.", province, i) # create combined local moran's I
+    
+    quadrant_df <- data.frame("quadrant" = quadrant) # create data frame with quadrants
+    assign(cm_localMI, cbind(eval(as.name(cm_localMI)), quadrant_df), envir = .GlobalEnv) # combine combined local moran's I with quadrants
+    
+    LisaList[[i]] <- eval(as.name(cm_localMI))@data # store LISA clusters
+
+    # plot LISA clusters
+    LisaPlot[[i]] <- tm_shape(eval(as.name(cm_localMI))) +
+      tm_fill(col = "quadrant", style = "cat", palette = COLORS[c(sort(unique(quadrant))) + 1], labels = CLUSTERS[c(sort(unique(quadrant))) + 1]) +
+      tm_borders(alpha = 0.5) +
+      tm_view(set.zoom.limits = c(11, 17))+
+      tm_layout(paste("month", i), legend.outside = TRUE)
+  }
+  tmap_save(tmap_arrange(LisaPlot[6:11], ncol = 2), paste(COLERA_MAPS_DIR, paste0("lisaClusters_map.", province, ".png"), sep = "/")) # save LISA clusters plot
+}
+
+
+compute_localGi <- function(data, province) {
+    #' Compute local G_i.
+    #'
+    #' This function computes local G_i for a given spatial data frame.
+    #'
+    #' @param data A spatial data frame.
+    #' @param province Name of the province.
+
+    localGiList <- list() # create list to store local G_i
+    localGiPlot <- list() # create list to store local G_i plots
+
+    for(i in sort(unique(data$Fecha))) { # iterate over 6 to 11 (june to november)
+
+      var_names <- paste0("knb_lw.", province, i)
+      knb <- get(var_names, envir = globalenv()) # get listw object
+      localGI <- paste0("gi_month", i) # create local G_i
+      assign(localGI, cbind(data[data$Fecha == i, ], data.frame("gstat_adaptive" = as.matrix(localG(data[data$Fecha == i, ][[TOTAL_INVASIONES_STR]], knb)))), envir = .GlobalEnv) # compute local G_i
+
+      categorized_data <- transform(get(localGI), category = cut(gstat_adaptive, breaks = c(-Inf, 0, 1, 2, 3, 4, 5), labels = CLUSTERS_SPOTS,include.lowest = TRUE)) # categorize data
+      assign(localGI, cbind(data[data$Fecha == i, ], data.frame("gstat_adaptive" = as.matrix(localG(data[data$Fecha == i, ][[TOTAL_INVASIONES_STR]], knb))), categorized_data), envir = .GlobalEnv) # combine local G_i with categorized data
+
+      localGiList[[i]] <- get(localGI) # store local G_i
+
+      # plot local G_i
+      localGiPlot[[i]] <- tm_shape(eval(as.name(localGI))) +
+        tm_fill(col = "category", style = "pretty", palette = COLORS_SPOTS, title = "") +
+        tm_borders(alpha = 0.5) +
+        tm_view(set.zoom.limits = c(11, 17))+
+        tm_layout(paste("month", i), legend.outside = TRUE)
+    }
+    tmap_save(tmap_arrange(localGiPlot[6:11], ncol = 2), paste(COLERA_MAPS_DIR, paste0("hotspots_map.", province, ".png"), sep = "/")) # save local G_i plot
+}
+
+
+# main --------------------------------------------------------------------
+
+
+# load data
 df_colera.groupByProvinciaMunicipioFecha <- merge(df_colera.merged.month, df_distances, by = CODIGO_INE_STR)
-df_colera.groupByProvinciaMunicipioFecha <- df_colera.groupByProvinciaMunicipioFecha[, c(1, 6:7, 2, 3:5, 8:9, 10:17)]
+df_colera.groupByProvinciaMunicipioFecha <- df_colera.groupByProvinciaMunicipioFecha[, c(1, 6:7, 2, 3:5, 8:9, 10:17)] # select columns
 head(df_colera.groupByProvinciaMunicipioFecha)
 
+# load shape file
 mapS.municipios <- st_read(paste(SHAPES_DATA_DIR, "Municipios_IGN.shp", sep = "/"), quiet = TRUE)
-mapS.municipios <- subset(mapS.municipios, CODNUT1 != "ES7" & CODNUT2 != "ES53") 
-mapS.municipios <- subset(mapS.municipios, !(CODIGOINE %in% c(51001, 52001))) 
+mapS.municipios <- subset(mapS.municipios, CODNUT1 != "ES7" & CODNUT2 != "ES53")  # remove Canary Islands and Balearic Islands
+mapS.municipios <- subset(mapS.municipios, !(CODIGOINE %in% c(51001, 52001)))  # remove Ceuta and Melilla
 head(mapS.municipios)
 
+# merge data frame with shape file
 mapS.colera_stp <- merge(mapS.municipios, df_colera.groupByProvinciaMunicipioFecha, by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR)
 head(mapS.colera_stp)
 
-mapS.colera_stp.zaragoza <- subset(mapS.colera_stp, Provincia == "zaragoza")
-mapS.colera_stp.valencia <- subset(mapS.colera_stp, Provincia == "valencia")
-head(mapS.colera_stp.zaragoza)
-head(mapS.colera_stp.valencia)
+for(provincia in PROVINCIAS_STR) {
 
-# convert to spatialpointdataframe
-spdf_mapS.colera_stp.zaragoza <- as_Spatial(mapS.colera_stp.zaragoza)
-spdf_mapS.colera_stp.valencia <- as_Spatial(mapS.colera_stp.valencia)
+  assign(paste("spdf_mapS.colera_stp", provincia, sep = "."), convert_to_spatial(mapS.colera_stp, provincia)) # convert to spatial data frame
 
-# compute Rook contiguity weight matrix
-wm_r.zaragoza <- poly2nb(spdf_mapS.colera_stp.zaragoza, queen = FALSE)
-wm_r.valencia <- poly2nb(spdf_mapS.colera_stp.valencia, queen = FALSE)
+  var_names <- paste0("spdf_mapS.colera_stp.", provincia)  # get spatial data frame
+  spdf_mapS <- get(var_names, envir = globalenv())
 
-# compute Queen contiguity weight matrix
-wm_q.zaragoza <- poly2nb(spdf_mapS.colera_stp.zaragoza, queen = TRUE)
-wm_q.valencia <- poly2nb(spdf_mapS.colera_stp.valencia, queen = TRUE)
-
-# save coordinates to variable
-for(i in 6:11) {
-  coords <- paste("coords.zaragoza", i, sep = "")
-  assign(coords, coordinates(subset(spdf_mapS.colera_stp.zaragoza, Fecha == i)))
-}
-for(i in 6:11) {
-  coords <- paste("coords.valencia", i, sep = "")
-  assign(coords, coordinates(subset(spdf_mapS.colera_stp.valencia, Fecha == i)))
+  compute_weight_matrices(spdf_mapS, provincia) # compute weight matrices
+  compute_moran(spdf_mapS, provincia) # compute moran's I
+  compute_lisaClusters(spdf_mapS, provincia) # compute LISA clusters
+  compute_localGi(spdf_mapS, provincia) # compute local G_i
 }
 
-# par(mfrow = c(1, 2))
-# plot(spdf_mapS.colera_stp.valencia, border = "lightgrey")
-# plot(wm_q.valencia, coords.valencia, pch = 19, cex = 0.6, add = TRUE, col = "red", main ="Queen Contiguity")
-# title(main = "Queen Contiguity")
-# plot(spdf_mapS.colera_stp.valencia, border ="lightgrey")
-# plot(wm_r.valencia, coords.valencia, pch = 19, cex = 0.6, add = TRUE, col = "red", main ="Rook Contiguity")
-# title(main = "Rook Contiguity")
-
-for(i in 6:11) {
-  var_names <- paste("coords.zaragoza", i, sep = "")  
-  coords <- get(var_names, envir = globalenv())
-  knb <- knn2nb(knearneigh(coords, k = 8, longlat = FALSE))
-  assign(paste("knb_lw.zaragoza", i, sep = ""), nb2listw(knb, style = "B"))
-}
-for(i in 6:11) {
-  var_names <- paste("coords.valencia", i, sep = "")  
-  coords <- get(var_names, envir = globalenv())
-  knb <- knn2nb(knearneigh(coords, k = 8, longlat = FALSE))
-  assign(paste("knb_lw.valencia", i, sep = ""), nb2listw(knb, style = "B"))
-}
-
-# plot(spdf_mapS.colera_stp.valencia, border = "lightgrey")
-# plot(knb.valencia, coords.valencia, pch = 19, cex = 0.6, add = TRUE, col = "red")
-# title(main = "Adaptive Distance Based")
-
-for(i in 6:11) {
-  var_names <- paste("knb_lw.zaragoza", i, sep="")  
-  knb <- get(var_names, envir = globalenv())
-  moranmc <- paste("moranmc_month.zaragoza", i, sep = "")
-  assign(moranmc, moran.mc(spdf_mapS.colera_stp.zaragoza[spdf_mapS.colera_stp.zaragoza$Fecha == i, ][[TOTAL_INVASIONES_STR]], listw = knb, nsim = 39, zero.policy = TRUE, na.action = na.omit))
-}
-for(i in 6:11) {
-  var_names <- paste("knb_lw.valencia", i, sep="")  
-  knb <- get(var_names, envir = globalenv())
-  moranmc <- paste("moranmc_month.valencia", i, sep = "")
-  assign(moranmc, moran.mc(spdf_mapS.colera_stp.valencia[spdf_mapS.colera_stp.valencia$Fecha == i, ][[TOTAL_INVASIONES_STR]], listw = knb, nsim = 39, zero.policy = TRUE, na.action = na.omit))
-}
-
-moranmctable.zaragoza <- data.frame(matrix(vector(), ncol = 3))
-moranmctable.valencia <- data.frame(matrix(vector(), ncol = 3))
-names(moranmctable.zaragoza) <- c("month", "p-value", "statistics")
-names(moranmctable.valencia) <- c("month", "p-value", "statistics")
-
-for(i in 6:11){
-  var_names <- paste("moranmc_month.zaragoza", i, sep = "")  
-  moranmc <- get(var_names, envir = globalenv())
-  moranmctable.zaragoza <- rbind(moranmctable.zaragoza, data.frame(i, moranmc$p.value, moranmc$statistic)) 
-}
-for(i in 6:11){
-  var_names <- paste("moranmc_month.valencia", i, sep = "")  
-  moranmc <- get(var_names, envir = globalenv())
-  moranmctable.valencia <- rbind(moranmctable.valencia, data.frame(i, moranmc$p.value, moranmc$statistic)) 
-}
-
-ggplot(moranmctable.zaragoza, aes(x = i, y = moranmc.p.value))+
-  geom_line() + xlab("Months (6-11)") + ylab("p-value") + ggtitle("Moran I value over months 6 to 11 - zaragoza")
-
-ggplot(moranmctable.valencia, aes(x = i, y = moranmc.p.value))+
-  geom_line() + xlab("Months (6-11)") + ylab("p-value") + ggtitle("Moran I p-value over months 6 to 11 - valencia")
-
-for(i in 6:11) {
-  var_names <- paste("knb_lw.zaragoza", i, sep="")  
-  knb <- get(var_names, envir = globalenv())
-  localMI  <- paste("lmoran_month.zaragoza", i, sep = "")
-  cm_localMI <- paste("cm_localMI_month.zaragoza", i, sep="")
-  assign(localMI, localmoran(spdf_mapS.colera_stp.zaragoza[spdf_mapS.colera_stp.zaragoza$Fecha == i, ][[TOTAL_INVASIONES_STR]], knb))
-  assign(cm_localMI, cbind(spdf_mapS.colera_stp.zaragoza[spdf_mapS.colera_stp.zaragoza$Fecha == i, ], eval(as.name(localMI))))
-}
-for(i in 6:11) {
-  var_names <- paste("knb_lw.valencia", i, sep="")  
-  knb <- get(var_names, envir = globalenv())
-  localMI  <- paste("lmoran_month.valencia", i, sep = "")
-  cm_localMI <- paste("cm_localMI_month.valencia", i, sep="")
-  assign(localMI, localmoran(spdf_mapS.colera_stp.valencia[spdf_mapS.colera_stp.valencia$Fecha == i, ][[TOTAL_INVASIONES_STR]], knb))
-  assign(cm_localMI, cbind(spdf_mapS.colera_stp.valencia[spdf_mapS.colera_stp.valencia$Fecha == i, ], eval(as.name(localMI))))
-}
-
-# tm_shape(cm_localMI_month.zaragoza6) +
-#   tm_fill(col = "Ii", 
-#           style = "pretty", 
-#           title = "month 6 local moran statistics") +
-#   tm_borders(alpha = 0.5)
-# 
-# tm_shape(cm_localMI_month.zaragoza6) +
-#   tm_fill(col = "Pr.z....E.Ii..", 
-#           breaks = c(-Inf, 0.001, 0.01, 0.05, 0.1, Inf),
-#           palette = "-Blues", 
-#           title = "month 6 local Moran's I p-values") +
-#   tm_borders(alpha = 0.5)
-# 
-# moran.plot(subset(mapS.colera_stp.zaragoza, Fecha == 6)$Total_invasiones, 
-#            knb_lw.zaragoza6,
-#            labels = as.character(subset(mapS.colera_stp.zaragoza, Fecha == 6)$Municipio),
-#            xlab = "Total invasiones in Zaragoza month 6", 
-#            ylab = "Spatially Lag cholera in Zaragoza")
-
-colors <- c("#ffffff", "#2c7bb6", "#abd9e9", "#fdae61", "#d7191c")
-clusters <- c("insignificant", "low-low", "low-high", "high-low", "high-high")
-
-LisaList.zaragoza <- list()
-LisaList.valencia <- list()
-
-for(i in 6:11) {
-  localMI <- paste("lmoran_month.zaragoza", i, sep = "")
-  quadrant <- vector(mode = "numeric", length = nrow(eval(as.name(localMI))))
-  DV <- spdf_mapS.colera_stp.zaragoza[spdf_mapS.colera_stp.zaragoza$Fecha == i, ][[TOTAL_INVASIONES_STR]] - mean(spdf_mapS.colera_stp.zaragoza[spdf_mapS.colera_stp.zaragoza$Fecha == i, ][[TOTAL_INVASIONES_STR]])
-  
-  C_mI <- eval(as.name(localMI))[,1]- mean(eval(as.name(localMI))[,1])
-  signif <- 0.05
-  quadrant[DV >0 & C_mI>0] <- 4
-  quadrant[DV <0 & C_mI<0] <- 1
-  quadrant[DV <0 & C_mI>0] <- 2
-  quadrant[DV >0 & C_mI<0] <- 3
-  quadrant[eval(as.name(localMI))[,5]>signif] <- 0
-
-  cm_localMI <- paste("cm_localMI_month.zaragoza", i, sep = "")
-  
-  quadrant_df <- data.frame("quadrant" = quadrant)
-  assign(cm_localMI, cbind(eval(as.name(cm_localMI)), quadrant_df))
-  
-  LisaList.zaragoza[[i]] <- eval(as.name(cm_localMI))@data
-  
-  LisaPlotName<- paste("lplot_month.zaragoza", i, sep = "")
-  LisaPlot <- tm_shape(eval(as.name(cm_localMI))) +
-    tm_fill(col = "quadrant", style = "cat", palette = colors[c(sort(unique(quadrant)))+1], labels = clusters[c(sort(unique(quadrant)))+1]) +
-    tm_borders(alpha = 0.5) +
-    tm_view(set.zoom.limits = c(11,17))+
-    tm_layout(paste("month",i), legend.outside = TRUE)
-  assign(LisaPlotName, LisaPlot)
-  
-}
-for(i in 6:11) {
-  localMI <- paste("lmoran_month.valencia", i, sep = "")
-  quadrant <- vector(mode = "numeric", length = nrow(eval(as.name(localMI))))
-  DV <- spdf_mapS.colera_stp.valencia[spdf_mapS.colera_stp.valencia$Fecha == i, ][[TOTAL_INVASIONES_STR]] - mean(spdf_mapS.colera_stp.valencia[spdf_mapS.colera_stp.valencia$Fecha == i, ][[TOTAL_INVASIONES_STR]])
-  
-  C_mI <- eval(as.name(localMI))[,1]- mean(eval(as.name(localMI))[,1])
-  signif <- 0.05
-  quadrant[DV >0 & C_mI>0] <- 4
-  quadrant[DV <0 & C_mI<0] <- 1
-  quadrant[DV <0 & C_mI>0] <- 2
-  quadrant[DV >0 & C_mI<0] <- 3
-  quadrant[eval(as.name(localMI))[,5]>signif] <- 0
-  
-  cm_localMI <- paste("cm_localMI_month.valencia", i, sep = "")
-  
-  quadrant_df <- data.frame("quadrant" = quadrant)
-  assign(cm_localMI, cbind(eval(as.name(cm_localMI)), quadrant_df))
-  
-  LisaList.valencia[[i]] <- eval(as.name(cm_localMI))@data
-  
-  LisaPlotName <- paste("lplot_month.valencia", i, sep = "")
-  LisaPlot <- tm_shape(eval(as.name(cm_localMI))) +
-    tm_fill(col = "quadrant", style = "cat", palette = colors[c(sort(unique(quadrant)))+1], labels = clusters[c(sort(unique(quadrant)))+1]) +
-    tm_borders(alpha = 0.5) +
-    tm_view(set.zoom.limits = c(11,17))+
-    tm_layout(paste("month",i), legend.outside = TRUE)
-  assign(LisaPlotName, LisaPlot)
-  
-}
-
-tmap_arrange(lplot_month.zaragoza6, lplot_month.zaragoza7, lplot_month.zaragoza8, lplot_month.zaragoza9, lplot_month.zaragoza10, lplot_month.zaragoza11, ncol = 2)
-tmap_arrange(lplot_month.valencia6, lplot_month.valencia7, lplot_month.valencia8, lplot_month.valencia9, lplot_month.valencia10, lplot_month.valencia11, ncol = 2)
-
-localGiList.zaragoza <- list()
-localGiList.valencia <- list()
-
-for(i in 6:11) {
-  var_names <- paste("knb_lw.zaragoza", i, sep = "")  
-  knb <- get(var_names, envir = globalenv())
-  localGI <- paste("gi_week", i, sep = "")
-  assign(localGI, cbind(spdf_mapS.colera_stp.zaragoza[spdf_mapS.colera_stp.zaragoza$Fecha == i, ], 
-                        data.frame("gstat_adaptive" = as.matrix(localG(spdf_mapS.colera_stp.zaragoza[spdf_mapS.colera_stp.zaragoza$Fecha == i, ][[TOTAL_INVASIONES_STR]], knb)))))
-  
-  categorized_data <-
-    transform(get(localGI),
-              category = cut(
-                gstat_adaptive,
-                breaks = c(-Inf, 0, 1, 2, 3, 4, 5),
-                labels = c("insignificant", "very low", "low", "moderate", "high", "very high"),
-                include.lowest = TRUE
-              ))
-
-  assign(localGI, cbind(spdf_mapS.colera_stp.zaragoza[spdf_mapS.colera_stp.zaragoza$Fecha == i, ], 
-                        data.frame("gstat_adaptive" = as.matrix(localG(spdf_mapS.colera_stp.zaragoza[spdf_mapS.colera_stp.zaragoza$Fecha == i, ][[TOTAL_INVASIONES_STR]], knb))),
-                        categorized_data))
-  
-  localGiList.zaragoza[[i]] <- get(localGI)
-  
-  gi <- paste("gimap_month.zaragoza", i, sep = "")
-  giplot <- tm_shape(eval(as.name(localGI))) +
-    tm_fill(col = "category",
-            style = "pretty",
-            palette = c("#d1e5f0", "#f7f7f7", "#fddbc7", "#f4a582", "#d6604d", "#b2182b"),
-            title = "") +
-    tm_borders(alpha = 0.5) +
-    tm_view(set.zoom.limits = c(11,17))+
-    tm_layout(paste("month", i), legend.outside = TRUE)
-  
-  assign(gi,  giplot)
-}
-for(i in 6:11) {
-  var_names <- paste("knb_lw.valencia", i, sep = "")  
-  knb <- get(var_names, envir = globalenv())
-  localGI <- paste("gi_week", i, sep = "")
-  assign(localGI, cbind(spdf_mapS.colera_stp.valencia[spdf_mapS.colera_stp.valencia$Fecha == i, ], 
-                        data.frame("gstat_adaptive" = as.matrix(localG(spdf_mapS.colera_stp.valencia[spdf_mapS.colera_stp.valencia$Fecha == i, ][[TOTAL_INVASIONES_STR]], knb)))))
-  
-  categorized_data <-
-    transform(get(localGI),
-              category = cut(
-                gstat_adaptive,
-                breaks = c(-Inf, 0, 1, 2, 3, 4, 5),
-                labels = c("insignificant", "very low", "low", "moderate", "high", "very high"),
-                include.lowest = TRUE
-              ))
-  
-  assign(localGI, cbind(spdf_mapS.colera_stp.valencia[spdf_mapS.colera_stp.valencia$Fecha == i, ], 
-                        data.frame("gstat_adaptive" = as.matrix(localG(spdf_mapS.colera_stp.valencia[spdf_mapS.colera_stp.valencia$Fecha == i, ][[TOTAL_INVASIONES_STR]], knb))),
-                        categorized_data))
-  
-  localGiList.valencia[[i]] <- get(localGI)
-  
-  gi <- paste("gimap_month.valencia", i, sep = "")
-  giplot <- tm_shape(eval(as.name(localGI))) +
-    tm_fill(col = "category",
-            style = "pretty",
-            palette = c("#d1e5f0", "#f7f7f7", "#fddbc7", "#f4a582", "#d6604d", "#b2182b"),
-            title = "") +
-    tm_borders(alpha = 0.5) +
-    tm_view(set.zoom.limits = c(11,17))+
-    tm_layout(paste("month", i), legend.outside = TRUE)
-  
-  assign(gi,  giplot)
-}
-
-tmap_arrange(gimap_month.zaragoza6, gimap_month.zaragoza7, gimap_month.zaragoza8, gimap_month.zaragoza9, gimap_month.zaragoza10, gimap_month.zaragoza11, ncol = 2)
-tmap_arrange(gimap_month.valencia6, gimap_month.valencia7, gimap_month.valencia8, gimap_month.valencia9, gimap_month.valencia10, gimap_month.valencia11, ncol = 2)
+rm(list = ls())

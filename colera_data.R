@@ -1,10 +1,4 @@
-library(readxl)
-library(ggplot2)
-library(dplyr)
 library(lubridate)
-library(tidyr)
-library(scales)
-library(stringi)
 
 
 source("covariates.R") # load covariates.R
