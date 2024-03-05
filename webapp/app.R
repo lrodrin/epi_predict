@@ -1,7 +1,7 @@
-options(shiny.maxRequestSize = 60*1024^2) # set the maximum upload file size to 60 megabytes
+options(shiny.maxRequestSize = 60*1024^2) # set max file size to 60MB
 
 
-source("global.R")
+source("global.R") # load global.R file
 
 
 # UI ----------------------------------------------------------------------
@@ -11,7 +11,7 @@ ui <- fluidPage(
   
   useShinyjs(),
   
-  # app title
+  # application title
   tags$head(
     tags$title("EPI-PREDICT webapp")
   ),
@@ -22,7 +22,7 @@ ui <- fluidPage(
     )
   ),
   
-  # sidebar layout with input and output defunitions
+  # sidebar layout
   sidebarLayout(
     
     # sidebar panel for inputs
@@ -44,7 +44,7 @@ ui <- fluidPage(
         inputId = "countyselected",
         label = "Select county",
         choices = COUNTIES,
-        selected = COUNTIES[3] # "valencia" county for default
+        selected = COUNTIES[3] # "valencia" province for default
       ),
       selectizeInput(
         inputId = "monthselected",
@@ -57,7 +57,7 @@ ui <- fluidPage(
         label = "Select variable", 
         inline = TRUE, 
         choices = VARIABLES, 
-        selected = VARIABLES[1] # invasions for default
+        selected = VARIABLES[1] # "Total_invasiones" for default
       ),
       br(), div(style = "border-bottom: 1px solid #ddd; margin-top: 10px; margin-bottom: 10px;"), br(),
       div(
@@ -75,7 +75,7 @@ ui <- fluidPage(
       br(), br(), div(style = "text-align: center;", p("© 2023 Laura Rodríguez-Navas. All rights reserved."))
     ),
     
-    # main panel for displaying outputs
+    # main panel for outputs
     mainPanel(
       leafletOutput("map"),
       dygraphOutput("timetrend"),
@@ -88,19 +88,20 @@ ui <- fluidPage(
 # server logic ------------------------------------------------------------
 
 
-server <- function(input, output, session) {
-  
+server <- function(input, output) {
+
+  # read data
   data <- reactive({
     req(input$filedata)
     read.csv(input$filedata$datapath)
-    
   })
-  
+
+  # read shapefile
   map <- reactive({
     req(input$filemap)
     shpdf <- input$filemap 
     
-    tempdirname <- dirname(shpdf$datapath[1])
+    tempdirname <- dirname(shpdf$datapath[1]) # get the directory name of the first file in the "shpdf" data frame
     
     # rename each file in the "datapath" by appending its corresponding "name" in the "shpdf" data frame
     for (i in 1:nrow(shpdf)) { file.rename(shpdf$datapath[i], paste0(tempdirname, "/", shpdf$name[i])) }
@@ -110,58 +111,58 @@ server <- function(input, output, session) {
     # filter the file names to include only those ending with ".shp"
     map <- st_read(paste(tempdirname, shpdf$name[grep(pattern = "*.shp$", shpdf$name)], sep = "/"), quiet = TRUE)
     map
-    
   })
-  
+
+  # filter data
   filtered_data <- reactive({
     filter_data(data(), input$countyselected, input$monthselected)
-    
   })
-  
+
+  # render table
   output$table <- renderDT({
     req(filtered_data(), input$countyselected, input$monthselected)
     rownames(filtered_data) <- NULL
     datatable(filtered_data())
-    
   })
-  
-   output$timetrend <- renderDygraph({
-     req(data(), input$countyselected)
 
-     if (input$countyselected != "all") { datafiltered <- subset(data(), Provincia == input$countyselected) }
-     else { datafiltered <- data() }
+  # render time trend
+  output$timetrend <- renderDygraph({
+    req(data(), input$countyselected)
 
-     dataxts <- NULL
-     municipalities <- unique(datafiltered$`Codigo.Ine`)
-     for (l in 1:length(municipalities)) {
-       datamunicipality <- datafiltered[datafiltered$`Codigo.Ine` == municipalities[l], ]
-       dd <- xts(
-         datamunicipality[, input$variableselected],
-         order.by = as.Date(paste0("1885-", datamunicipality$Fecha, "-01"))
-       )
-       dataxts <- cbind(dataxts, dd)
-     }
-     colnames(dataxts) <- municipalities
-     dygraph(dataxts) %>%
-       dyHighlight(highlightSeriesBackgroundAlpha = 0.2) -> d1
-     d1$x$css <- "
-  .dygraph-legend > span {display:none;}
-  .dygraph-legend > span.highlight { display: inline; }
-  "
-     d1
-   })
-  
+    if (input$countyselected != "all") { datafiltered <- subset(data(), Provincia == input$countyselected) } # filter by county
+    else { datafiltered <- data() }
+
+    dataxts <- NULL
+    municipalities <- unique(datafiltered$`Codigo.Ine`)
+
+    for (l in 1:length(municipalities)) { # loop over municipalities
+
+      datamunicipality <- datafiltered[datafiltered$`Codigo.Ine` == municipalities[l],] # filter by municipality
+
+      # create xts object
+      dd <- xts(
+        datamunicipality[, input$variableselected],
+        order.by = as.Date(paste0("1885-", datamunicipality$Fecha, "-01"))
+      )
+      dataxts <- cbind(dataxts, dd)
+    }
+    colnames(dataxts) <- municipalities
+    dygraph(dataxts) %>%
+      dyHighlight(highlightSeriesBackgroundAlpha = 0.2) -> d1
+    d1$x$css <- "
+    .dygraph-legend > span {display:none;}
+    .dygraph-legend > span.highlight { display: inline; }
+    "
+    d1
+  })
+
+  # render map
   output$map <- renderLeaflet({
     req(filtered_data(), map(), input$countyselected, input$monthselected)
-    
-    # add data to map
-    mapfiltered <-  merge(map(), filtered_data(), by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR)
-    
-    # create tmap
-    l <- tmap_leaflet(create_tmap(mapfiltered, mapfiltered, input$variableselected, "jenks"))
-    
+    mapfiltered <- merge(map(), filtered_data(), by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR) # merge map and data
+    l <- tmap_leaflet(create_tmap(mapfiltered, mapfiltered, input$variableselected, "jenks")) # create tmap object
   })
 }
 
-# run the app
+# Run the application
 shinyApp(ui = ui, server = server)

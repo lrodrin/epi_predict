@@ -2,7 +2,6 @@ library(shiny)
 library(shinyjs)
 library(dplyr)
 library(sf)
-library(rgdal)
 library(DT)
 library(dygraphs)
 library(xts)
@@ -24,7 +23,17 @@ VARIABLES <- c("Total_invasiones", "Total_defunciones", "Total_poblacion")
 
 
 create_tmap <- function(df_mes, map, var_col, style) {
-  
+  #' Create a tmap object
+  #'
+  #' This function creates a tmap object with the data and the map provided.
+  #'
+  #' @param df_mes A data frame with the data to be plotted.
+  #' @param map A shapefile with the map to be plotted.
+  #' @param var_col A character string with the name of the column to be plotted.
+  #' @param style A character string with the name of the style to be used.
+  #'
+  #' @return A tmap object.
+
   map.tmp <- tm_shape(df_mes, bbox = map) +
     tm_polygons(
       col = var_col,
@@ -46,16 +55,25 @@ create_tmap <- function(df_mes, map, var_col, style) {
 
 
 filter_data <- function(data, county_selected, month_selected) {
+  #' Filter data.
+  #'
+  #' This function filters the data according to the selected county and month,
+  #' or by "Codigo Ine" and "Provincia" and "Municipio" and "Total_poblacion".
+  #'
+  #' @param data A data frame with the data to be filtered.
+  #' @param county_selected A character string with the name of the selected county.
+  #' @param month_selected A character string with the name of the selected month.
+  #'
+  #' @return A data frame with the filtered data.
   
   filtered_data <- data
   
-  if (county_selected != "all") { filtered_data <- subset(filtered_data, Provincia == county_selected) }
-  if (month_selected != "all") { filtered_data <- subset(filtered_data, Fecha == month_selected) } 
-  else {
+  if (county_selected != "all") { filtered_data <- subset(filtered_data, Provincia == county_selected) } # filter by county
+  if (month_selected != "all") { filtered_data <- subset(filtered_data, Fecha == month_selected) }  # filter by month
+  else { # filter by "Codigo Ine" and "Provincia" and "Municipio" and "Total_poblacion"
     filtered_data <- filtered_data %>% group_by(`Codigo.Ine`, Provincia, Municipio, Total_poblacion) %>% 
       summarize(Total_invasiones = sum(Total_invasiones), Total_defunciones = sum(Total_defunciones))
   }
-  
+
   return(filtered_data)
 }
-
