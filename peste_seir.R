@@ -62,7 +62,7 @@ seir_model <- function(current_timepoint, state_values, parameters) {
 }
 
 
-run_seir <- function(df, localidad, npopulation, x) {
+run_seir <- function(df, localidad, npopulation) {
   #' Run SEIR Epidemic Simulation
   #'
   #' This function simulates the SEIR (Susceptible-Exposed-Infectious-Recovered) epidemic model 
@@ -75,9 +75,9 @@ run_seir <- function(df, localidad, npopulation, x) {
   #' 
   #' @return NULL. The function generates a plot showing the dynamics of the Susceptible, Exposed, 
   #' Infectious, and Recovered sub-populations over time.
-  
-  # choose sub-population by localidad
-  df_tmp <- subset(df, Municipio == localidad)
+
+  df_tmp <- subset(df, Municipio == localidad) # choose sub-population by localidad
+  df_tmp$Casos <- df_tmp$Casos/npopulation # normalize "Casos" by "npopulation"
   
   # calculate "Total_Casos"
   df_tmp <- df_tmp %>%
@@ -89,7 +89,7 @@ run_seir <- function(df, localidad, npopulation, x) {
     ungroup()
   
   # parameters
-  contact_rate <- as.integer(mean(df_tmp$Total_Casos))     # number of contacts per day
+  contact_rate <- mean(df_tmp$Total_Casos)     # average number of contacts per day
   transmission_rate <- 0.5                                 # transmission rate
   infectious_period <- 4.3                                 # average infectious period
   latent_period <- 2.5                                     # average latent period
@@ -114,19 +114,25 @@ run_seir <- function(df, localidad, npopulation, x) {
   N <- npopulation # total population
   
   # initial state values for the differential equations
-  initial_values <- c(S = W/N, E = X/N, I = Y/N, R = Z/N)
+  initial_values <- c(S = W/N, E = X/N, I = Y/N, R = Z/N) # population ratios
+  # initial_values <- c(S = W, E = X, I = Y, R = Z) # without normalization
   timepoints <- seq(0, nrow(df_tmp) - 1, by = 1)
   
   # simulate the SEIR epidemic
   model_seir <- lsoda(initial_values, timepoints, seir_model, parameter_list)
 
+  # plot simulation and historical data
+  historical_data <- df_tmp[df_tmp$Categoria == SEIR_COMPARTMENTS[3], ]$Total_Casos
+  plot(I ~ time, data = model_seir, type = "l", lwd = 3, ylim = c(0, 0.15), col = "black", xlab = "Time (days)", ylab = "Ratio infections", main = paste0("Simulated plague infections - ", localidad))
+  axis(side = 1, at = seq(0, 100, by = 5))
+  barplot(historical_data, col = rgb(0.1, 0.1, 0.1, alpha = 0.5), add = TRUE)
+  
   # plot dynamics of susceptible, exposed, infectious and recovered sub-population
-  plot(S ~ time, data = model_seir, type = "b", ylim = c(0, 1), col = "blue", xlab = "Time (days)", ylab = "Proportion of individuals", main = paste0("SEIR Epidemic - ", localidad))
-  axis(side = 1, at = seq(0, 200, by = 5))
-  lines(E ~ time, data = model_seir, type = "b", col = "pink")
-  lines(I ~ time, data = model_seir, type = "b", col = "red")
-  lines(R ~ time, data = model_seir, type = "b", col = "green")
-  legend("right", legend = SEIR_COMPARTMENTS, col = c("blue", "pink", "red", "green"), lty = 1, bty = "n", inset = c(0.01, 0.05))
+  # plot(S ~ time, data = model_seir, type = "b", ylim = c(0, 1), col = "blue", xlab = "Time (days)", ylab = "Proportion of individuals", main = paste0("SEIR Epidemic - ", localidad))
+  # lines(E ~ time, data = model_seir, type = "b", col = "pink")
+  # lines(S ~ time, data = model_seir, type = "b", col = "red")
+  # lines(R ~ time, data = model_seir, type = "b", col = "green")
+  # legend("right", legend = SEIR_COMPARTMENTS, col = c("blue", "pink", "red", "green"), lty = 1, bty = "n", inset = c(0.01, 0.05))
 }
 
 
@@ -141,32 +147,9 @@ df_peste$Categoria <- CATEGORY_MAPPING[df_peste$Categoria]
 
 
 # simulate the SEIR epidemic by "Municipio"
-run_seir(df_peste, LOCALIDADES_STR[1], 3626, 10) # Artà, 204 days
-run_seir(df_peste, LOCALIDADES_STR[2], 1179, 8) # Capdepera, 206 days
-run_seir(df_peste, LOCALIDADES_STR[3], 1338, 10) # Sant Llorenç des Cardassar, 78 days
-run_seir(df_peste, LOCALIDADES_STR[4], 1684, 10) # Son Servera, 210 days
-
-
-# historical data ---------------------------------------------------------
-
-
-for (localidad in LOCALIDADES_STR[c(1:2, 4)]) { # Artà, Capdepera, Son Servera
-  for (compartment in SEIR_COMPARTMENTS[c(2:4)]) { # exposed, infectious, recovered (not susceptible)
-
-    df_peste.tmp <- subset(df_peste, Municipio == localidad & Categoria == compartment) # select data by "Municipio" and "Categoria"
-    df_peste.tmp <- df_peste.tmp %>% group_by(Fecha) %>% summarize(Casos = sum(Casos)) # group by "Fecha" and sum the cases for each group
-    df_peste.tmp$Fecha <- seq(0, nrow(df_peste.tmp) - 1, by = 1) # create a sequence of dates
-
-    # plot simulation
-    ggplot(df_peste.tmp, aes(x = Fecha, y = Casos)) +
-      geom_line() + geom_point() +
-      ggtitle(paste(compartment, localidad, sep = " - ")) +
-      scale_x_continuous(breaks = seq(0, 200 - 1, by = 1)) +
-      theme_minimal() +
-      theme(axis.text.x = element_text(angle = 90, hjust = 1))
-    
-    ggsave(paste(PESTE_PLOTS_DIR, paste0(compartment, "_", localidad, ".png"), sep = "/"), width = 8, height = 6, units = "in") # save plot
-  }
-}
+run_seir(df_peste, LOCALIDADES_STR[1], 3626) # Artà
+run_seir(df_peste, LOCALIDADES_STR[2], 1179) # Capdepera
+run_seir(df_peste, LOCALIDADES_STR[3], 1338) # Sant Llorenç des Cardassar
+run_seir(df_peste, LOCALIDADES_STR[4], 1684) # Son Servera
 
 rm(list = ls())
