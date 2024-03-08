@@ -4,7 +4,7 @@ library (deSolve)
 library(ggplot2)
 
 
-load("peste_data.RData")
+load("peste_data.RData") # load peste data
 
 
 # constants ---------------------------------------------------------------
@@ -12,6 +12,7 @@ load("peste_data.RData")
 
 PESTE_PLOTS_DIR <- "peste_plots"
 dir.create(PESTE_PLOTS_DIR, showWarnings = FALSE)
+
 SEIR_COMPARTMENTS <-  c("Susceptible", "Exposed", "Infectious", "Recovered")
 CATEGORY_MAPPING <-
   c(
@@ -39,22 +40,22 @@ seir_model <- function(current_timepoint, state_values, parameters) {
   #' @return A list containing the derivatives of each compartment (dS, dE, dI, dR).
   
   # create state variables (local variables)
-  S = state_values[1]        # susceptible
-  E = state_values[2]        # exposed
-  I = state_values[3]        # infectious
-  R = state_values[4]        # recovered
+  S <- state_values[1]        # susceptible
+  E <- state_values[2]        # exposed
+  I <- state_values[3]        # infectious
+  R <- state_values[4]        # recovered
   
   with ( 
     as.list (parameters),     # variable names within parameters can be used 
     {
       # compute derivatives
-      dS = (-beta * S * I)
-      dE = (beta * S * I) - (delta * E)
-      dI = (delta * E) - (gamma * I)
-      dR = (gamma * I)
+      dS <- (-beta * S * I)
+      dE <- (beta * S * I) - (delta * E)
+      dI <- (delta * E) - (gamma * I)
+      dR <- (gamma * I)
       
       # combine results
-      results = c (dS, dE, dI, dR)
+      results <- c (dS, dE, dI, dR)
       list (results)
     }
   )
@@ -80,7 +81,7 @@ run_seir <- function(df, localidad, npopulation, x) {
   
   # calculate "Total_Casos"
   df_tmp <- df_tmp %>%
-    # Group by "Municipio", "Categoria" and "Fecha"
+    # group by "Municipio", "Categoria" and "Fecha"
     group_by(Municipio, Categoria, Fecha) %>%
     # sum the cases for each group
     summarise(Total_Casos = sum(Casos)) %>%
@@ -89,17 +90,18 @@ run_seir <- function(df, localidad, npopulation, x) {
   
   # parameters
   contact_rate <- as.integer(mean(df_tmp$Total_Casos))     # number of contacts per day
-  transmission_probability <- 0.07                         # transmission probability
-  infectious_period <- 5                                   # infectious period
-  latent_period <- 2                                       # latent period
+  transmission_rate <- 0.5                                 # transmission rate
+  infectious_period <- 4.3                                 # average infectious period
+  latent_period <- 2.5                                     # average latent period
   
   # compute values of beta (transmission rate) and gamma (recovery rate)
-  beta_value <- contact_rate * transmission_probability
+  beta_value <- contact_rate * transmission_rate
   gamma_value <- 1 / infectious_period
   delta_value <- 1 / latent_period
   
   # compute Ro - reproductive number
   Ro <- beta_value / gamma_value
+  print(paste0("Reproductive number (Ro) for ", localidad, " is ", Ro))
   
   # disease dynamics parameters
   parameter_list <- c(beta = beta_value, gamma = gamma_value, delta = delta_value)
@@ -108,8 +110,8 @@ run_seir <- function(df, localidad, npopulation, x) {
   X <- nrow(df_tmp[df_tmp$Categoria == SEIR_COMPARTMENTS[3], ]) # infectious
   Y <- nrow(df_tmp[df_tmp$Categoria == SEIR_COMPARTMENTS[4], ]) # recovered
   Z <- nrow(df_tmp[df_tmp$Categoria == SEIR_COMPARTMENTS[2], ]) # exposed
-  W <- npopulation - X - Y - Z # Susceptible = Total population - Infectious - Recovered - Exposed 
-  N <- npopulation # Total population
+  W <- npopulation - X - Y - Z # susceptible = total population - infectious - recovered - exposed
+  N <- npopulation # total population
   
   # initial state values for the differential equations
   initial_values <- c(S = W/N, E = X/N, I = Y/N, R = Z/N)
@@ -118,13 +120,12 @@ run_seir <- function(df, localidad, npopulation, x) {
   # simulate the SEIR epidemic
   model_seir <- lsoda(initial_values, timepoints, seir_model, parameter_list)
 
-  # plot dynamics of Susceptible, Exposed, Infectious and Recovered sub-population 
+  # plot dynamics of susceptible, exposed, infectious and recovered sub-population
   plot(S ~ time, data = model_seir, type = "b", ylim = c(0, 1), col = "blue", xlab = "Time (days)", ylab = "Proportion of individuals", main = paste0("SEIR Epidemic - ", localidad))
   axis(side = 1, at = seq(0, 200, by = 5))
   lines(E ~ time, data = model_seir, type = "b", col = "pink")
   lines(I ~ time, data = model_seir, type = "b", col = "red")
   lines(R ~ time, data = model_seir, type = "b", col = "green")
-  abline(v = x, col = "black", lty = "dashed") 
   legend("right", legend = SEIR_COMPARTMENTS, col = c("blue", "pink", "red", "green"), lty = 1, bty = "n", inset = c(0.01, 0.05))
 }
 
@@ -149,22 +150,23 @@ run_seir(df_peste, LOCALIDADES_STR[4], 1684, 10) # Son Servera, 210 days
 # historical data ---------------------------------------------------------
 
 
-for (localidad in LOCALIDADES_STR[c(1:2,4)]) {
-  for (compartment in SEIR_COMPARTMENTS[c(2:4)]) {
+for (localidad in LOCALIDADES_STR[c(1:2, 4)]) { # Artà, Capdepera, Son Servera
+  for (compartment in SEIR_COMPARTMENTS[c(2:4)]) { # exposed, infectious, recovered (not susceptible)
 
-    df_peste.tmp <- subset(df_peste, Municipio == localidad & Categoria == compartment)
-    df_peste.tmp <- df_peste.tmp %>% group_by(Fecha) %>% summarize(Casos = sum(Casos))
-    df_peste.tmp$Fecha <- seq(0, nrow(df_peste.tmp) - 1, by = 1)
-    
+    df_peste.tmp <- subset(df_peste, Municipio == localidad & Categoria == compartment) # select data by "Municipio" and "Categoria"
+    df_peste.tmp <- df_peste.tmp %>% group_by(Fecha) %>% summarize(Casos = sum(Casos)) # group by "Fecha" and sum the cases for each group
+    df_peste.tmp$Fecha <- seq(0, nrow(df_peste.tmp) - 1, by = 1) # create a sequence of dates
+
+    # plot simulation
     ggplot(df_peste.tmp, aes(x = Fecha, y = Casos)) +
       geom_line() + geom_point() +
       ggtitle(paste(compartment, localidad, sep = " - ")) +
-      # scale_x_date(date_breaks = "2 day", date_labels = "%Y-%m-%d") +
       scale_x_continuous(breaks = seq(0, 200 - 1, by = 1)) +
       theme_minimal() +
       theme(axis.text.x = element_text(angle = 90, hjust = 1))
     
-    ggsave(paste(PESTE_PLOTS_DIR, paste0(compartment, "_", localidad, ".png"), sep = "/"), width = 8, height = 6, units = "in")
-    
+    ggsave(paste(PESTE_PLOTS_DIR, paste0(compartment, "_", localidad, ".png"), sep = "/"), width = 8, height = 6, units = "in") # save plot
   }
 }
+
+rm(list = ls())
