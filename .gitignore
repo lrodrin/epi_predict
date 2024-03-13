@@ -61,7 +61,6 @@ tempe_plots/
 rain_plots/
 peste_plots/
 peste_maps/
-mortalitats/
 
 # project data files
 *.csv

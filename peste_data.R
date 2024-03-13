@@ -10,8 +10,7 @@ library(lubridate)
 DATA_DIR <- "data"
 dir.create(DATA_DIR, showWarnings = FALSE)
 
-ANO_STR <- "1820"
-DATE_FORMAT <- "%Y-%m-%d"
+# municipios of Mallorca with black plague cases
 LOCALIDADES_STR <- c("Artà", "Capdepera", "Sant Llorenç des Cardassar", "Son Servera")
 
 
@@ -19,22 +18,21 @@ LOCALIDADES_STR <- c("Artà", "Capdepera", "Sant Llorenç des Cardassar", "Son S
 
 
 add_poblacion <- function(df_peste) {
-  #' Add population information to a data frame based on municipality names.
+  #' Add Poblacion Column
   #'
-  #' This function adds population information to a data frame based on municipality names.
-  #' It assigns population values from predefined lists based on municipality names.
+  #' This function adds a "Poblacion" column to the input data frame.
   #'
-  #' @param df_peste Data frame to which population information will be added.
+  #' @param df_peste A data frame containing peste data.
   #'
-  #' @return A modified data frame with population information.
-  
+  #' @return A data frame containing peste data with a "Poblacion" column.
+
   return(df_peste %>%
            mutate(
              Poblacion = case_when(
-               Municipio == LOCALIDADES_STR[1] ~ 3626,
-               Municipio == LOCALIDADES_STR[2] ~ 1179,
-               Municipio == LOCALIDADES_STR[3] ~ 1338,
-               Municipio == LOCALIDADES_STR[4] ~ 1684
+               Municipio == LOCALIDADES_STR[1] ~ 3626, # Artà
+               Municipio == LOCALIDADES_STR[2] ~ 1179, # Capdepera
+               Municipio == LOCALIDADES_STR[3] ~ 1338, # Sant Llorenç des Cardassar
+               Municipio == LOCALIDADES_STR[4] ~ 1684  # Son Servera
              )
            ))
 }
@@ -43,26 +41,16 @@ add_poblacion <- function(df_peste) {
 # main --------------------------------------------------------------------
 
 
-# read "peste" dataset
+# read peste data and rename columns to "Categoria", "Sexo" and "Casos"
 df_peste <- read_excel(paste(DATA_DIR, "Municipis Pesta Mallorca.xlsx", sep = "/"), sheet = "Hoja1")
 colnames(df_peste)[5:7] <- c("Categoria", "Sexo", "Casos")
 
-# remove "Fichero" and "Sexo", and add "Ano"
+# remove "Fichero" and "Sexo" columns, and format "Casos" as numeric
 df_peste$Fichero <- NULL
 df_peste$Sexo <- NULL
-df_peste$Ano <- ANO_STR
-
-# format "Casos" and "Año" as numeric
 df_peste$Casos <- as.numeric(df_peste$Casos)
-df_peste$Ano <- as.numeric(df_peste$Ano)
 
-# format "Fecha" as year-month-day
-df_peste$Fecha <- as.Date(with(df_peste, paste(Ano, mes, dia, sep = "-")), DATE_FORMAT)
-df_peste$dia <- NULL
-df_peste$mes <- NULL
-df_peste$Ano <- NULL
-
-# rename municipios "arta", "San Lorenzo" and "San Lorenzo campamento" to "Artà" and "Sant Llorenç des Cardassar"
+# rename "arta" to "Artà" and "San Lorenzo" or "San Lorenzo campamento" to "Sant Llorenç des Cardassar"
 df_peste <- df_peste %>%
   mutate(
     Municipio = case_when(
@@ -73,12 +61,28 @@ df_peste <- df_peste %>%
     )
   )
 
-# remove "Muertos" and add population for each "Localidad"
-df_peste <- subset(df_peste, Categoria != "Muertos")
+# rename "no consta", "no hay novedad" and "se goza de perfectisima salud" to 0
+df_peste <- df_peste %>%
+  mutate(
+    Casos = case_when(
+      Casos == "no consta" ~ 0,
+      Casos == "no hay novedad" ~ 0,
+      Casos == "se goza de perfectisima salud" ~ 0,
+      TRUE ~ Casos
+    )
+  )
+
+# divide cases and deaths categories as separate data frames
+muertos_str <- "Muertos"
+df_peste.defunciones <- subset(df_peste, Categoria == muertos_str) # create "defunciones" subset with "Categoria" == "Muertos"
+df_peste <- subset(df_peste, !(Categoria %in% c("Curados", muertos_str))) # remove "Curados" and "Muertos" from "Categoria"
+
+# add population information
+df_peste.defunciones <- add_poblacion(df_peste.defunciones)
 df_peste <- add_poblacion(df_peste)
 
-# remove NA values
-df_peste <- na.omit(df_peste)
+# remove "Categoria" column grouping by "Municipio", "mes", "dia" and "Poblacion"
+df_peste.defunciones <- df_peste.defunciones %>% group_by(Municipio, mes, dia, Poblacion) %>% summarize(Casos = sum(Casos))
+df_peste <- df_peste %>% group_by(Municipio, mes, dia, Poblacion) %>% summarize(Casos = sum(Casos))
 
-# change "no consta" cases to 0 
-df_peste$Casos <- ifelse(is.na(df_peste$Casos), 0, df_peste$Casos)
+save.image("peste_data.RData")
