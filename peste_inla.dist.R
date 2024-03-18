@@ -97,7 +97,7 @@ run_inla <- function(mapS, covariate, isPred = FALSE) {
     res <- inla(formula, family = "poisson", data = mapS, control.predictor = list(link = 1), verbose = TRUE) # prediction
   }
   else {
-    res <- inla(formula, family = "poisson", data = mapS, control.predictor = list(compute = TRUE), control.compute = list(return.marginals = TRUE), verbose = TRUE) # relative risk
+    res <- inla(formula, family = "poisson", data = mapS, offset = log(Poblacion), control.predictor = list(compute = TRUE), control.compute = list(return.marginals = TRUE), verbose = TRUE) # relative risk
   }
   # res <- inla(formula, family = "poisson", data = mapS, offset = log(Poblacion), control.predictor = list(compute = TRUE), control.compute = list(return.marginals = TRUE), verbose = TRUE)
   print(res)
@@ -195,7 +195,7 @@ tmap_save(map_casos.multi, filename = paste(PESTE_MAPS_DIR, paste0("tmap.municip
 # modelling ---------------------------------------------------------------
 
 
-model <- run_inla(mapS.peste_inla7, "1", FALSE) # fit the model
+model <- run_inla(mapS.peste_inla7, COVPROV_STR, FALSE) # fit the model
 model$summary.fixed
 
 # TODO: calculate relative risk by each covariate
@@ -247,3 +247,7 @@ mapS.peste_inla7.pred$upper <- model.pred$summary.fitted.values[, COEFFICIENTS[3
 maps_list.pred <- generate_maps(mapS.peste_inla7.pred, COEFFICIENTS[1], ".pred")
 map_casos.multi.pred <- tmap_arrange(maps_list.pred, ncol = 2) # arrange maps
 tmap_save(map_casos.multi.pred, filename = paste(PESTE_MAPS_DIR, paste0("tmap.municipios.", CASOS_STR, ".multi.pred.png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in") # save map
+
+# plot(mapS.peste_inla7.pred$Casos, mapS.peste_inla7.pred$mean, 
+#      xlab = "Casos", ylab = "mean")
+# abline(0, 1, col = "red")
