@@ -11,11 +11,16 @@ library(Dict)
 library(stringi)
 
 
-load("colera_data.RData")
+load("colera_data.RData") # load colera data
 
 
 # constants ---------------------------------------------------------------
 
+
+MUNICIPIOS_SHAPEFILE <- "Municipios_IGN.shp"
+PROVINCIAS_SHAPEFILE <- "Provincias_ETRS89_30N.shp"
+RAILWAYS_SHAPEFILE <- "Railways_1887.shp"
+RIVERS_SHAPEFILE <- "A3RIOS_proj.shp"
 
 SHAPES_DATA_DIR <- "shapes"
 dir.create(SHAPES_DATA_DIR, showWarnings = FALSE)
@@ -33,7 +38,7 @@ COVROAD_STR <- "covdist_road"
 COVCOAST_STR <- "covdist_coast"
 COVPORT_STR <- "covdist_port"
 COVALL_STR <- c(COVPROV_STR, COVSTATION_STR, COVRAIL_STR, COVRIVER_STR, COVWATER_STR, COVROAD_STR, COVCOAST_STR, COVPORT_STR)
-PROVINCIAS_STR <- c("zaragoza", "valencia", "granada", "murcia", "teruel", "castellon", "alicante", "navarra", "cuenca", "albacete")
+PROVINCIAS_STR <- c("zaragoza", "valencia", "granada", "murcia", "teruel", "castellon", "alicante", "navarra", "cuenca", "albacete", "almeria")
 MONTHS_INT <- c(6, 7, 8, 9, 10, 11)
 MONTHS_STR <- c("June", "July", "August", "September", "October", "November")
 COEFFICIENTS <- c("mean", "0.025quant", "0.975quant")
@@ -87,12 +92,14 @@ create_tmap.transport <- function(map) {
   #' @return A Tmap with added transportation features (railway lines and rivers).
   
   return(map +
-    tm_shape(mapS.railways) + tm_lines(lwd = 1.5, col = "red") +
+    # tm_shape(mapS.railways) + tm_lines(lwd = 1.5, col = "red") +
     tm_shape(mapS.rivers) + tm_lines(lwd = 1.5, col = "blue") +
     tm_add_legend(
      type = "line",
-     labels = c("Railway lines", "Rivers"),
-     col = c("red", "blue")
+     # labels = c("Railway lines", "Rivers"),
+     labels = c("Rivers"),
+     # col = c("red", "blue")
+     col = c("blue")
     )
   )
 }
@@ -148,7 +155,7 @@ run_inla <- function(mapS, province, covariate) {
   print(formula_defunciones)
   
   # run the INLA analysis with futures
-  res_invasiones <- inla(formula_invasiones, family = "poisson", data = mapS.tmp, offset = log(Total_poblacion), control.predictor = list(compute = TRUE), verbose = TRUE)
+  res_invasiones <- inla(formula_invasiones, family = "poisson", data = mapS.tmp, offset = log(Total_poblacion), control.predictor = list(compute = TRUE), control.compute = list(return.marginals = TRUE), verbose = TRUE)
   print(res_invasiones)
   res_defunciones <- inla(formula_defunciones, family = "poisson", data = mapS.tmp, offset = log(Total_poblacion), control.predictor = list(compute = TRUE), verbose = TRUE)
   print(res_defunciones)
@@ -343,11 +350,11 @@ df_colera_inla7.provincias <- df_colera_inla7 %>% group_by(Provincia, Fecha) %>%
 # maps --------------------------------------------------------------------
 
 
-mapS.municipios <- st_read(paste(SHAPES_DATA_DIR, "Municipios_IGN.shp", sep = "/"), quiet = TRUE)
-mapS.provincias <- st_read(paste(SHAPES_DATA_DIR, "Provincias_ETRS89_30N.shp", sep = "/"), quiet = TRUE)
-mapS.railways <- st_read(paste(SHAPES_DATA_DIR, "Railways_1887.shp", sep = "/"), quiet = TRUE)
+mapS.municipios <- st_read(paste(SHAPES_DATA_DIR, MUNICIPIOS_SHAPEFILE, sep = "/"), quiet = TRUE)
+mapS.provincias <- st_read(paste(SHAPES_DATA_DIR, PROVINCIAS_SHAPEFILE, sep = "/"), quiet = TRUE)
+mapS.railways <- st_read(paste(SHAPES_DATA_DIR, RAILWAYS_SHAPEFILE, sep = "/"), quiet = TRUE)
 mapS.railways <- na.omit(mapS.railways)
-mapS.rivers <- st_read(paste(SHAPES_DATA_DIR, "Rivers_Primary_Miteco_proj.shp", sep = "/"), quiet = TRUE)
+mapS.rivers <- st_read(paste(SHAPES_DATA_DIR, RIVERS_SHAPEFILE, sep = "/"), quiet = TRUE)
 
 mapS.provincias <- subset(mapS.provincias, !(Cod_CCAA %in% c("04", "05", "18", "19")))
 mapS.provincias$Texto <- tolower(stri_trans_general(mapS.provincias$Texto, "Latin-ASCII"))
@@ -373,63 +380,66 @@ head(mapS.colera_inla7)
 
 
 summary(mapS.colera_inla7)
-# mapS.colera_inla7$Tasa_invasiones <- mapS.colera_inla7$Total_invasiones / mapS.colera_inla7$Total_poblacion
-# mapS.colera_inla7$Tasa_defunciones <- mapS.colera_inla7$Total_defunciones / mapS.colera_inla7$Total_poblacion
-# mapS.colera_inla7 <- mapS.colera_inla7[, c(1:14, 27, 15, 28, 16:26)]
-# head(mapS.colera_inla7)
+
+# TODO: function for mapS.colera_inla7.provincias and mapS.colera_inla7
+
+for (i in MONTHS_INT) {
+  test <- tm_shape(mapS.colera_inla7[mapS.colera_inla7$Fecha == i,], bbox = mapS.provincias) +
+    tm_polygons(
+      col = TOTAL_DEFUNCIONES_STR,
+      border.col = NULL,
+      title = "",
+      palette = "Reds",
+      style = "jenks"
+    ) +
+    tm_shape(mapS.provincias) + tm_borders(lwd = 0.5) +
+    tm_layout(
+      legend.position =  c("right", "bottom"), legend.text.size = 1.5,
+      inner.margins = c(0, 0, 0, 0),
+      panel.label.size = 1.5, panel.label.height = 1.1, panel.labels = MONTHS_STR[i-5],
+      panel.label.color = "black", panel.label.bg.color = "gray"
+    ) +
+    tm_shape(mapS.railways) + tm_lines(lwd = 1.5, col = "black") +
+    tm_shape(mapS.rivers) + tm_lines(lwd = 1.5, col = "blue") +
+    tm_add_legend(
+      type = "line",
+      labels = c("Railways", "Rivers"),
+      col = c("black", "blue"),
+      lwd = 3
+    )
+  
+  tmap_save(test, filename = paste0("test_", i,".png"), width = 20, height = 10, dpi = 300, units = "in")
+}
 
 
 # by month
 
 for (month in MONTHS_INT) {
   
-  map_invasiones.provincias <- create_tmap(mapS.colera_inla7.provincias[mapS.colera_inla7.provincias$Fecha == month,], c(MONTHS_STR[month-5]), mapS.provincias, TOTAL_INVASIONES_STR, "jenks") +
-    tm_shape(mapS.colera_inla7.provincias[mapS.colera_inla7.provincias$Fecha == month,]) + tm_text("Cod_Provincia", size = 1)
+  map_invasiones.provincias <- create_tmap(mapS.colera_inla7.provincias[mapS.colera_inla7.provincias$Fecha == month,], c(MONTHS_STR[month-5]), mapS.provincias, TOTAL_INVASIONES_STR, "jenks")
+  map_defunciones.provincias <- create_tmap(mapS.colera_inla7.provincias[mapS.colera_inla7.provincias$Fecha == month,], c(MONTHS_STR[month-5]), mapS.provincias, TOTAL_DEFUNCIONES_STR, "jenks")
+  map_invasiones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.provincias, TOTAL_INVASIONES_STR, "jenks")
+  map_defunciones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.provincias, TOTAL_DEFUNCIONES_STR, "jenks")
   
-  map_defunciones.provincias <- create_tmap(mapS.colera_inla7.provincias[mapS.colera_inla7.provincias$Fecha == month,], c(MONTHS_STR[month-5]), mapS.provincias, TOTAL_DEFUNCIONES_STR, "jenks") +
-    tm_shape(mapS.colera_inla7.provincias[mapS.colera_inla7.provincias$Fecha == month,]) + tm_text("Cod_Provincia", size = 1)
+  # adding railway lines and rivers
   
-  map_invasiones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, TOTAL_INVASIONES_STR, "jenks")
-  map_defunciones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, TOTAL_DEFUNCIONES_STR, "jenks")
-  # map_tasa.invasiones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, "Tasa_invasiones", "jenks")
-  # map_tasa.defunciones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, "Tasa_defunciones", "jenks")
+  map_invasiones.provincias <- create_tmap.transport(map_invasiones.provincias)
+  map_defunciones.provincias <- create_tmap.transport(map_defunciones.provincias)
+  map_invasiones <- create_tmap.transport(map_invasiones)
+  map_defunciones <- create_tmap.transport(map_defunciones)
   
   tmap_save(map_invasiones.provincias, filename = paste(COLERA_MAPS_DIR, paste0("tmap.provincias.", INVASIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
   tmap_save(map_defunciones.provincias, filename = paste(COLERA_MAPS_DIR, paste0("tmap.provincias.", DEFUNCIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
   tmap_save(map_invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.", INVASIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
   tmap_save(map_defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.", DEFUNCIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-  # tmap_save(map_tasa.invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.tasa_", INVASIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-  # tmap_save(map_tasa.defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.tasa_", DEFUNCIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 }
-
-
-# totals 
-
-df_colera_inla7.grouped <- df_colera_inla7 %>% group_by(`Codigo Ine`, Municipio, Total_poblacion) %>% summarize(Total_invasiones = sum(Total_invasiones), Total_defunciones = sum(Total_defunciones))
-mapS.colera_inla7.grouped <- merge(mapS.municipios, df_colera_inla7.grouped, by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR)
-head(mapS.colera_inla7.grouped)
-
-map_all_invasiones <- create_tmap(mapS.colera_inla7.grouped, NULL, mapS.municipios, TOTAL_INVASIONES_STR, "jenks") +
-  tm_shape(mapS.colera_inla7.grouped[mapS.colera_inla7.grouped$Total_invasiones > 3915, ]) + tm_text(CODIGOINE_STR, size = 1.3, xmod = 2, fontface = "bold")
-
-map_all_defunciones <- create_tmap(mapS.colera_inla7.grouped, NULL, mapS.municipios, TOTAL_DEFUNCIONES_STR, "jenks") +
-  tm_shape(mapS.colera_inla7.grouped[mapS.colera_inla7.grouped$Total_defunciones > 1818, ]) + tm_text(CODIGOINE_STR, size = 1.3, xmod = 2, fontface = "bold")
-
-
-# adding railway lines and rivers
-
-map_all_invasiones <- create_tmap.transport(map_all_invasiones)
-map_all_defunciones <- create_tmap.transport(map_all_defunciones)
-
-tmap_save(map_all_invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.", INVASIONES_STR, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-tmap_save(map_all_defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap_all.", DEFUNCIONES_STR, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 
 
 # clean environment -------------------------------------------------------
 
 
 rm(map_invasiones.provincias, map_defunciones.provincias, map_invasiones, map_defunciones, create_covariatesTS, generate_totalsByMonth, 
-  df_colera_inla7, df_colera_inla7.provincias, df_colera_inla7.grouped, map_all_invasiones, map_all_defunciones, mapS.colera_inla7.provincias, mapS.colera_inla7.grouped)
+  df_colera_inla7, df_colera_inla7.provincias, mapS.colera_inla7.provincias, mapS.colera_inla7.grouped)
 
 
 # modelling ---------------------------------------------------------------
@@ -453,6 +463,7 @@ model_alicante <- run_inla.provincias("alicante")
 model_navarra <- run_inla.provincias("navarra")
 model_cuenca <- run_inla.provincias("cuenca")
 model_albacete <- run_inla.provincias("albacete")
+model_almeria <- run_inla.provincias("almeria")
 
 
 # results -----------------------------------------------------------------
@@ -476,7 +487,55 @@ res_table.alicante <-  add_results.table(model_alicante, model_alicante, res_tab
 res_table.navarra <-  add_results.table(model_navarra, model_navarra, res_table.navarra)
 res_table.cuenca <-  add_results.table(model_cuenca, model_cuenca, res_table.cuenca)
 res_table.albacete <-  add_results.table(model_albacete, model_albacete, res_table.albacete)
-res_table.list <- list(res_table.zaragoza, res_table.valencia, res_table.granada, res_table.murcia, res_table.teruel, res_table.castellon, res_table.alicante, res_table.navarra, res_table.cuenca, res_table.albacete)
+res_table.almeria <-  add_results.table(model_almeria, model_almeria, res_table.almeria)
+res_table.list <- list(res_table.zaragoza, res_table.valencia, res_table.granada, res_table.murcia, res_table.teruel, res_table.castellon, res_table.alicante, res_table.navarra, res_table.cuenca, res_table.albacete, res_table.almeria)
 for (i in 1:length(PROVINCIAS_STR)) { write.xlsx(res_table.list[i], file = paste(COLERA_INLA_DIR, paste0("results_", PROVINCIAS_STR[i], ".xlsx"), sep = "/")) }
 
 save.image("colera_inla7.dist.RData")
+
+
+# mapping results ---------------------------------------------------------
+
+
+summary(model_zaragoza[[4]][INVASIONES_STR])
+
+mapS.colera_inla7$RR <- model_all[INVASIONES_STR]$summary.fitted.values[, "mean"]
+mapS.colera_inla7$LL <- model_all[INVASIONES_STR]$summary.fitted.values[, "0.025quant"]
+mapS.colera_inla7$UL <- model_all[INVASIONES_STR]$summary.fitted.values[, "0.975quant"]
+mapS.colera_inla7$exc <- sapply(model_all[INVASIONES_STR]$marginals.fitted.values,
+                                FUN = function(marg){1 - inla.pmarginal(q = 1, marginal = marg)})
+
+mapS.colera_inla7.zaragoza <- subset(mapS.colera_inla7, Provincia == "zaragoza")
+mapS.colera_inla7.valencia <- subset(mapS.colera_inla7, Provincia == "valencia")
+mapS.colera_inla7.zaragoza$exc <- sapply(model_zaragoza[[4]][INVASIONES_STR]$marginals.fitted.values,
+                                FUN = function(marg){1 - inla.pmarginal(q = 1, marginal = marg)})
+mapS.colera_inla7.valencia$exc <- sapply(model_valencia[[4]][INVASIONES_STR]$marginals.fitted.values,
+                                         FUN = function(marg){1 - inla.pmarginal(q = 1, marginal = marg)})
+
+# TODO: per cada província???
+
+test <- tm_shape(mapS.colera_inla7.valencia[mapS.colera_inla7.valencia$Fecha == 6,], bbox = mapS.provincias) +
+  tm_polygons(
+    col = "exc",
+    border.col = NULL,
+    title = "",
+    palette = "Reds"
+  ) +
+  tm_shape(mapS.provincias) + tm_borders(lwd = 0.5) +
+  tm_layout(
+    legend.position =  c("right", "bottom"), legend.text.size = 1.5,
+    inner.margins = c(0, 0, 0, 0),
+    panel.label.size = 1.5, panel.label.height = 1.1, panel.labels = MONTHS_STR[6-5],
+    panel.label.color = "black", panel.label.bg.color = "gray"
+  ) +
+  tm_shape(mapS.railways) + tm_lines(lwd = 1.5, col = "black") +
+  tm_shape(mapS.rivers) + tm_lines(lwd = 1.5, col = "blue") +
+  tm_add_legend(
+    type = "line",
+    labels = c("Railways", "Rivers"),
+    col = c("black", "blue"),
+    lwd = 3
+  )
+
+tmap_save(test, filename = paste0("test_", 6,".png"), width = 20, height = 10, dpi = 300, units = "in")
+
