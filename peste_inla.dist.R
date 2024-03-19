@@ -251,3 +251,133 @@ tmap_save(map_casos.multi.pred, filename = paste(PESTE_MAPS_DIR, paste0("tmap.mu
 # plot(mapS.peste_inla7.pred$Casos, mapS.peste_inla7.pred$mean, 
 #      xlab = "Casos", ylab = "mean")
 # abline(0, 1, col = "red")
+
+
+# test --------------------------------------------------------------------
+
+
+# mapS.municipios.mallorca.points <- st_centroid(mapS.municipios.mallorca)
+mapS.peste_inla7.points <- st_centroid(mapS.peste_inla7)
+mapS.peste_inla7.pred.points <- st_centroid(mapS.peste_inla7.pred)
+  
+# mapS.municipios.mallorca.points[, c("x", "y")] <- st_coordinates(mapS.municipios.mallorca.points)
+mapS.peste_inla7.points[, c("x", "y")] <- st_coordinates(mapS.peste_inla7.points)  
+mapS.peste_inla7.pred.points[, c("x", "y")] <- st_coordinates(mapS.peste_inla7.pred.points)  
+
+d <- mapS.peste_inla7.points
+dp <- mapS.peste_inla7.pred.points
+map <- mapS.municipios.mallorca
+ggplot(map) + geom_sf() + theme_bw()
+
+map <- map %>% st_transform(25830)
+d <- d %>% st_transform(25830)
+dp <- dp %>% st_transform(25830)
+ggplot(map) + geom_sf() + theme_bw() + coord_sf(datum = st_crs(map))
+
+library(viridis)
+ggplot() + geom_sf(data = map) +
+  geom_sf(data = d, aes(col = Casos)) +
+  scale_color_viridis()
+ggplot() + geom_sf(data = map) +
+  geom_sf(data = dp, aes(col = Casos)) +
+  scale_color_viridis()
+ggplot(d) +
+  geom_histogram(mapping = aes(x = Casos)) +
+  facet_wrap(~mes, ncol = 1) +
+  theme_bw()
+ggplot() + geom_sf(data = map) +
+  geom_sf(data = d, aes(col = Casos)) +
+  labs(x = "", y = "") +
+  scale_color_viridis() +
+  facet_wrap(~mes) +
+  theme_bw()
+ggplot(d, aes(x = mes, y = Casos, group = NAMEUNIT, color = NAMEUNIT)) +
+  geom_line() +
+  geom_point(size = 2) +
+  scale_x_continuous(breaks = c(6, 7, 8, 9, 10)) +
+  theme_bw() + theme(legend.position = "none")
+  
+# prediction data
+grid <- terra::rast(map, nrows = 100, ncols = 100)
+xy <- terra::xyFromCell(grid, 1:ncell(grid))
+indicespointswithin <- which(st_intersects(dp, map, sparse = FALSE))
+ggplot() + geom_sf(data = map) + geom_sf(data = dp)
+
+# model
+coo <- st_coordinates(dp)
+bnd <- inla.nonconvex.hull(st_coordinates(map)[, 1:2])
+mesh <- inla.mesh.2d(
+  loc = coo, boundary = bnd,
+  max.edge = c(100000, 200000), cutoff = 1000
+)
+mesh$n
+plot(mesh)
+points(coo, col = "red")
+
+spde <- inla.spde2.matern(mesh = mesh, alpha = 2, constr = TRUE)
+timesn <- length(unique(dp$mes))
+indexs <- inla.spde.make.index("s",
+  n.spde = spde$n.spde,
+  n.group = timesn
+)
+lengths(indexs)
+group <- dp$mes - min(dp$mes) + 1
+A <- inla.spde.make.A(mesh = mesh, loc = coo, group = group)
+
+plot(coo, asp = 1)
+dpp <- coo
+dpp <- rbind(cbind(dpp, 1), cbind(dpp, 2), cbind(dpp, 3), cbind(dpp, 4), cbind(dpp, 5))
+head(dpp)
+
+coop <- dpp[, 1:2]
+groupp <- dpp[, 3]
+Ap <- inla.spde.make.A(mesh = mesh, loc = coop, group = groupp)
+
+# stack for estimation stk.e
+stk.e <- inla.stack(
+  tag = "est",
+  data = list(y = dp$Casos),
+  A = list(1, A),
+  effects = list(data.frame(b0 = rep(1, nrow(A))), s = indexs)
+)
+
+# stack for prediction stk.p
+stk.p <- inla.stack(
+  tag = "pred",
+  data = list(y = NA), 
+  A = list(1, Ap),
+  effects = list(data.frame(b0 = rep(1, nrow(Ap))), s = indexs)
+)
+
+# stk.full has stk.e and stk.p
+stk.full <- inla.stack(stk.e, stk.p)
+
+formula <- y ~ 0 + b0 + f(s, model = spde)
+res <- inla(formula, family = "poisson",
+            data = inla.stack.data(stk.full),
+            control.predictor = list(compute = TRUE, A = inla.stack.A(stk.full)),
+            control.compute = list(return.marginals = TRUE), verbose = TRUE)
+
+summary(res)
+
+index <- inla.stack.index(stack = stk.full, tag = "pred")$data
+dpp <- data.frame(dpp)
+names(dpp) <- c("x", "y", "time")
+
+dpp$pred_mean <- res$summary.fitted.values[index, "mean"]
+dpp$pred_ll <- res$summary.fitted.values[index, "0.025quant"]
+dpp$pred_ul <- res$summary.fitted.values[index, "0.975quant"]
+
+library(reshape2)
+dpm <- melt(dpp,
+            id.vars = c("x", "y", "time"),
+            measure.vars = c("pred_mean", "pred_ll", "pred_ul")
+)
+head(dpm)
+
+ggplot(map) + geom_sf() + coord_sf(datum = NA) +
+  geom_tile(data = dpm, aes(x = x, y = y, fill = value)) +
+  labs(x = "", y = "") +
+  facet_wrap(variable ~ time) +
+  scale_fill_viridis("Casos") +
+  theme_bw()
