@@ -1,11 +1,10 @@
 library(dplyr)
+library(readxl)
 library(INLA)
 library(tmap)
 library(sf)
-library(spdep)
-library(sf)
-library(terra)
 library(reshape2)
+library(spdep)
 library(ggplot2)
 
 load("peste_data.RData") # load peste data
@@ -14,10 +13,13 @@ load("peste_data.RData") # load peste data
 # constants ---------------------------------------------------------------
 
 
+DISTANCES_FILE <- "_Results.xlsx"
 MUNICIPIOS_SHAPEFILE <- "Municipios_IGN.shp"
-# RAILWAYS_SHAPEFILE <- "Railways_1887.shp"
-# RIVERS_SHAPEFILE <- "A3RIOS_proj.shp"
+CARRETERES_SHAPEFILE <- "Carreteres1861_Mallorca.shp"
+PORTS_SHAPEFILE <- "Ports_Mallorca.shp"
 
+DATA_DIR <- "data"
+dir.create(DATA_DIR, showWarnings = FALSE)
 SHAPES_DATA_DIR <- "shapes"
 dir.create(SHAPES_DATA_DIR, showWarnings = FALSE)
 PESTE_MAPS_DIR <- "peste_maps"
@@ -25,18 +27,17 @@ dir.create(PESTE_MAPS_DIR, showWarnings = FALSE)
 PESTE_INLA_DIR <- "colera_inla"
 dir.create(PESTE_INLA_DIR, showWarnings = FALSE)
 
+MUNICIPIO_STR <- "Municipio"
+NAMEUNIT_STR <- "NAMEUNIT"
 COVPROV_STR <- "covdist_caprov"
-# COVSTATION_STR <- "covdist_station"
-# COVRAIL_STR <- "covdist_rail"
-# COVRIVER_STR <- "covdist_river"
-# COVWATER_STR <- "covdist_water"
-# COVROAD_STR <- "covdist_road"
-# COVCOAST_STR <- "covdist_coast"
-# COVPORT_STR <- "covdist_port"
-# COVALL_STR <- c(COVPROV_STR, COVSTATION_STR, COVRAIL_STR, COVRIVER_STR, COVWATER_STR, COVROAD_STR, COVCOAST_STR, COVPORT_STR)
+COVROAD_STR <- "covdist_road"
+COVPORT_STR <- "covdist_port"
+COVALL_STR <- c(COVPROV_STR, COVROAD_STR, COVPORT_STR)
 LOCALIDADES_STR <- c("Artà", "Capdepera", "Sant Llorenç des Cardassar", "Son Servera")
 CASOS_STR <- "Casos"
 MONTHS_INT <- c(6, 7, 8, 9, 10)
+CASES_BREAKS <- c(0, 10, 68, 450, 652, 3178)
+DEATHS_BREAKS <- c(0, 10, 54, 97, 184, 228)
 MONTHS_STR <- c("June", "July", "August", "September", "October")
 COEFFICIENTS <- c("mean", "0.025quant", "0.975quant")
 
@@ -45,13 +46,13 @@ COEFFICIENTS <- c("mean", "0.025quant", "0.975quant")
 
 
 add_distanceToCapital <- function (df_peste) {
-    #' Add Distance to Capital Columns
+    #' Add Distance to Capital
     #'
-    #' This function adds a "covdist_caprov" column to the input data frame.
+    #' This function adds the distance to the capital in km to the peste data.
     #'
     #' @param df_peste A data frame containing peste data.
     #'
-    #' @return A data frame containing peste data with a "covdist_caprov" column.
+    #' @return A data frame containing peste data with the distance to the capital.
 
     return(df_peste %>%
            mutate(
@@ -72,19 +73,16 @@ run_inla <- function(mapS, covariate, isPred = FALSE) {
   #'
   #' @param mapS A data frame containing peste data.
   #' @param covariate A string containing the name of the covariate.
-  #' @param isPred A boolean indicating whether the model is a prediction.
+  #' @param isPred A boolean indicating whether the model is a prediction or not.
   #'
   #' @return A list containing the INLA model.
 
-  # create adjacency matrix
+  # neighborhood matrix
   nb <- poly2nb(mapS)
-  head(nb)
-
-  # create adjacency graph
   nb2INLA("map.adj", nb)
   g <- inla.read.graph(filename = "map.adj")
 
-  # create model formula
+  # model formula
   mapS$idarea <- as.numeric(as.factor(mapS$NAMEUNIT))
   mapS$idarea1 <- mapS$idarea
   mapS$idtime <- 1 + mapS$mes - min(mapS$mes)
@@ -92,58 +90,120 @@ run_inla <- function(mapS, covariate, isPred = FALSE) {
   formula <- as.formula(paste(paste(CASOS_STR, "~"), paste(covariates, collapse = " + ")))
   print(formula)
 
-  # run INLA
-  if (isPred) {
-    res <- inla(formula, family = "poisson", data = mapS, control.predictor = list(link = 1), verbose = TRUE) # prediction
-  }
-  else {
-    res <- inla(formula, family = "poisson", data = mapS, offset = log(Poblacion), control.predictor = list(compute = TRUE), control.compute = list(return.marginals = TRUE), verbose = TRUE) # relative risk
-  }
-  # res <- inla(formula, family = "poisson", data = mapS, offset = log(Poblacion), control.predictor = list(compute = TRUE), control.compute = list(return.marginals = TRUE), verbose = TRUE)
+  # inla() call for prediction or relative risk
+  if (isPred) { res <- inla(formula, family = "poisson", data = mapS, control.predictor = list(link = 1), verbose = TRUE) } # prediction
+  else { res <- inla(formula, family = "poisson", data = mapS, offset = log(Poblacion), control.predictor = list(compute = TRUE), control.compute = list(return.marginals = TRUE), verbose = TRUE) } # relative risk
   print(res)
   return(res)
 }
 
 
-generate_maps <- function (mapS.peste, columnvar, outputvar) {
-  #' Generate Maps
+generate_maps <- function (mapS.peste, columnvar, outputvar, breaks) {
+  #' Generate Maps for Each Month
   #'
-  #' This function generates maps.
+  #' This function generates maps for each month.
   #'
   #' @param mapS.peste A data frame containing peste data.
-  #' @param columnvar A string containing the name of the column variable.
-  #' @param outputvar A string containing the name of the output variable.
-  #'
-  #' @return A list containing the maps.
+  #' @param columnvar A string containing the name of the column variable to map.
+  #' @param outputvar A string containing the name of the output file to save the map.
 
-  maps_list <- list() # list to store maps
+  for(month in MONTHS_INT) { # for each month
 
-  for (month in MONTHS_INT) {
-
-    # create a map of observed cases by each month
-
-    map_casos <- tm_shape(mapS.peste[mapS.peste$mes == month,], bbox = mapS.municipios.mallorca) +
+    map_tmp <- tm_shape(mapS.peste[mapS.peste$mes == month,], bbox = subset(mapS.municipios.mallorca, NAMEUNIT != "Palma")) +
         tm_polygons(
           col = columnvar,
           border.col = NULL,
           title = "",
           palette = "Reds",
-          breaks = c(0, 10, 68, 450, 652, 3178),
+          breaks = breaks, # breaks for the colour palette (manually set)
           style = "fixed"
         ) +
-        tm_shape(mapS.municipios.mallorca) + tm_borders() +
+        tm_shape(subset(mapS.municipios.mallorca, NAMEUNIT != "Palma")) + tm_borders() +
         tm_layout(
           legend.position =  c("right", "bottom"), legend.text.size = 1.5,
           inner.margins = c(0, 0, 0, 0),
           panel.labels = c(MONTHS_STR[month-5]),
           panel.label.size = 1.5, panel.label.height = 1.1, panel.label.color = "black", panel.label.bg.color = "gray"
-        ) # +
-        # tm_text("NAMEUNIT", size = 0.5, root = 2) # add municipality names
+        ) +
+        tm_shape(mapS.carreteres.mallorca) + tm_lines(lwd = 1.5, col = "black") + # add roads of Mallorca
+        tm_shape(mapS.ports.mallorca) + tm_dots(size = 0.5, col = "black") # add ports of Mallorca
 
-    tmap_save(map_casos, filename = paste(PESTE_MAPS_DIR, paste0("tmap.municipios.", CASOS_STR, ".", month, outputvar, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in") # save map
-    maps_list[[MONTHS_STR[month-5]]] <- map_casos # add map to list
+    outputfile <- paste0("tmap.municipios.", columnvar, ".", month, outputvar, ".png")
+    tmap_save(map_tmp, filename = paste(PESTE_MAPS_DIR, outputfile, sep = "/"), width = 20, height = 10, dpi = 300, units = "in") # save map
   }
-  return(maps_list)
+}
+
+
+create_empty.table <- function(isAll=FALSE, covariate=NULL) {
+  #' Create Empty Table for Relative Risk Results
+  #'
+  #' This function creates an empty table for relative risk results.
+  #' 
+  #' @param isAll A boolean indicating whether the model is for all covariates or just one.
+  #' @param covariate A string containing the name of the covariate. Otherwise, it is NULL.
+
+  columnames <- c("Covariates", "Coefficient (95% CrI)", "RR (95% CrI)", "Coefficient (95% CrI)", "RR (95% CrI)")
+
+  if(isAll) {
+
+    table <- data.frame(matrix(ncol = 5, nrow = 5))
+    colnames(table) <- columnames
+    table[1,1] <- "Intercept*"
+    table[2,1] <- COVPROV_STR
+    table[3,1] <- COVROAD_STR
+    table[4,1] <- COVPORT_STR
+    table[5,1] <- "Unstructured random effect"
+  }
+  else {
+    table <- data.frame(matrix(ncol = 5, nrow = 3))
+    colnames(table) <- columnames
+    table[1,1] <- "Intercept*"
+    table[2,1] <- covariate
+    table[3,1] <- "Unstructured random effect"
+  }
+  return(table)
+}
+
+
+add_results.table <- function(res_invasiones, res_defunciones, res_table, nrows) {
+  #' Add Results to Table
+  #'
+  #' This function adds the results of the relative risk to a table.
+  #'
+  #' @param res_invasiones A list containing the results of the relative risk for cases.
+  #' @param res_defunciones A list containing the results of the relative risk for deaths.
+  #' @param res_table A data frame containing an empty table to write the relative risk results.
+  #' @param nrows An integer indicating the number of rows in the table.
+  #'
+  #' @return A data frame containing the table of relative risk results.
+
+  for(i in 1:nrows) {
+
+    res_table[i, 2] <- paste0(
+      sprintf("%.7f", res_invasiones$summary.fixed[, COEFFICIENTS[1]][i]), " (",
+      sprintf("%.7f", res_invasiones$summary.fixed[, COEFFICIENTS[2]][i]), ", ",
+      sprintf("%.7f", res_invasiones$summary.fixed[, COEFFICIENTS[3]][i]), ")"
+    )
+    res_table[i, 4] <- paste0(
+      sprintf("%.7f", res_defunciones$summary.fixed[, COEFFICIENTS[1]][i]), " (",
+      sprintf("%.7f", res_defunciones$summary.fixed[, COEFFICIENTS[2]][i]), ", ",
+      sprintf("%.7f", res_defunciones$summary.fixed[, COEFFICIENTS[3]][i]), ")"
+    )
+
+    if (!(i %in% c(1, nrows))) {
+      res_table[i, 3] <- paste0(
+        sprintf("%.7f", exp(res_invasiones$summary.fixed[, COEFFICIENTS[1]][i])), " (",
+        sprintf("%.7f", exp(res_invasiones$summary.fixed[, COEFFICIENTS[2]][i])), ", ",
+        sprintf("%.7f", exp(res_invasiones$summary.fixed[, COEFFICIENTS[3]][i])), ")"
+      )
+      res_table[i, 5] <- paste0(
+        sprintf("%.7f", exp(res_defunciones$summary.fixed[, COEFFICIENTS[1]][i])), " (",
+        sprintf("%.7f", exp(res_defunciones$summary.fixed[, COEFFICIENTS[2]][i])), ", ",
+        sprintf("%.7f", exp(res_defunciones$summary.fixed[, COEFFICIENTS[3]][i])), ")"
+      )
+    }
+  }
+  return(res_table)
 }
 
 
@@ -153,7 +213,7 @@ generate_maps <- function (mapS.peste, columnvar, outputvar) {
 # data --------------------------------------------------------------------
 
 
-# add "covdist_caprov" column
+# add "covdist_caprov" column to peste data
 df_peste <- add_distanceToCapital(df_peste)
 df_peste.defunciones <- add_distanceToCapital(df_peste.defunciones)
 
@@ -165,219 +225,141 @@ df_peste.defunciones <- df_peste.defunciones %>% mutate(Casos = replace(Casos, i
 df_peste <- df_peste %>% group_by(Municipio, mes, Poblacion, covdist_caprov) %>% summarise(Casos = sum(Casos))
 df_peste.defunciones <- df_peste.defunciones %>% group_by(Municipio, mes, Poblacion, covdist_caprov) %>% summarise(Casos = sum(Casos))
 
+# read distances data and replace "Sant Llorenç des Cardass" with "Sant Llorenç des Cardassar"
+df_distances <- read_excel(paste(DATA_DIR, DISTANCES_FILE, sep = "/"), sheet = "Sheet5")
+df_distances <- df_distances %>%
+  mutate(
+    MUNICIPIO = case_when(
+      MUNICIPIO == "Sant Llorenç des Cardass" ~ LOCALIDADES_STR[3],
+      TRUE ~ MUNICIPIO
+    )
+  )
+
+df_distances <- df_distances[, !(names(df_distances) %in% c("OD_Id", "CD_INE5", "ALTURA", "POP_1877"))] # remove unnecessary columns
+colnames(df_distances)[3:5] <- c(MUNICIPIO_STR, COVROAD_STR, COVPORT_STR) # rename columns to match peste data
+
+# merge peste data with distances data and reorder columns
+df_peste <- merge(df_peste, df_distances, by = MUNICIPIO_STR)
+df_peste.defunciones <- merge(df_peste.defunciones, df_distances, by = MUNICIPIO_STR)
+df_peste <- df_peste[, c(1:3, 5, 4, 8:9, 6:7)]
+df_peste.defunciones <- df_peste.defunciones[, c(1:3, 5, 4, 8:9, 6:7)]
+
+rm(df_distances)
+
 
 # maps --------------------------------------------------------------------
 
 
 mapS.municipios <- st_read(paste(SHAPES_DATA_DIR, MUNICIPIOS_SHAPEFILE, sep = "/"), quiet = TRUE)
-mapS.municipios.mallorca <- subset(mapS.municipios, CODNUT3 == "ES532") # only Mallorca municipalities
+mapS.municipios.mallorca <- subset(mapS.municipios, CODNUT3 == "ES532") # only Mallorca municipalities 
 mapS.municipios.mallorca.localidades <- subset(mapS.municipios.mallorca, NAMEUNIT %in% LOCALIDADES_STR) # only Mallorca municipalities with black plague cases
 mapS.municipios.mallorca.notlocalidades <- subset(mapS.municipios.mallorca, !(NAMEUNIT %in% LOCALIDADES_STR)) # only Mallorca municipalities without black plague cases
+mapS.carreteres.mallorca <- st_read(paste(SHAPES_DATA_DIR, CARRETERES_SHAPEFILE, sep = "/"), quiet = TRUE) # roads of Mallorca
+mapS.ports.mallorca <- st_read(paste(SHAPES_DATA_DIR, PORTS_SHAPEFILE, sep = "/"), quiet = TRUE) # ports of Mallorca
 
-# mapS.railways <- st_read(paste(SHAPES_DATA_DIR, RAILWAYS_SHAPEFILE, sep = "/"), quiet = TRUE)
-# mapS.railways <- na.omit(mapS.railways)
-# mapS.rivers <- st_read(paste(SHAPES_DATA_DIR, RIVERS_SHAPEFILE, sep = "/"), quiet = TRUE)
-
-# merge peste data with map data
-mapS.peste_inla7 <- merge(mapS.municipios.mallorca.localidades, df_peste, by.x = "NAMEUNIT", by.y = "Municipio")
+# merge peste data with map data of Mallorca municipalities with black plague cases
+mapS.peste_inla7 <- merge(mapS.municipios.mallorca.localidades, df_peste, by.x = NAMEUNIT_STR, by.y = MUNICIPIO_STR)
+mapS.peste_inla7.defunciones <- merge(mapS.municipios.mallorca.localidades, df_peste.defunciones, by.x = NAMEUNIT_STR, by.y = MUNICIPIO_STR)
 head(mapS.peste_inla7)
+head(mapS.peste_inla7.defunciones)
+
+rm(mapS.municipios)
 
 
 # observed cases ----------------------------------------------------------
 
 
-# create a map of observed cases by each month
-maps_list <- generate_maps(mapS.peste_inla7, CASOS_STR, "")
-map_casos.multi <- tmap_arrange(maps_list, ncol = 2) # arrange maps
-tmap_save(map_casos.multi, filename = paste(PESTE_MAPS_DIR, paste0("tmap.municipios.", CASOS_STR, ".multi.png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in") # save map
+# generate a maps of observed cases and deaths by each month for each municipality
+generate_maps(mapS.peste_inla7, CASOS_STR, ".invasiones", CASES_BREAKS)
+generate_maps(mapS.peste_inla7.defunciones, CASOS_STR, ".defunciones", DEATHS_BREAKS)
 
 
-# modelling ---------------------------------------------------------------
+# modelling relative risk --------------------------------------------------
 
 
-model <- run_inla(mapS.peste_inla7, COVPROV_STR, FALSE) # fit the model
-model$summary.fixed
+# run inla for all covariates/municipalities on cases and deaths
+model_all.invasiones <- run_inla(mapS.peste_inla7, COVALL_STR, FALSE)
+model_all.defunciones <- run_inla(mapS.peste_inla7.defunciones, COVALL_STR, FALSE)
+model_all.invasiones$summary.fixed
+model_all.defunciones$summary.fixed
 
-# TODO: calculate relative risk by each covariate
-# exp(model$summary.fixed[2, COEFFICIENTS[1]])
-# exp(model$summary.fixed[2, COEFFICIENTS[2]])
-# exp(model$summary.fixed[2, COEFFICIENTS[3]])
+# create a table of relative risk results for all covariates/municipalities on cases and deaths
+res_table <- create_empty.table(TRUE)
+res_table <- add_results.table(model_all.invasiones, model_all.defunciones, res_table, 5)
+
+# run inla for each covariate in all municipalities on cases and deaths
+# model_all.invasiones.covdist_caprov <- run_inla(mapS.peste_inla7, COVPROV_STR, FALSE)
+# model_all.defunciones.covdist_caprov <- run_inla(mapS.peste_inla7.defunciones, COVPROV_STR, FALSE)
+# model_all.invasiones.covdist_road <- run_inla(mapS.peste_inla7, COVROAD_STR, FALSE)
+# model_all.defunciones.covdist_road <- run_inla(mapS.peste_inla7.defunciones, COVROAD_STR, FALSE)
+# model_all.invasiones.covdist_port <- run_inla(mapS.peste_inla7, COVPORT_STR, FALSE)
+# model_all.defunciones.covdist_port <- run_inla(mapS.peste_inla7.defunciones, COVPORT_STR, FALSE)
+
+# create a table of relative risk results for each covariate in all municipalities on cases and deaths
+# for(covdist in COVALL_STR) { assign(paste("res_table.", covdist, sep = ""), create_empty.table(FALSE, covdist)) }
+# res_table.covdist_caprov <- add_results.table(model_all.invasiones.covdist_caprov, model_all.defunciones.covdist_caprov, res_table.covdist_caprov, 3)
+# res_table.covdist_road <- add_results.table(model_all.invasiones.covdist_road, model_all.defunciones.covdist_road, res_table.covdist_road, 3)
+# res_table.covdist_port <- add_results.table(model_all.invasiones.covdist_port, model_all.defunciones.covdist_port, res_table.covdist_port, 3)
 
 # marginal effects
-model$marginals.fixed
-model.fixed <- reshape2:::melt(model$marginals.fixed) %>% reshape2:::dcast(L1+Var1~Var2, value='value')
-ggplot(model.fixed, aes(y=y, x=x)) + geom_line() + facet_wrap(~L1, scales='free', nrow=1) + theme_classic()
+model_all.invasiones$marginals.fixed
+model_all.defunciones$marginals.fixed
+model_all.invasiones.marginals <- reshape2:::melt(model_all.invasiones$marginals.fixed) %>% reshape2:::dcast(L1+Var1~Var2, value = "value")
+model_all.defunciones.marginals <- reshape2:::melt(model_all.defunciones$marginals.fixed) %>% reshape2:::dcast(L1+Var1~Var2, value = "value")
+ggplot(model_all.invasiones.marginals, aes(y = y, x = x)) + geom_line() + facet_wrap(~L1, scales = "free", nrow = 1) + theme_classic()
+ggplot(model_all.defunciones.marginals, aes(y = y, x = x)) + geom_line() + facet_wrap(~L1, scales = "free", nrow = 1) + theme_classic()
 
-# save relative risk to map data
-mapS.peste_inla7$RR <- model$summary.fitted.values[, COEFFICIENTS[1]]
-mapS.peste_inla7$LL <- model$summary.fitted.values[, COEFFICIENTS[2]]
-mapS.peste_inla7$UL <- model$summary.fitted.values[, COEFFICIENTS[3]]
+# save relative risk results for each covariate in all municipalities on cases and deaths to map data
+mapS.peste_inla7$RR <- model_all.invasiones$summary.fitted.values[, COEFFICIENTS[1]]
+mapS.peste_inla7$LL <- model_all.invasiones$summary.fitted.values[, COEFFICIENTS[2]]
+mapS.peste_inla7$UL <- model_all.invasiones$summary.fitted.values[, COEFFICIENTS[3]]
+mapS.peste_inla7.defunciones$RR <- model_all.defunciones$summary.fitted.values[, COEFFICIENTS[1]]
+mapS.peste_inla7.defunciones$LL <- model_all.defunciones$summary.fitted.values[, COEFFICIENTS[2]]
+mapS.peste_inla7.defunciones$UL <- model_all.defunciones$summary.fitted.values[, COEFFICIENTS[3]]
 
-# create a map of relative risk by each month
-maps_list.RR <- generate_maps(mapS.peste_inla7, "RR", ".RR")
-map_casos.multi.RR <- tmap_arrange(maps_list.RR, ncol = 2) # arrange maps
-tmap_save(map_casos.multi.RR, filename = paste(PESTE_MAPS_DIR, paste0("tmap.municipios.", CASOS_STR, ".multi.RR.png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in") # save map
+# generate a maps of relative risk cases and deaths by each month for each municipality
+generate_maps(mapS.peste_inla7, "RR", ".invasiones", CASES_BREAKS)
+generate_maps(mapS.peste_inla7.defunciones, "RR", ".defunciones", DEATHS_BREAKS)
+
+rm(model_all.invasiones.marginals, model_all.defunciones.marginals)
 
 
 # prediction --------------------------------------------------------------
 
 
-# create new data
-newdata <- expand.grid(NAMEUNIT = unique(mapS.municipios.mallorca.notlocalidades$NAMEUNIT), mes = unique(df_peste$mes), Casos = NA)
-colnames(newdata)[1] <- "Municipio"
-newdata.pred <- rbind(df_peste, newdata)
-newdata.pred <- newdata.pred[, c(1,2,5)]
+# create new data for prediction with municipalities without black plague cases or deaths as NA
+newdata <- expand.grid(Municipio = unique(mapS.municipios.mallorca.notlocalidades$NAMEUNIT), mes = unique(df_peste$mes), Casos = NA)
+newdata.invasiones <- rbind(df_peste[, c(1:2,4)], newdata)
+newdata.defunciones <- rbind(df_peste.defunciones[, c(1:2,4)], newdata)
 
-# merge new peste data with map data
-mapS.peste_inla7.pred <- merge(mapS.municipios.mallorca, newdata.pred, by.x = "NAMEUNIT", by.y = "Municipio")
-head(mapS.peste_inla7.pred)
+# merge new data of cases and deaths to map data of Mallorca
+mapS.peste_inla7.invasiones.pred <- merge(mapS.municipios.mallorca, newdata.invasiones, by.x = NAMEUNIT_STR, by.y = MUNICIPIO_STR)
+mapS.peste_inla7.defunciones.pred <- merge(mapS.municipios.mallorca, newdata.defunciones, by.x = NAMEUNIT_STR, by.y = MUNICIPIO_STR)
+head(mapS.peste_inla7.invasiones.pred)
+head(mapS.peste_inla7.defunciones.pred)
 
-# fit the model to the new data
-model.pred <- run_inla(mapS.peste_inla7.pred, "1", TRUE)
+rm(newdata, newdata.invasiones, newdata.defunciones)
 
-# examine the regular summary - not there are no changes to the first fit
-summary(model.pred)
+# run inla for prediction on cases and deaths
+model_all.invasiones.pred <- run_inla(mapS.peste_inla7.invasiones.pred, "1", TRUE)
+model_all.defunciones.pred <- run_inla(mapS.peste_inla7.defunciones.pred, "1", TRUE)
 
-# save predicted values to map data
-mapS.peste_inla7.pred$mean <- model.pred$summary.fitted.values[, COEFFICIENTS[1]]
-mapS.peste_inla7.pred$lower <- model.pred$summary.fitted.values[, COEFFICIENTS[2]]
-mapS.peste_inla7.pred$upper <- model.pred$summary.fitted.values[, COEFFICIENTS[3]]
+# save prediction results for cases and deaths to map data
+mapS.peste_inla7.invasiones.pred$pred_mean <- model_all.invasiones.pred$summary.fitted.values[, COEFFICIENTS[1]]
+mapS.peste_inla7.invasiones.pred$pred_lower <- model_all.invasiones.pred$summary.fitted.values[, COEFFICIENTS[2]]
+mapS.peste_inla7.invasiones.pred$pred_upper <- model_all.invasiones.pred$summary.fitted.values[, COEFFICIENTS[3]]
+mapS.peste_inla7.defunciones.pred$pred_mean <- model_all.defunciones.pred$summary.fitted.values[, COEFFICIENTS[1]]
+mapS.peste_inla7.defunciones.pred$pred_lower <- model_all.defunciones.pred$summary.fitted.values[, COEFFICIENTS[2]]
+mapS.peste_inla7.defunciones.pred$pred_upper <- model_all.defunciones.pred$summary.fitted.values[, COEFFICIENTS[3]]
 
-# create a map of predicted cases by each month
-maps_list.pred <- generate_maps(mapS.peste_inla7.pred, COEFFICIENTS[1], ".pred")
-map_casos.multi.pred <- tmap_arrange(maps_list.pred, ncol = 2) # arrange maps
-tmap_save(map_casos.multi.pred, filename = paste(PESTE_MAPS_DIR, paste0("tmap.municipios.", CASOS_STR, ".multi.pred.png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in") # save map
+# generate a maps of prediction cases and deaths by each month
+generate_maps(mapS.peste_inla7.invasiones.pred, "pred_mean", ".invasiones", CASES_BREAKS)
+generate_maps(mapS.peste_inla7.defunciones.pred, "pred_mean", ".defunciones", DEATHS_BREAKS)
 
-# plot(mapS.peste_inla7.pred$Casos, mapS.peste_inla7.pred$mean, 
-#      xlab = "Casos", ylab = "mean")
+# plot observed cases vs predicted cases
+# plot(mapS.peste_inla7.invasiones.pred$Casos, mapS.peste_inla7.invasiones.pred$pred_mean, xlab = "cases", ylab = "pred_mean")
 # abline(0, 1, col = "red")
 
-
-# test --------------------------------------------------------------------
-
-
-# mapS.municipios.mallorca.points <- st_centroid(mapS.municipios.mallorca)
-mapS.peste_inla7.points <- st_centroid(mapS.peste_inla7)
-mapS.peste_inla7.pred.points <- st_centroid(mapS.peste_inla7.pred)
-  
-# mapS.municipios.mallorca.points[, c("x", "y")] <- st_coordinates(mapS.municipios.mallorca.points)
-mapS.peste_inla7.points[, c("x", "y")] <- st_coordinates(mapS.peste_inla7.points)  
-mapS.peste_inla7.pred.points[, c("x", "y")] <- st_coordinates(mapS.peste_inla7.pred.points)  
-
-d <- mapS.peste_inla7.points
-dp <- mapS.peste_inla7.pred.points
-map <- mapS.municipios.mallorca
-ggplot(map) + geom_sf() + theme_bw()
-
-map <- map %>% st_transform(25830)
-d <- d %>% st_transform(25830)
-dp <- dp %>% st_transform(25830)
-ggplot(map) + geom_sf() + theme_bw() + coord_sf(datum = st_crs(map))
-
-library(viridis)
-ggplot() + geom_sf(data = map) +
-  geom_sf(data = d, aes(col = Casos)) +
-  scale_color_viridis()
-ggplot() + geom_sf(data = map) +
-  geom_sf(data = dp, aes(col = Casos)) +
-  scale_color_viridis()
-ggplot(d) +
-  geom_histogram(mapping = aes(x = Casos)) +
-  facet_wrap(~mes, ncol = 1) +
-  theme_bw()
-ggplot() + geom_sf(data = map) +
-  geom_sf(data = d, aes(col = Casos)) +
-  labs(x = "", y = "") +
-  scale_color_viridis() +
-  facet_wrap(~mes) +
-  theme_bw()
-ggplot(d, aes(x = mes, y = Casos, group = NAMEUNIT, color = NAMEUNIT)) +
-  geom_line() +
-  geom_point(size = 2) +
-  scale_x_continuous(breaks = c(6, 7, 8, 9, 10)) +
-  theme_bw() + theme(legend.position = "none")
-  
-# prediction data
-grid <- terra::rast(map, nrows = 100, ncols = 100)
-xy <- terra::xyFromCell(grid, 1:ncell(grid))
-indicespointswithin <- which(st_intersects(dp, map, sparse = FALSE))
-ggplot() + geom_sf(data = map) + geom_sf(data = dp)
-
-# model
-coo <- st_coordinates(dp)
-bnd <- inla.nonconvex.hull(st_coordinates(map)[, 1:2])
-mesh <- inla.mesh.2d(
-  loc = coo, boundary = bnd,
-  max.edge = c(100000, 200000), cutoff = 1000
-)
-mesh$n
-plot(mesh)
-points(coo, col = "red")
-
-spde <- inla.spde2.matern(mesh = mesh, alpha = 2, constr = TRUE)
-timesn <- length(unique(dp$mes))
-indexs <- inla.spde.make.index("s",
-  n.spde = spde$n.spde,
-  n.group = timesn
-)
-lengths(indexs)
-group <- dp$mes - min(dp$mes) + 1
-A <- inla.spde.make.A(mesh = mesh, loc = coo, group = group)
-
-plot(coo, asp = 1)
-dpp <- coo
-dpp <- rbind(cbind(dpp, 1), cbind(dpp, 2), cbind(dpp, 3), cbind(dpp, 4), cbind(dpp, 5))
-head(dpp)
-
-coop <- dpp[, 1:2]
-groupp <- dpp[, 3]
-Ap <- inla.spde.make.A(mesh = mesh, loc = coop, group = groupp)
-
-# stack for estimation stk.e
-stk.e <- inla.stack(
-  tag = "est",
-  data = list(y = dp$Casos),
-  A = list(1, A),
-  effects = list(data.frame(b0 = rep(1, nrow(A))), s = indexs)
-)
-
-# stack for prediction stk.p
-stk.p <- inla.stack(
-  tag = "pred",
-  data = list(y = NA), 
-  A = list(1, Ap),
-  effects = list(data.frame(b0 = rep(1, nrow(Ap))), s = indexs)
-)
-
-# stk.full has stk.e and stk.p
-stk.full <- inla.stack(stk.e, stk.p)
-
-formula <- y ~ 0 + b0 + f(s, model = spde)
-res <- inla(formula, family = "poisson",
-            data = inla.stack.data(stk.full),
-            control.predictor = list(compute = TRUE, A = inla.stack.A(stk.full)),
-            control.compute = list(return.marginals = TRUE), verbose = TRUE)
-
-summary(res)
-
-index <- inla.stack.index(stack = stk.full, tag = "pred")$data
-dpp <- data.frame(dpp)
-names(dpp) <- c("x", "y", "time")
-
-dpp$pred_mean <- res$summary.fitted.values[index, "mean"]
-dpp$pred_ll <- res$summary.fitted.values[index, "0.025quant"]
-dpp$pred_ul <- res$summary.fitted.values[index, "0.975quant"]
-
-library(reshape2)
-dpm <- melt(dpp,
-            id.vars = c("x", "y", "time"),
-            measure.vars = c("pred_mean", "pred_ll", "pred_ul")
-)
-head(dpm)
-
-ggplot(map) + geom_sf() + coord_sf(datum = NA) +
-  geom_tile(data = dpm, aes(x = x, y = y, fill = value)) +
-  labs(x = "", y = "") +
-  facet_wrap(variable ~ time) +
-  scale_fill_viridis("Casos") +
-  theme_bw()
+# plot observed deaths vs predicted deaths
+# plot(mapS.peste_inla7.defunciones.pred$Casos, mapS.peste_inla7.defunciones.pred$pred_mean, xlab = "deaths", ylab = "pred_mean")
+# abline(0, 1, col = "red")
