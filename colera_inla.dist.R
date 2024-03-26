@@ -24,6 +24,8 @@ dir.create(COLERA_MAPS_DIR, showWarnings = FALSE)
 COLERA_INLA_DIR <- "colera_inla"
 dir.create(COLERA_INLA_DIR, showWarnings = FALSE)
 
+TOTAL_INVASIONES_STR <- paste("Total", INVASIONES_STR, sep = "_")
+TOTAL_DEFUNCIONES_STR <- paste("Total", DEFUNCIONES_STR, sep = "_")
 COVPROV_STR <- "covdist_caprov"
 COVSTATION_STR <- "covdist_station"
 COVRAIL_STR <- "covdist_rail" 
@@ -372,13 +374,6 @@ head(mapS.colera_inla7)
 # observed cases ----------------------------------------------------------
 
 
-summary(mapS.colera_inla7)
-# mapS.colera_inla7$Tasa_invasiones <- mapS.colera_inla7$Total_invasiones / mapS.colera_inla7$Total_poblacion
-# mapS.colera_inla7$Tasa_defunciones <- mapS.colera_inla7$Total_defunciones / mapS.colera_inla7$Total_poblacion
-# mapS.colera_inla7 <- mapS.colera_inla7[, c(1:14, 27, 15, 28, 16:26)]
-# head(mapS.colera_inla7)
-
-
 # by month
 
 for (month in MONTHS_INT) {
@@ -391,15 +386,11 @@ for (month in MONTHS_INT) {
   
   map_invasiones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, TOTAL_INVASIONES_STR, "jenks")
   map_defunciones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, TOTAL_DEFUNCIONES_STR, "jenks")
-  # map_tasa.invasiones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, "Tasa_invasiones", "jenks")
-  # map_tasa.defunciones <- create_tmap(mapS.colera_inla7[mapS.colera_inla7$Fecha == month,], c(MONTHS_STR[month-5]), mapS.municipios, "Tasa_defunciones", "jenks")
   
   tmap_save(map_invasiones.provincias, filename = paste(COLERA_MAPS_DIR, paste0("tmap.provincias.", INVASIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
   tmap_save(map_defunciones.provincias, filename = paste(COLERA_MAPS_DIR, paste0("tmap.provincias.", DEFUNCIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
   tmap_save(map_invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.", INVASIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
   tmap_save(map_defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.", DEFUNCIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-  # tmap_save(map_tasa.invasiones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.tasa_", INVASIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
-  # tmap_save(map_tasa.defunciones, filename = paste(COLERA_MAPS_DIR, paste0("tmap.tasa_", DEFUNCIONES_STR, ".", month, ".png"), sep = "/"), width = 20, height = 10, dpi = 300, units = "in")
 }
 
 
@@ -409,11 +400,8 @@ df_colera_inla7.grouped <- df_colera_inla7 %>% group_by(`Codigo Ine`, Municipio,
 mapS.colera_inla7.grouped <- merge(mapS.municipios, df_colera_inla7.grouped, by.x = CODIGOINE_STR, by.y = CODIGO_INE_STR)
 head(mapS.colera_inla7.grouped)
 
-map_all_invasiones <- create_tmap(mapS.colera_inla7.grouped, NULL, mapS.municipios, TOTAL_INVASIONES_STR, "jenks") +
-  tm_shape(mapS.colera_inla7.grouped[mapS.colera_inla7.grouped$Total_invasiones > 3915, ]) + tm_text(CODIGOINE_STR, size = 1.3, xmod = 2, fontface = "bold")
-
-map_all_defunciones <- create_tmap(mapS.colera_inla7.grouped, NULL, mapS.municipios, TOTAL_DEFUNCIONES_STR, "jenks") +
-  tm_shape(mapS.colera_inla7.grouped[mapS.colera_inla7.grouped$Total_defunciones > 1818, ]) + tm_text(CODIGOINE_STR, size = 1.3, xmod = 2, fontface = "bold")
+map_all_invasiones <- create_tmap(mapS.colera_inla7.grouped, NULL, mapS.municipios, TOTAL_INVASIONES_STR, "jenks") 
+map_all_defunciones <- create_tmap(mapS.colera_inla7.grouped, NULL, mapS.municipios, TOTAL_DEFUNCIONES_STR, "jenks") 
 
 
 # adding railway lines and rivers
