@@ -35,7 +35,6 @@ COVPORT_STR <- "covdist_port"
 COVALL_STR <- c(COVPROV_STR, COVROAD_STR, COVPORT_STR)
 LOCALIDADES_STR <- c("Artà", "Capdepera", "Sant Llorenç des Cardassar", "Son Servera")
 CASOS_STR <- "Casos"
-MONTHS_INT <- c(6, 7, 8, 9, 10)
 CASES_BREAKS <- c(0, 10, 68, 450, 652, 3178)
 DEATHS_BREAKS <- c(0, 10, 54, 97, 184, 228)
 MONTHS_STR <- c("June", "July", "August", "September", "October")
@@ -107,7 +106,7 @@ generate_maps <- function (mapS.peste, columnvar, outputvar, breaks) {
   #' @param columnvar A string containing the name of the column variable to map.
   #' @param outputvar A string containing the name of the output file to save the map.
 
-  for(month in MONTHS_INT) { # for each month
+  for(month in c(6, 7, 8, 9, 10)) { # for each month
 
     map_tmp <- tm_shape(mapS.peste[mapS.peste$mes == month,], bbox = subset(mapS.municipios.mallorca, NAMEUNIT != "Palma")) +
         tm_polygons(
