@@ -24,8 +24,8 @@ SHAPES_DATA_DIR <- "shapes"
 dir.create(SHAPES_DATA_DIR, showWarnings = FALSE)
 PESTE_MAPS_DIR <- "peste_maps"
 dir.create(PESTE_MAPS_DIR, showWarnings = FALSE)
-PESTE_INLA_DIR <- "colera_inla"
-dir.create(PESTE_INLA_DIR, showWarnings = FALSE)
+# PESTE_INLA_DIR <- "peste_inla"
+# dir.create(PESTE_INLA_DIR, showWarnings = FALSE) # TODO: save INLA results as Excel files
 
 MUNICIPIO_STR <- "Municipio"
 NAMEUNIT_STR <- "NAMEUNIT"
