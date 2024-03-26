@@ -187,7 +187,7 @@ ggplot() +
     breaks = df_colera_invasiones.groupByFecha$Fecha,
     labels = df_colera_invasiones.groupByFecha$Fecha
   ) +
-  scale_color_manual(values = c(CASES_STR = "blue", DEATHS_STR = "black")) +
+  scale_color_manual(values = c(Cases = "blue", Deaths = "black")) +
   labs(color = "", linetype = "Legend") +
   theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.position = "bottom")
 
@@ -257,8 +257,7 @@ df_colera.groupByCCAAFecha <- df_colera.groupByProvinciaFecha %>% group_by(CCAA,
 gg_ccaa <- ggplot(subset(df_colera.groupByCCAAFecha, CCAA != "pais-vasco"), aes(x = Fecha, y = Total_invasiones, group = CCAA, colour = CCAA)) +
   geom_line() +
   scale_color_discrete(name = "CCAA") +
-  ylab("Invasions") + xlab("Day-Month") +
-  ggtitle(paste0("Total of invasions for autonomous community, ", ANO_STR)) +
+  ylab(CASES_STR) + xlab("") +
   scale_x_date(date_breaks = "1 month", date_labels = "%b") +
   facet_wrap(~ CCAA, scales = "free_y", ncol = 4) +
   theme_bw() + theme(legend.position = "none")
@@ -269,8 +268,7 @@ ggsave(paste(COLERA_PLOTS_DIR, "colera_total_invasionesXccaa.png", sep = "/"), g
 gg_ccaa <- ggplot(subset(df_colera.groupByCCAAFecha, CCAA != "pais-vasco"), aes(x = Fecha, y = Total_defunciones, group = CCAA, colour = CCAA)) +
   geom_line() +
   scale_color_discrete(name = "CCAA") +
-  ylab("Invasions") + xlab("Day-Month") +
-  ggtitle(paste0("Total of invasions for autonomous community, ", ANO_STR)) +
+  ylab(DEATHS_STR) + xlab("") +
   scale_x_date(date_breaks = "1 month", date_labels = "%b") +
   facet_wrap(~ CCAA, scales = "free_y", ncol = 4) +
   theme_bw() + theme(legend.position = "none")
@@ -304,7 +302,7 @@ ggsave(paste(COLERA_PLOTS_DIR, "barplot.colera_total_defuncionesXprovincia.png",
 # barplot "Total_invasiones" for "CCAA"
 ggplot(df_colera.groupByCCAA, aes(x = Total_invasiones, y = CCAA, fill = CCAA)) +
   geom_bar(stat = "identity") +
-  ylab("Autonomous Community") + xlab("Invasions") +
+  ylab("Autonomous Community") + xlab(CASES_STR) +
   scale_x_continuous(breaks = seq(0, max(df_colera.groupByCCAA$Total_invasiones), 2000), limits = c(0, max(df_colera.groupByCCAA$Total_invasiones)), labels = number) +
   geom_text(aes(label = Total_invasiones), hjust = -0.2, size = 3) +
   theme_bw() + theme(legend.position = "none")
@@ -315,7 +313,7 @@ ggsave(paste(COLERA_PLOTS_DIR, "barplot.colera_total_invasionesXccaa.png", sep =
 ggplot(df_colera.groupByCCAA, aes(x = Total_defunciones, y = CCAA, fill = CCAA)) +
   geom_bar(stat = "identity") +
   ylab("Autonomous Community") + xlab(DEATHS_STR) +
-  scale_x_continuous(breaks = seq(0, max(df_colera.groupByCCAA$Total_invasiones), 1000), limits = c(0, 33835), labels = number) +
+  scale_x_continuous(breaks = seq(0, max(df_colera.groupByCCAA$Total_invasiones), 1500), limits = c(0, 33835), labels = number) +
   geom_text(aes(label = Total_defunciones), hjust = -0.2, size = 3) +
   theme_bw() + theme(legend.position = "none")
 
