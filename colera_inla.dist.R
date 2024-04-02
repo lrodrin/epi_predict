@@ -469,4 +469,4 @@ res_table.almeria <-  add_results.table(model_almeria, model_almeria, res_table.
 res_table.list <- list(res_table.zaragoza, res_table.valencia, res_table.granada, res_table.murcia, res_table.teruel, res_table.castellon, res_table.alicante, res_table.navarra, res_table.cuenca, res_table.albacete, res_table.almeria)
 for (i in 1:length(PROVINCIAS_STR)) { write.xlsx(res_table.list[i], file = paste(COLERA_INLA_DIR, paste0("results_", PROVINCIAS_STR[i], ".xlsx"), sep = "/")) }
 
-save.image("colera_inla7.dist.RData")
+save.image("colera_inla.dist.RData")

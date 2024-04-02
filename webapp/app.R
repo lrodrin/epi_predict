@@ -72,7 +72,7 @@ ui <- fluidPage(
           )
         )
       ), 
-      br(), br(), div(style = "text-align: center;", p("© 2023 Laura Rodríguez-Navas. All rights reserved."))
+      br(), br(), div(style = "text-align: center;", p("© 2023-2024 Laura Rodríguez-Navas. All rights reserved."))
     ),
     
     # main panel for outputs
