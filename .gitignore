@@ -57,9 +57,9 @@ peste_data/
 # project plots folders
 colera_plots/
 colera_maps/
+colera_data_clusters/
 tempe_plots/
 rain_plots/
-peste_plots/
 peste_maps/
 
 # project data files

@@ -5,6 +5,7 @@ library(spdep)
 library(ggplot2)
 library(tmap)
 library(sp)
+library(openxlsx)
 
 load("colera_data.RData") # load cholera data
 
@@ -14,6 +15,8 @@ load("colera_data.RData") # load cholera data
 
 COLERA_MAPS_DIR <- "colera_maps"
 dir.create(COLERA_MAPS_DIR, showWarnings = FALSE)
+COLERA_DATA_CLUSTERS_DIR <- "colera_data_clusters"
+dir.create(COLERA_DATA_CLUSTERS_DIR, showWarnings = FALSE)
 SHAPES_DATA_DIR <- "shapes"
 dir.create(SHAPES_DATA_DIR, showWarnings = FALSE)
 
@@ -85,6 +88,30 @@ compute_moran <- function(data, province, cause) {
 }
 
 
+saveAsExcel <- function (list_data, list_name, province, cause, categories) {
+    #' Save data to an Excel file divided by months and categories
+    #'
+    #' This function saves the data contained in a list to an Excel file. The data is
+    #' divided into different worksheets, one for each month from June to November. Only the
+    #' specified categories are included in the Excel file.
+    #'
+    #' @param list_data A list of data to be saved, where each element of the list contains the data for one month.
+    #' @param list_name The name of the list associated with the data.
+    #' @param province The name of the province associated with the data.
+    #' @param cause The cause associated with the data.
+    #' @param categories A character vector containing the categories of data to include in the Excel file.
+
+    wb <- createWorkbook() # create a workbook object
+    file_name <- paste0(list_name, province, "_", cause, ".xlsx") # defines the file name
+
+    for (i in 6:11) { # iterate over 6 to 11 (june to november)
+      addWorksheet(wb, sheetName = paste("Month", i))  # add a sheet for each month
+      writeData(wb, sheet = i - 5, x = subset(list_data[[i]], category %in% categories)) # write the contents of list_data[[i]] by categories on the appropriate sheet
+    }
+    saveWorkbook(wb, paste(COLERA_DATA_CLUSTERS_DIR, file_name, sep = "/"), overwrite = TRUE) # save the file
+}
+
+
 compute_lisaClusters <- function(data, province, cause) {
   #' Compute LISA clusters.
   #'
@@ -149,9 +176,12 @@ compute_localGi <- function(data, province, cause) {
       localGI <- paste0("gi_month", i, ".", cause) # create local G_i
       assign(localGI, cbind(data[data$Fecha == i, ], data.frame("gstat_adaptive" = as.matrix(localG(data[data$Fecha == i, ][[cause]], knb)))), envir = .GlobalEnv) # compute local G_i
 
-      categorized_data <- transform(get(localGI), category = cut(gstat_adaptive, breaks = c(-Inf, 0, 1, 2, 3, 4, 5), labels = CLUSTERS_SPOTS,include.lowest = TRUE)) # categorize data
-      assign(localGI, cbind(data[data$Fecha == i, ], data.frame("gstat_adaptive" = as.matrix(localG(data[data$Fecha == i, ][[cause]], knb))), categorized_data), envir = .GlobalEnv) # combine local G_i with categorized data
-
+      categorized_data <- transform(get(localGI), category = cut(gstat_adaptive, breaks = c(-Inf, 0, 1, 2, 3, 4, 5), labels = CLUSTERS_SPOTS, include.lowest = TRUE)) # categorize data
+      local_data <- data[data$Fecha == i, ]  # Filter local data for the current date
+      gstat_adaptive_values <- as.matrix(localG(local_data[[cause]], knb))  # Calculate the values of gstat_adaptive
+      combined_data <- cbind(local_data, data.frame("gstat_adaptive" = gstat_adaptive_values, "category" = categorized_data$category))  # Combine local data, gstat_adaptive values, and categories
+      assign(localGI, combined_data, envir = .GlobalEnv) # Assign the combined data to the localGI variable
+      
       localGiList[[i]] <- get(localGI) # store local G_i
 
       # plot local G_i
@@ -161,6 +191,7 @@ compute_localGi <- function(data, province, cause) {
         tm_view(set.zoom.limits = c(11, 17))+
         tm_layout(paste("month", i), legend.outside = TRUE)
     }
+    saveAsExcel(localGiList, "localGiList_", province, cause, c("moderate", "high", "very high")) # save local G_i data with "moderate", "high" and "very high" values
     tmap_save(tmap_arrange(localGiPlot[6:11], ncol = 2), paste(COLERA_MAPS_DIR, paste0("hotspots_map.", province, ".", cause, ".png"), sep = "/")) # save local G_i plot
 }
 
@@ -195,7 +226,7 @@ for(provincia in PROVINCIAS_STR) {
   # compute moran's I, LISA clusters and local G_i for total invasions and total deaths
   for(cause in c(TOTAL_INVASIONES_STR, TOTAL_DEFUNCIONES_STR)) {
     compute_moran(spdf_mapS, provincia, cause) # compute moran's I
-    compute_lisaClusters(spdf_mapS, provincia, cause) # compute LISA clusters
+    # compute_lisaClusters(spdf_mapS, provincia, cause) # compute LISA clusters
     compute_localGi(spdf_mapS, provincia, cause) # compute local G_i
   }
 }
