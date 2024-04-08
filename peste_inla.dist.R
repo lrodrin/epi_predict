@@ -15,8 +15,6 @@ load("peste_data.RData") # load peste data
 
 DISTANCES_FILE <- "_Results.xlsx"
 MUNICIPIOS_SHAPEFILE <- "Municipios_IGN.shp"
-CARRETERES_SHAPEFILE <- "Carreteres1861_Mallorca.shp"
-PORTS_SHAPEFILE <- "Ports_Mallorca.shp"
 
 DATA_DIR <- "data"
 dir.create(DATA_DIR, showWarnings = FALSE)
@@ -24,45 +22,20 @@ SHAPES_DATA_DIR <- "shapes"
 dir.create(SHAPES_DATA_DIR, showWarnings = FALSE)
 PESTE_MAPS_DIR <- "peste_maps"
 dir.create(PESTE_MAPS_DIR, showWarnings = FALSE)
-# PESTE_INLA_DIR <- "peste_inla"
-# dir.create(PESTE_INLA_DIR, showWarnings = FALSE) # TODO: save INLA results as Excel files
 
 MUNICIPIO_STR <- "Municipio"
 NAMEUNIT_STR <- "NAMEUNIT"
-COVPROV_STR <- "covdist_caprov"
 COVROAD_STR <- "covdist_road"
 COVPORT_STR <- "covdist_port"
-COVALL_STR <- c(COVPROV_STR, COVROAD_STR, COVPORT_STR)
+COVALL_STR <- c(COVROAD_STR, COVPORT_STR)
 LOCALIDADES_STR <- c("Artà", "Capdepera", "Sant Llorenç des Cardassar", "Son Servera")
 CASOS_STR <- "Casos"
 CASES_BREAKS <- c(0, 10, 68, 450, 652, 3178)
 DEATHS_BREAKS <- c(0, 10, 54, 97, 184, 228)
-MONTHS_STR <- c("June", "July", "August", "September", "October")
 COEFFICIENTS <- c("mean", "0.025quant", "0.975quant")
 
 
 # functions ---------------------------------------------------------------
-
-
-add_distanceToCapital <- function (df_peste) {
-    #' Add Distance to Capital
-    #'
-    #' This function adds the distance to the capital in km to the peste data.
-    #'
-    #' @param df_peste A data frame containing peste data.
-    #'
-    #' @return A data frame containing peste data with the distance to the capital.
-
-    return(df_peste %>%
-           mutate(
-             covdist_caprov = case_when(
-               Municipio == LOCALIDADES_STR[1] ~ 61.59, # Artà
-               Municipio == LOCALIDADES_STR[2] ~ 68.58, # Capdepera
-               Municipio == LOCALIDADES_STR[3] ~ 54.64, # Sant Llorenç des Cardassar
-               Municipio == LOCALIDADES_STR[4] ~ 61.16  # Son Servera
-             )
-           ))
-}
 
 
 run_inla <- function(mapS, covariate, isPred = FALSE) {
@@ -91,7 +64,7 @@ run_inla <- function(mapS, covariate, isPred = FALSE) {
 
   # inla() call for prediction or relative risk
   if (isPred) { res <- inla(formula, family = "poisson", data = mapS, control.predictor = list(link = 1), verbose = TRUE) } # prediction
-  else { res <- inla(formula, family = "poisson", data = mapS, offset = log(Poblacion), control.predictor = list(compute = TRUE), control.compute = list(return.marginals = TRUE), verbose = TRUE) } # relative risk
+  else { res <- inla(formula, family = "poisson", data = mapS, control.predictor = list(compute = TRUE), control.compute = list(return.marginals = TRUE), verbose = TRUE) } # relative risk
   print(res)
   return(res)
 }
@@ -108,7 +81,7 @@ generate_maps <- function (mapS.peste, columnvar, outputvar, breaks) {
 
   for(month in c(6, 7, 8, 9, 10)) { # for each month
 
-    map_tmp <- tm_shape(mapS.peste[mapS.peste$mes == month,], bbox = subset(mapS.municipios.mallorca, NAMEUNIT != "Palma")) +
+    map_tmp <- tm_shape(mapS.peste[mapS.peste$mes == month,], bbox = mapS.municipios.mallorca) +
         tm_polygons(
           col = columnvar,
           border.col = NULL,
@@ -117,15 +90,13 @@ generate_maps <- function (mapS.peste, columnvar, outputvar, breaks) {
           breaks = breaks, # breaks for the colour palette (manually set)
           style = "fixed"
         ) +
-        tm_shape(subset(mapS.municipios.mallorca, NAMEUNIT != "Palma")) + tm_borders() +
+        tm_shape(mapS.municipios.mallorca) + tm_borders() +
         tm_layout(
           legend.position =  c("right", "bottom"), legend.text.size = 1.5,
           inner.margins = c(0, 0, 0, 0),
-          panel.labels = c(MONTHS_STR[month-5]),
+          panel.labels = c(c("June", "July", "August", "September", "October")[month-5]),
           panel.label.size = 1.5, panel.label.height = 1.1, panel.label.color = "black", panel.label.bg.color = "gray"
-        ) +
-        tm_shape(mapS.carreteres.mallorca) + tm_lines(lwd = 1.5, col = "black") + # add roads of Mallorca
-        tm_shape(mapS.ports.mallorca) + tm_dots(size = 0.5, col = "black") # add ports of Mallorca
+        )
 
     outputfile <- paste0("tmap.municipios.", columnvar, ".", month, outputvar, ".png")
     tmap_save(map_tmp, filename = paste(PESTE_MAPS_DIR, outputfile, sep = "/"), width = 20, height = 10, dpi = 300, units = "in") # save map
@@ -133,33 +104,18 @@ generate_maps <- function (mapS.peste, columnvar, outputvar, breaks) {
 }
 
 
-create_empty.table <- function(isAll=FALSE, covariate=NULL) {
+create_empty.table <- function() {
   #' Create Empty Table for Relative Risk Results
   #'
   #' This function creates an empty table for relative risk results.
-  #' 
-  #' @param isAll A boolean indicating whether the model is for all covariates or just one.
-  #' @param covariate A string containing the name of the covariate. Otherwise, it is NULL.
 
   columnames <- c("Covariates", "Coefficient (95% CrI)", "RR (95% CrI)", "Coefficient (95% CrI)", "RR (95% CrI)")
-
-  if(isAll) {
-
-    table <- data.frame(matrix(ncol = 5, nrow = 5))
-    colnames(table) <- columnames
-    table[1,1] <- "Intercept*"
-    table[2,1] <- COVPROV_STR
-    table[3,1] <- COVROAD_STR
-    table[4,1] <- COVPORT_STR
-    table[5,1] <- "Unstructured random effect"
-  }
-  else {
-    table <- data.frame(matrix(ncol = 5, nrow = 3))
-    colnames(table) <- columnames
-    table[1,1] <- "Intercept*"
-    table[2,1] <- covariate
-    table[3,1] <- "Unstructured random effect"
-  }
+  table <- data.frame(matrix(ncol = 5, nrow = 4))
+  colnames(table) <- columnames
+  table[1,1] <- "Intercept*"
+  table[2,1] <- COVROAD_STR
+  table[3,1] <- COVPORT_STR
+  table[4,1] <- "Unstructured random effect"
   return(table)
 }
 
@@ -212,17 +168,13 @@ add_results.table <- function(res_invasiones, res_defunciones, res_table, nrows)
 # data --------------------------------------------------------------------
 
 
-# add "covdist_caprov" column to peste data
-df_peste <- add_distanceToCapital(df_peste)
-df_peste.defunciones <- add_distanceToCapital(df_peste.defunciones)
-
 # replace NA values with 0
 df_peste <- df_peste %>% mutate(Casos = replace(Casos, is.na(Casos), 0))
 df_peste.defunciones <- df_peste.defunciones %>% mutate(Casos = replace(Casos, is.na(Casos), 0))
 
 # group by month
-df_peste <- df_peste %>% group_by(Municipio, mes, Poblacion, covdist_caprov) %>% summarise(Casos = sum(Casos))
-df_peste.defunciones <- df_peste.defunciones %>% group_by(Municipio, mes, Poblacion, covdist_caprov) %>% summarise(Casos = sum(Casos))
+df_peste <- df_peste %>% group_by(Municipio, mes, Poblacion) %>% summarise(Casos = sum(Casos))
+df_peste.defunciones <- df_peste.defunciones %>% group_by(Municipio, mes, Poblacion) %>% summarise(Casos = sum(Casos))
 
 # read distances data and replace "Sant Llorenç des Cardass" with "Sant Llorenç des Cardassar"
 df_distances <- read_excel(paste(DATA_DIR, DISTANCES_FILE, sep = "/"), sheet = "Sheet5")
@@ -237,13 +189,9 @@ df_distances <- df_distances %>%
 df_distances <- df_distances[, !(names(df_distances) %in% c("OD_Id", "CD_INE5", "ALTURA", "POP_1877"))] # remove unnecessary columns
 colnames(df_distances)[3:5] <- c(MUNICIPIO_STR, COVROAD_STR, COVPORT_STR) # rename columns to match peste data
 
-# merge peste data with distances data and reorder columns
+# merge peste data with distances data 
 df_peste <- merge(df_peste, df_distances, by = MUNICIPIO_STR)
 df_peste.defunciones <- merge(df_peste.defunciones, df_distances, by = MUNICIPIO_STR)
-df_peste <- df_peste[, c(1:3, 5, 4, 8:9, 6:7)]
-df_peste.defunciones <- df_peste.defunciones[, c(1:3, 5, 4, 8:9, 6:7)]
-
-rm(df_distances)
 
 
 # maps --------------------------------------------------------------------
@@ -253,8 +201,6 @@ mapS.municipios <- st_read(paste(SHAPES_DATA_DIR, MUNICIPIOS_SHAPEFILE, sep = "/
 mapS.municipios.mallorca <- subset(mapS.municipios, CODNUT3 == "ES532") # only Mallorca municipalities 
 mapS.municipios.mallorca.localidades <- subset(mapS.municipios.mallorca, NAMEUNIT %in% LOCALIDADES_STR) # only Mallorca municipalities with black plague cases
 mapS.municipios.mallorca.notlocalidades <- subset(mapS.municipios.mallorca, !(NAMEUNIT %in% LOCALIDADES_STR)) # only Mallorca municipalities without black plague cases
-mapS.carreteres.mallorca <- st_read(paste(SHAPES_DATA_DIR, CARRETERES_SHAPEFILE, sep = "/"), quiet = TRUE) # roads of Mallorca
-mapS.ports.mallorca <- st_read(paste(SHAPES_DATA_DIR, PORTS_SHAPEFILE, sep = "/"), quiet = TRUE) # ports of Mallorca
 
 # merge peste data with map data of Mallorca municipalities with black plague cases
 mapS.peste_inla7 <- merge(mapS.municipios.mallorca.localidades, df_peste, by.x = NAMEUNIT_STR, by.y = MUNICIPIO_STR)
@@ -283,22 +229,8 @@ model_all.invasiones$summary.fixed
 model_all.defunciones$summary.fixed
 
 # create a table of relative risk results for all covariates/municipalities on cases and deaths
-res_table <- create_empty.table(TRUE)
-res_table <- add_results.table(model_all.invasiones, model_all.defunciones, res_table, 5)
-
-# run inla for each covariate in all municipalities on cases and deaths
-# model_all.invasiones.covdist_caprov <- run_inla(mapS.peste_inla7, COVPROV_STR, FALSE)
-# model_all.defunciones.covdist_caprov <- run_inla(mapS.peste_inla7.defunciones, COVPROV_STR, FALSE)
-# model_all.invasiones.covdist_road <- run_inla(mapS.peste_inla7, COVROAD_STR, FALSE)
-# model_all.defunciones.covdist_road <- run_inla(mapS.peste_inla7.defunciones, COVROAD_STR, FALSE)
-# model_all.invasiones.covdist_port <- run_inla(mapS.peste_inla7, COVPORT_STR, FALSE)
-# model_all.defunciones.covdist_port <- run_inla(mapS.peste_inla7.defunciones, COVPORT_STR, FALSE)
-
-# create a table of relative risk results for each covariate in all municipalities on cases and deaths
-# for(covdist in COVALL_STR) { assign(paste("res_table.", covdist, sep = ""), create_empty.table(FALSE, covdist)) }
-# res_table.covdist_caprov <- add_results.table(model_all.invasiones.covdist_caprov, model_all.defunciones.covdist_caprov, res_table.covdist_caprov, 3)
-# res_table.covdist_road <- add_results.table(model_all.invasiones.covdist_road, model_all.defunciones.covdist_road, res_table.covdist_road, 3)
-# res_table.covdist_port <- add_results.table(model_all.invasiones.covdist_port, model_all.defunciones.covdist_port, res_table.covdist_port, 3)
+res_table <- create_empty.table()
+res_table <- add_results.table(model_all.invasiones, model_all.defunciones, res_table, 4)
 
 # marginal effects
 model_all.invasiones$marginals.fixed
@@ -331,17 +263,21 @@ newdata <- expand.grid(Municipio = unique(mapS.municipios.mallorca.notlocalidade
 newdata.invasiones <- rbind(df_peste[, c(1:2,4)], newdata)
 newdata.defunciones <- rbind(df_peste.defunciones[, c(1:2,4)], newdata)
 
+# merge new data with distances data (covdist_road and covdist_port)
+newdata.invasiones <- merge(newdata.invasiones, df_distances[, c(3:5)], by = MUNICIPIO_STR)
+newdata.defunciones <- merge(newdata.defunciones, df_distances[, c(3:5)], by = MUNICIPIO_STR)
+
 # merge new data of cases and deaths to map data of Mallorca
 mapS.peste_inla7.invasiones.pred <- merge(mapS.municipios.mallorca, newdata.invasiones, by.x = NAMEUNIT_STR, by.y = MUNICIPIO_STR)
 mapS.peste_inla7.defunciones.pred <- merge(mapS.municipios.mallorca, newdata.defunciones, by.x = NAMEUNIT_STR, by.y = MUNICIPIO_STR)
 head(mapS.peste_inla7.invasiones.pred)
 head(mapS.peste_inla7.defunciones.pred)
 
-rm(newdata, newdata.invasiones, newdata.defunciones)
+rm(newdata, newdata.invasiones, newdata.defunciones, df_distances)
 
 # run inla for prediction on cases and deaths
-model_all.invasiones.pred <- run_inla(mapS.peste_inla7.invasiones.pred, "1", TRUE)
-model_all.defunciones.pred <- run_inla(mapS.peste_inla7.defunciones.pred, "1", TRUE)
+model_all.invasiones.pred <- run_inla(mapS.peste_inla7.invasiones.pred, COVALL_STR, TRUE)
+model_all.defunciones.pred <- run_inla(mapS.peste_inla7.defunciones.pred, COVALL_STR, TRUE)
 
 # save prediction results for cases and deaths to map data
 mapS.peste_inla7.invasiones.pred$pred_mean <- model_all.invasiones.pred$summary.fitted.values[, COEFFICIENTS[1]]
@@ -354,11 +290,3 @@ mapS.peste_inla7.defunciones.pred$pred_upper <- model_all.defunciones.pred$summa
 # generate a maps of prediction cases and deaths by each month
 generate_maps(mapS.peste_inla7.invasiones.pred, "pred_mean", ".invasiones", CASES_BREAKS)
 generate_maps(mapS.peste_inla7.defunciones.pred, "pred_mean", ".defunciones", DEATHS_BREAKS)
-
-# plot observed cases vs predicted cases
-# plot(mapS.peste_inla7.invasiones.pred$Casos, mapS.peste_inla7.invasiones.pred$pred_mean, xlab = "cases", ylab = "pred_mean")
-# abline(0, 1, col = "red")
-
-# plot observed deaths vs predicted deaths
-# plot(mapS.peste_inla7.defunciones.pred$Casos, mapS.peste_inla7.defunciones.pred$pred_mean, xlab = "deaths", ylab = "pred_mean")
-# abline(0, 1, col = "red")
