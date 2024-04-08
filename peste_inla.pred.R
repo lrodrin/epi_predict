@@ -7,7 +7,6 @@ library(reshape2)
 library(spdep)
 library(ggplot2)
 library(terra)
-library(viridis)
 
 load("peste_data.RData") # load peste data
 
@@ -29,10 +28,10 @@ INVASIONES_STR <- "invasiones"
 DEFUNCIONES_STR <- "defunciones"
 MUNICIPIO_STR <- "Municipio"
 NAMEUNIT_STR <- "NAMEUNIT"
+COVROAD_STR <- "covdist_road"
+COVPORT_STR <- "covdist_port"
 LOCALIDADES_STR <- c("Artà", "Capdepera", "Sant Llorenç des Cardassar", "Son Servera")
 CASOS_STR <- "Casos"
-CASES_STR <- "Cases"
-DEATHS_STR <- "Deaths"
 ESPG_CODE <- 25830 # EPSG code for UTM zone 30N (Spain)
 MONTHS_INT <- c(6, 7, 8, 9, 10)
 MONTHS_STR <- c("June", "July", "August", "September", "October")
@@ -49,7 +48,7 @@ COEFFICIENTS <- c("mean", "0.025quant", "0.975quant")
 df_peste <- df_peste %>% mutate(Casos = replace(Casos, is.na(Casos), 0))
 df_peste.defunciones <- df_peste.defunciones %>% mutate(Casos = replace(Casos, is.na(Casos), 0))
 
-# group by municipality, month and population and sum cases or deaths
+# group by month
 df_peste <- df_peste %>% group_by(Municipio, mes, Poblacion) %>% summarise(Casos = sum(Casos))
 df_peste.defunciones <- df_peste.defunciones %>% group_by(Municipio, mes, Poblacion) %>% summarise(Casos = sum(Casos))
 
@@ -63,14 +62,12 @@ df_distances <- df_distances %>%
     )
   )
 
-df_distances <- df_distances[, !(names(df_distances) %in% c("OD_Id", "CD_INE5", "ALTURA", "POP_1877", "Dist_Roads1861", "Dist_Port"))] # remove unnecessary columns
-colnames(df_distances)[3] <- MUNICIPIO_STR # rename column
+df_distances <- df_distances[, !(names(df_distances) %in% c("OD_Id", "CD_INE5", "ALTURA", "POP_1877"))] # remove unnecessary columns
+colnames(df_distances)[3:5] <- c(MUNICIPIO_STR, COVROAD_STR, COVPORT_STR) # rename columns to match peste data
 
 # merge peste data with distances data
 df_peste <- merge(df_peste, df_distances, by = MUNICIPIO_STR)
 df_peste.defunciones <- merge(df_peste.defunciones, df_distances, by = MUNICIPIO_STR)
-
-rm(df_distances)
 
 
 # maps --------------------------------------------------------------------
@@ -98,34 +95,38 @@ newdata <- expand.grid(Municipio = unique(mapS.municipios.mallorca.notlocalidade
 newdata.invasiones <- rbind(df_peste[, c(1:2,4)], newdata)
 newdata.defunciones <- rbind(df_peste.defunciones[, c(1:2,4)], newdata)
 
+# merge new data with distances data (covdist_road and covdist_port)
+newdata.invasiones <- merge(newdata.invasiones, df_distances[, c(3:5)], by = MUNICIPIO_STR)
+newdata.defunciones <- merge(newdata.defunciones, df_distances[, c(3:5)], by = MUNICIPIO_STR)
+
 # merge new data of cases and deaths to map data of Mallorca
-mapS.peste_inla7.pred <- merge(mapS.municipios.mallorca, newdata.invasiones, by.x = NAMEUNIT_STR, by.y = MUNICIPIO_STR)
+mapS.peste_inla7.invasiones.pred <- merge(mapS.municipios.mallorca, newdata.invasiones, by.x = NAMEUNIT_STR, by.y = MUNICIPIO_STR)
 mapS.peste_inla7.defunciones.pred <- merge(mapS.municipios.mallorca, newdata.defunciones, by.x = NAMEUNIT_STR, by.y = MUNICIPIO_STR)
-head(mapS.peste_inla7.pred)
+head(mapS.peste_inla7.invasiones.pred)
 head(mapS.peste_inla7.defunciones.pred)
 
-rm(newdata, newdata.invasiones, newdata.defunciones)
+rm(newdata, newdata.invasiones, newdata.defunciones, df_distances)
 
 
 # observed and predicted data ---------------------------------------------
 
 
 # convert multipolygon to point the observed and preddicted data for cases and deaths
-mapS.peste_inla7.points <- st_centroid(mapS.peste_inla7)
-mapS.peste_inla7.points.defunciones <- st_centroid(mapS.peste_inla7.defunciones)
-mapS.peste_inla7.pred.points <- st_centroid(mapS.peste_inla7.pred)
+mapS.peste_inla7.invasiones.points <- st_centroid(mapS.peste_inla7)
+mapS.peste_inla7.defunciones.points <- st_centroid(mapS.peste_inla7.defunciones)
+mapS.peste_inla7.invasiones.pred.points <- st_centroid(mapS.peste_inla7.invasiones.pred)
 mapS.peste_inla7.defunciones.pred.points <- st_centroid(mapS.peste_inla7.defunciones.pred)
 
 # add "Long" and "Lat" coordinates to predicted data for cases and deaths
-mapS.peste_inla7.pred.points[, c("Long", "Lat")] <- st_coordinates(mapS.peste_inla7.pred.points)
+mapS.peste_inla7.invasiones.pred.points[, c("Long", "Lat")] <- st_coordinates(mapS.peste_inla7.invasiones.pred.points)
 mapS.peste_inla7.defunciones.pred.points[, c("Long", "Lat")] <- st_coordinates(mapS.peste_inla7.defunciones.pred.points)
 
 # assign the observed and predicted data for cases and deaths as variables for the model
-d <- mapS.peste_inla7.points
-d.defunciones <- mapS.peste_inla7.points.defunciones
-dp <- mapS.peste_inla7.pred.points
+d <- mapS.peste_inla7.invasiones.points
+d.defunciones <- mapS.peste_inla7.defunciones.points
+dp <- mapS.peste_inla7.invasiones.pred.points
 dp.defunciones <- mapS.peste_inla7.defunciones.pred.points
-map <- subset(mapS.municipios.mallorca, NAMEUNIT != "Palma")
+map <- mapS.municipios.mallorca
 
 # transform the observed and predicted data for cases and deaths to the same coordinate system
 d <- d %>% st_transform(ESPG_CODE)
@@ -142,11 +143,21 @@ for (month in MONTHS_INT) {
 
   map_invasiones <- tm_shape(map) + tm_borders() +
     tm_shape(d[d$mes == month,]) + tm_dots(size = 0.5, col = CASOS_STR, palette = "Reds", title = "", style = "jenks") +
-    tm_legend(title = CASES_STR) + tm_layout(panel.labels = c(MONTHS_STR[month-5])) 
+    tm_layout(
+      legend.position = c("right", "bottom"), legend.text.size = 1.3,
+      inner.margins = c(0, 0, 0, 0),
+      panel.labels = c(MONTHS_STR[month-5]),
+      panel.label.size = 1.3, panel.label.height = 1, panel.label.color = "black", panel.label.bg.color = "gray"
+    )
 
   map_defunciones <- tm_shape(map) + tm_borders() +
     tm_shape(d.defunciones[d.defunciones$mes == month,]) + tm_dots(size = 0.5, col = CASOS_STR, palette = "Reds", title = "", style = "jenks") +
-    tm_legend(title = DEATHS_STR) + tm_layout(panel.labels = c(MONTHS_STR[month-5])) 
+    tm_layout(
+      legend.position = c("right", "bottom"), legend.text.size = 1.3,
+      inner.margins = c(0, 0, 0, 0),
+      panel.labels = c(MONTHS_STR[month-5]),
+      panel.label.size = 1.3, panel.label.height = 1, panel.label.color = "black", panel.label.bg.color = "gray"
+    )
 
   tmap_save(map_invasiones, filename = paste(PESTE_MAPS_DIR, paste0("map.municipios.pred.", month, ".", INVASIONES_STR, ".png"), sep = "/"), dpi = 300)
   tmap_save(map_defunciones, filename = paste(PESTE_MAPS_DIR, paste0("map.municipios.pred.", month, ".", DEFUNCIONES_STR, ".png"), sep = "/"), dpi = 300)
@@ -160,11 +171,21 @@ d.defunciones.grouped <- d.defunciones %>% group_by(NAMEUNIT) %>% summarise(Caso
 
 map_all_invasiones <- tm_shape(map) + tm_borders() +
     tm_shape(d.grouped) + tm_dots(size = 0.5, col = CASOS_STR, palette = "Reds", title = "", style = "jenks") +
-    tm_legend(title = CASES_STR) 
+    tm_layout(
+      legend.position = c("right", "bottom"), legend.text.size = 1.3,
+      inner.margins = c(0, 0, 0, 0),
+      panel.labels = c(MONTHS_STR[month-5]),
+      panel.label.size = 1.3, panel.label.height = 1, panel.label.color = "black", panel.label.bg.color = "gray"
+    )
 
 map_all_defunciones <- tm_shape(map) + tm_borders() +
   tm_shape(d.defunciones.grouped) + tm_dots(size = 0.5, col = CASOS_STR, palette = "Reds", title = "", style = "jenks") +
-  tm_legend(title = DEATHS_STR) 
+  tm_layout(
+      legend.position = c("right", "bottom"), legend.text.size = 1.3,
+      inner.margins = c(0, 0, 0, 0),
+      panel.labels = c(MONTHS_STR[month-5]),
+      panel.label.size = 1.3, panel.label.height = 1, panel.label.color = "black", panel.label.bg.color = "gray"
+    )
 
 tmap_save(map_all_invasiones, filename = paste(PESTE_MAPS_DIR, paste0("map_all.municipios.pred.", INVASIONES_STR, ".png"), sep = "/"), dpi = 300)
 tmap_save(map_all_defunciones, filename = paste(PESTE_MAPS_DIR, paste0("map_all.municipios.pred.", DEFUNCIONES_STR, ".png"), sep = "/"), dpi = 300)
@@ -206,12 +227,12 @@ mesh.defunciones$n
 # plot mesh (constrained refined Delaunay triangulation) 
 plot(mesh.invasiones)
 points(coo.invasiones, col = "red")
-dev.copy(png, paste(PESTE_MAPS_DIR, "mesh_", INVASIONES_STR, ".png", sep = "/"))
+dev.copy(png, paste(PESTE_MAPS_DIR, paste0("mesh_", INVASIONES_STR, ".png"), sep = "/"))
 dev.off()
 
 plot(mesh.defunciones)
 points(coo.defunciones, col = "red")
-dev.copy(png, paste(PESTE_MAPS_DIR, "mesh_", DEFUNCIONES_STR, ".png",  sep = "/"))
+dev.copy(png, paste(PESTE_MAPS_DIR, paste0("mesh_", DEFUNCIONES_STR, ".png"),  sep = "/"))
 dev.off()
 
 # building the SPDE model on the mesh for cases and deaths
@@ -232,7 +253,7 @@ group.defunciones <- dp.defunciones$mes - min(dp.defunciones$mes) + 1
 A.invasiones <- inla.spde.make.A(mesh = mesh.invasiones, loc = coo.invasiones, group = group.invasiones)
 A.defunciones <- inla.spde.make.A(mesh = mesh.defunciones, loc = coo.defunciones, group = group.defunciones)
 
-# contruct data locations and times to make predictions (5 months to predict)
+# construct data locations and times to make predictions (5 months to predict)
 dpp.invasiones <- coo.invasiones
 dpp.defunciones <- coo.defunciones
 dpp.invasiones <- rbind(cbind(dpp.invasiones, 1), cbind(dpp.invasiones, 2), cbind(dpp.invasiones, 3), cbind(dpp.invasiones, 4), cbind(dpp.invasiones, 5))
@@ -248,41 +269,41 @@ groupp.defunciones <- dpp.defunciones[, 3]
 Ap.invasiones <- inla.spde.make.A(mesh = mesh.invasiones, loc = coop.invasiones, group = groupp.invasiones)
 Ap.defunciones <- inla.spde.make.A(mesh = mesh.defunciones, loc = coop.defunciones, group = groupp.defunciones)
 
-# stack with data for estimation and prediction
+# stack with data for estimation and prediction (with covdist_road and covdist_port)
 stk.e.invasiones <- inla.stack(
   tag = "est",
   data = list(y = dp$Casos),
   A = list(1, A.invasiones),
-  effects = list(data.frame(b0 = rep(1, nrow(A.invasiones))), s = indexs.invasiones)
+  effects = list(data.frame(b0 = rep(1, nrow(A.invasiones)), covdist_road = dp$covdist_road, covdist_port = dp$covdist_port), s = indexs.invasiones)
 )
 
 stk.e.defunciones <- inla.stack(
   tag = "est",
   data = list(y = dp.defunciones$Casos),
   A = list(1, A.defunciones),
-  effects = list(data.frame(b0 = rep(1, nrow(A.defunciones))), s = indexs.defunciones)
+  effects = list(data.frame(b0 = rep(1, nrow(A.defunciones)), covdist_road = dp.defunciones$covdist_road, covdist_port = dp.defunciones$covdist_port), s = indexs.defunciones)
 )
 
 stk.p.invasiones <- inla.stack(
   tag = "pred",
   data = list(y = NA),
   A = list(1, Ap.invasiones),
-  effects = list(data.frame(b0 = rep(1, nrow(Ap.invasiones))), s = indexs.invasiones)
+  effects = list(data.frame(b0 = rep(1, nrow(Ap.invasiones)), covdist_road = dp$covdist_road, covdist_port = dp$covdist_port), s = indexs.invasiones)
 )
 
 stk.p.defunciones <- inla.stack(
   tag = "pred",
   data = list(y = NA),
   A = list(1, Ap.defunciones),
-  effects = list(data.frame(b0 = rep(1, nrow(Ap.defunciones))), s = indexs.defunciones)
+  effects = list(data.frame(b0 = rep(1, nrow(Ap.defunciones)), covdist_road = dp.defunciones$covdist_road, covdist_port = dp.defunciones$covdist_port), s = indexs.defunciones)
 )
 
 stk.full.invasiones <- inla.stack(stk.e.invasiones, stk.p.invasiones)
 stk.full.defunciones <- inla.stack(stk.e.defunciones, stk.p.defunciones)
 
 # model formula for cases and deaths
-formula.invasiones <- y ~ 0 + b0 + f(s, model = spde.invasiones)
-formula.defunciones <- y ~ 0 + b0 + f(s, model = spde.defunciones)
+formula.invasiones <- y ~ 0 + b0 + covdist_road + covdist_port + f(s, model = spde.invasiones)
+formula.defunciones <- y ~ 0 + b0 + covdist_road + covdist_port + f(s, model = spde.defunciones)
 
 # inla() call
 res.invasiones <- inla(formula.invasiones, family = "poisson", data = inla.stack.data(stk.full.invasiones), control.predictor = list(compute = TRUE, A = inla.stack.A(stk.full.invasiones)),
@@ -330,30 +351,33 @@ dpm.defunciones$time <- c(6, 7, 8, 9, 10)[match(dpm.defunciones$time, c(1, 2, 3,
 
 for (month in MONTHS_INT) {
 
-  map_list.invasiones <- lapply(unique(dpm.invasiones$variable), function(var) {
-    tm_shape(map) + tm_borders() +
-      tm_shape(subset(dpm.invasiones, variable == var & time == month)) + tm_dots(size = 0.3, col = "value", palette = "Reds", title = "", style = "jenks") +
-      tm_legend(title = var) 
-  })
+  map_invasiones <- tm_shape(map) + tm_borders() +
+      tm_shape(subset(dpm.invasiones, variable == columnames_coefs[1] & time == month)) + tm_dots(size = 0.3, col = "value", palette = "Reds", title = "", style = "jenks") +
+      tm_layout(
+      legend.position = c("right", "bottom"), legend.text.size = 1.3,
+      inner.margins = c(0, 0, 0, 0),
+      panel.labels = c(MONTHS_STR[month-5]),
+      panel.label.size = 1.3, panel.label.height = 1, panel.label.color = "black", panel.label.bg.color = "gray"
+    )
 
-  map_list.defunciones <- lapply(unique(dpm.defunciones$variable), function(var) {
-    tm_shape(map) + tm_borders() +
-      tm_shape(subset(dpm.defunciones, variable == var & time == month)) + tm_dots(size = 0.3, col = "value", palette = "Reds", title = "", style = "jenks") +
-      tm_legend(title = var)
-  })
+  map_defunciones <- tm_shape(map) + tm_borders() +
+      tm_shape(subset(dpm.defunciones, variable == columnames_coefs[1] & time == month)) + tm_dots(size = 0.3, col = "value", palette = "Reds", title = "", style = "jenks") +
+      tm_layout(
+      legend.position = c("right", "bottom"), legend.text.size = 1.3,
+      inner.margins = c(0, 0, 0, 0),
+      panel.labels = c(MONTHS_STR[month-5]),
+      panel.label.size = 1.3, panel.label.height = 1, panel.label.color = "black", panel.label.bg.color = "gray"
+    )
 
-  map_invasiones <- tmap_arrange(map_list.invasiones, ncol = 3)
-  map_defunciones <- tmap_arrange(map_list.defunciones, ncol = 3)
-
-  tmap_save(map_invasiones, filename = paste(PESTE_MAPS_DIR, paste0("map.municipios.pred.", month, ".", INVASIONES_STR, ".results.png"), sep = "/"), width = 10, height = 5, dpi = 300)
-  tmap_save(map_defunciones, filename = paste(PESTE_MAPS_DIR, paste0("map.municipios.pred.", month, ".", DEFUNCIONES_STR, ".results.png"), sep = "/"), width = 10, height = 5, dpi = 300)
+  tmap_save(map_invasiones, filename = paste(PESTE_MAPS_DIR, paste0("map.municipios.pred.", month, ".", INVASIONES_STR, ".results.png"), sep = "/"), dpi = 300)
+  tmap_save(map_defunciones, filename = paste(PESTE_MAPS_DIR, paste0("map.municipios.pred.", month, ".", DEFUNCIONES_STR, ".results.png"), sep = "/"), dpi = 300)
 }
 
 
 # clean environment -------------------------------------------------------
 
 
-rm(df_peste, df_peste.defunciones, map_invasiones, map_defunciones, map_list.invasiones, map_list.defunciones)
+rm(df_peste, df_peste.defunciones, map_invasiones, map_defunciones)
 
 
 save.image("peste_inla.pred.RData")
