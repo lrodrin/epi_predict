@@ -85,4 +85,6 @@ df_peste <- add_poblacion(df_peste)
 df_peste.defunciones <- df_peste.defunciones %>% group_by(Municipio, mes, dia, Poblacion) %>% summarize(Casos = sum(Casos))
 df_peste <- df_peste %>% group_by(Municipio, mes, dia, Poblacion) %>% summarize(Casos = sum(Casos))
 
-save.image("peste_data.RData")
+save.image("peste_data.RData") # save workspace
+
+rm(list = ls()) # remove all objects from workspace

@@ -214,7 +214,7 @@ rm(mapS.municipios)
 # observed cases ----------------------------------------------------------
 
 
-# generate a maps of observed cases and deaths by each month for each municipality
+# generate maps of observed cases and deaths by each month for each municipality
 generate_maps(mapS.peste_inla7, CASOS_STR, ".invasiones", CASES_BREAKS)
 generate_maps(mapS.peste_inla7.defunciones, CASOS_STR, ".defunciones", DEATHS_BREAKS)
 
@@ -248,7 +248,7 @@ mapS.peste_inla7.defunciones$RR <- model_all.defunciones$summary.fitted.values[,
 mapS.peste_inla7.defunciones$LL <- model_all.defunciones$summary.fitted.values[, COEFFICIENTS[2]]
 mapS.peste_inla7.defunciones$UL <- model_all.defunciones$summary.fitted.values[, COEFFICIENTS[3]]
 
-# generate a maps of relative risk cases and deaths by each month for each municipality
+# generate maps of relative risk cases and deaths by each month for each municipality
 generate_maps(mapS.peste_inla7, "RR", ".invasiones", CASES_BREAKS)
 generate_maps(mapS.peste_inla7.defunciones, "RR", ".defunciones", DEATHS_BREAKS)
 
@@ -287,6 +287,10 @@ mapS.peste_inla7.defunciones.pred$pred_mean <- model_all.defunciones.pred$summar
 mapS.peste_inla7.defunciones.pred$pred_lower <- model_all.defunciones.pred$summary.fitted.values[, COEFFICIENTS[2]]
 mapS.peste_inla7.defunciones.pred$pred_upper <- model_all.defunciones.pred$summary.fitted.values[, COEFFICIENTS[3]]
 
-# generate a maps of prediction cases and deaths by each month
+# generate maps of prediction cases and deaths by each month
 generate_maps(mapS.peste_inla7.invasiones.pred, "pred_mean", ".invasiones", CASES_BREAKS)
 generate_maps(mapS.peste_inla7.defunciones.pred, "pred_mean", ".defunciones", DEATHS_BREAKS)
+
+save.image("peste_inla.dist.RData") # save workspace
+
+rm(list = ls()) # remove all objects from workspace

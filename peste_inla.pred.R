@@ -28,14 +28,43 @@ INVASIONES_STR <- "invasiones"
 DEFUNCIONES_STR <- "defunciones"
 MUNICIPIO_STR <- "Municipio"
 NAMEUNIT_STR <- "NAMEUNIT"
-COVROAD_STR <- "covdist_road"
-COVPORT_STR <- "covdist_port"
 LOCALIDADES_STR <- c("Artà", "Capdepera", "Sant Llorenç des Cardassar", "Son Servera")
 CASOS_STR <- "Casos"
 ESPG_CODE <- 25830 # EPSG code for UTM zone 30N (Spain)
 MONTHS_INT <- c(6, 7, 8, 9, 10)
-MONTHS_STR <- c("June", "July", "August", "September", "October")
 COEFFICIENTS <- c("mean", "0.025quant", "0.975quant")
+
+
+# functions ---------------------------------------------------------------
+
+
+generate_maps <- function (map, data, columnvar, outputvar, month=NULL) {
+  #' Generate Maps
+  #'
+  #' This function generates maps.
+  #'
+  #' @param map A spatial object containing the municipalities data.
+  #' @param data A data frame containing the peste data.
+  #' @param columnvar A string containing the name of the column variable to map.
+  #' @param outputvar A string containing the name of the output variable save the map.
+  #' @param month An integer containing the month to map.
+
+  map_tmp <- tm_shape(map) + tm_borders() +
+    tm_shape(data) + tm_dots(size = 0.5, col = columnvar, palette = "Reds", title = "", style = "jenks") +
+    tm_layout(
+      legend.position = c("right", "bottom"), legend.text.size = 1.3,
+      inner.margins = c(0, 0, 0, 0),
+      panel.label.size = 1.3, panel.label.height = 1, panel.label.color = "black", panel.label.bg.color = "gray"
+    )
+
+  if (!is.null(month)) { # add month to map
+    map_tmp <- map_tmp + tm_layout(panel.labels = c(c("June", "July", "August", "September", "October")[month-5]))
+    month_name <- month
+  } else { # add all months to map
+    month_name <- ""
+  }
+  tmap_save(map_tmp, filename = paste(PESTE_MAPS_DIR, paste0("map.municipios.pred.", month_name, ".", outputvar, ".png"), sep = "/"), dpi = 300) # save map
+}
 
 
 # main --------------------------------------------------------------------
@@ -63,7 +92,7 @@ df_distances <- df_distances %>%
   )
 
 df_distances <- df_distances[, !(names(df_distances) %in% c("OD_Id", "CD_INE5", "ALTURA", "POP_1877"))] # remove unnecessary columns
-colnames(df_distances)[3:5] <- c(MUNICIPIO_STR, COVROAD_STR, COVPORT_STR) # rename columns to match peste data
+colnames(df_distances)[3:5] <- c(MUNICIPIO_STR, "covdist_road", "covdist_port") # rename columns to match peste data
 
 # merge peste data with distances data
 df_peste <- merge(df_peste, df_distances, by = MUNICIPIO_STR)
@@ -135,66 +164,21 @@ dp <- dp %>% st_transform(ESPG_CODE)
 dp.defunciones <- dp.defunciones %>% st_transform(ESPG_CODE)
 map <- map %>% st_transform(ESPG_CODE)
 
-# plot the observed data for cases and deaths
-
-# by month
-
+# generate maps of observed cases and deaths by each month for each municipality
 for (month in MONTHS_INT) {
-
-  map_invasiones <- tm_shape(map) + tm_borders() +
-    tm_shape(d[d$mes == month,]) + tm_dots(size = 0.5, col = CASOS_STR, palette = "Reds", title = "", style = "jenks") +
-    tm_layout(
-      legend.position = c("right", "bottom"), legend.text.size = 1.3,
-      inner.margins = c(0, 0, 0, 0),
-      panel.labels = c(MONTHS_STR[month-5]),
-      panel.label.size = 1.3, panel.label.height = 1, panel.label.color = "black", panel.label.bg.color = "gray"
-    )
-
-  map_defunciones <- tm_shape(map) + tm_borders() +
-    tm_shape(d.defunciones[d.defunciones$mes == month,]) + tm_dots(size = 0.5, col = CASOS_STR, palette = "Reds", title = "", style = "jenks") +
-    tm_layout(
-      legend.position = c("right", "bottom"), legend.text.size = 1.3,
-      inner.margins = c(0, 0, 0, 0),
-      panel.labels = c(MONTHS_STR[month-5]),
-      panel.label.size = 1.3, panel.label.height = 1, panel.label.color = "black", panel.label.bg.color = "gray"
-    )
-
-  tmap_save(map_invasiones, filename = paste(PESTE_MAPS_DIR, paste0("map.municipios.pred.", month, ".", INVASIONES_STR, ".png"), sep = "/"), dpi = 300)
-  tmap_save(map_defunciones, filename = paste(PESTE_MAPS_DIR, paste0("map.municipios.pred.", month, ".", DEFUNCIONES_STR, ".png"), sep = "/"), dpi = 300)
+  generate_maps(map, d[d$mes == month,], CASOS_STR, INVASIONES_STR, month)
+  generate_maps(map, d.defunciones[d.defunciones$mes == month,], CASOS_STR, DEFUNCIONES_STR, month)
 }
-
-# all months
 
 # group by municipality
 d.grouped <- d %>% group_by(NAMEUNIT) %>% summarise(Casos = sum(Casos))
 d.defunciones.grouped <- d.defunciones %>% group_by(NAMEUNIT) %>% summarise(Casos = sum(Casos))
 
-map_all_invasiones <- tm_shape(map) + tm_borders() +
-    tm_shape(d.grouped) + tm_dots(size = 0.5, col = CASOS_STR, palette = "Reds", title = "", style = "jenks") +
-    tm_layout(
-      legend.position = c("right", "bottom"), legend.text.size = 1.3,
-      inner.margins = c(0, 0, 0, 0),
-      panel.labels = c(MONTHS_STR[month-5]),
-      panel.label.size = 1.3, panel.label.height = 1, panel.label.color = "black", panel.label.bg.color = "gray"
-    )
+# generate maps of observed cases and deaths by all months for each municipality
+generate_maps(map, d.grouped, CASOS_STR, INVASIONES_STR)
+generate_maps(map, d.defunciones.grouped, CASOS_STR, DEFUNCIONES_STR)
 
-map_all_defunciones <- tm_shape(map) + tm_borders() +
-  tm_shape(d.defunciones.grouped) + tm_dots(size = 0.5, col = CASOS_STR, palette = "Reds", title = "", style = "jenks") +
-  tm_layout(
-      legend.position = c("right", "bottom"), legend.text.size = 1.3,
-      inner.margins = c(0, 0, 0, 0),
-      panel.labels = c(MONTHS_STR[month-5]),
-      panel.label.size = 1.3, panel.label.height = 1, panel.label.color = "black", panel.label.bg.color = "gray"
-    )
-
-tmap_save(map_all_invasiones, filename = paste(PESTE_MAPS_DIR, paste0("map_all.municipios.pred.", INVASIONES_STR, ".png"), sep = "/"), dpi = 300)
-tmap_save(map_all_defunciones, filename = paste(PESTE_MAPS_DIR, paste0("map_all.municipios.pred.", DEFUNCIONES_STR, ".png"), sep = "/"), dpi = 300)
-
-
-# clean environment -------------------------------------------------------
-
-
-rm(d.grouped, d.defunciones.grouped, map_invasiones, map_defunciones, map_all_invasiones, map_all_defunciones)
+rm(d.grouped, d.defunciones.grouped)
 
 
 # modelling ---------------------------------------------------------------
@@ -347,37 +331,12 @@ dpm.defunciones <- st_as_sf(dpm.defunciones, coords = c("x", "y"), crs = st_crs(
 dpm.invasiones$time <- c(6, 7, 8, 9, 10)[match(dpm.invasiones$time, c(1, 2, 3, 4, 5))]
 dpm.defunciones$time <- c(6, 7, 8, 9, 10)[match(dpm.defunciones$time, c(1, 2, 3, 4, 5))]
 
-# by month
-
+# generate maps of predicted cases and deaths by each month for each municipality
 for (month in MONTHS_INT) {
-
-  map_invasiones <- tm_shape(map) + tm_borders() +
-      tm_shape(subset(dpm.invasiones, variable == columnames_coefs[1] & time == month)) + tm_dots(size = 0.3, col = "value", palette = "Reds", title = "", style = "jenks") +
-      tm_layout(
-      legend.position = c("right", "bottom"), legend.text.size = 1.3,
-      inner.margins = c(0, 0, 0, 0),
-      panel.labels = c(MONTHS_STR[month-5]),
-      panel.label.size = 1.3, panel.label.height = 1, panel.label.color = "black", panel.label.bg.color = "gray"
-    )
-
-  map_defunciones <- tm_shape(map) + tm_borders() +
-      tm_shape(subset(dpm.defunciones, variable == columnames_coefs[1] & time == month)) + tm_dots(size = 0.3, col = "value", palette = "Reds", title = "", style = "jenks") +
-      tm_layout(
-      legend.position = c("right", "bottom"), legend.text.size = 1.3,
-      inner.margins = c(0, 0, 0, 0),
-      panel.labels = c(MONTHS_STR[month-5]),
-      panel.label.size = 1.3, panel.label.height = 1, panel.label.color = "black", panel.label.bg.color = "gray"
-    )
-
-  tmap_save(map_invasiones, filename = paste(PESTE_MAPS_DIR, paste0("map.municipios.pred.", month, ".", INVASIONES_STR, ".results.png"), sep = "/"), dpi = 300)
-  tmap_save(map_defunciones, filename = paste(PESTE_MAPS_DIR, paste0("map.municipios.pred.", month, ".", DEFUNCIONES_STR, ".results.png"), sep = "/"), dpi = 300)
+  generate_maps(map, subset(dpm.invasiones, variable == columnames_coefs[1] & time == month), "value", paste0(INVASIONES_STR, ".results"), month)
+  generate_maps(map, subset(dpm.defunciones, variable == columnames_coefs[1] & time == month), "value", paste0(DEFUNCIONES_STR, ".results"), month)
 }
 
+save.image("peste_inla.pred.RData") # save workspace
 
-# clean environment -------------------------------------------------------
-
-
-rm(df_peste, df_peste.defunciones, map_invasiones, map_defunciones)
-
-
-save.image("peste_inla.pred.RData")
+rm(list = ls()) # remove all objects from workspace

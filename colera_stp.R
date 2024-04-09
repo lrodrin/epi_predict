@@ -237,4 +237,4 @@ for(provincia in c("zaragoza", "valencia", "granada", "murcia", "teruel", "caste
   }
 }
 
-rm(list = ls())
+rm(list = ls()) # remove all objects from workspace

@@ -43,11 +43,15 @@ Rscript peste_inla.dist.R # Process risk of black death outbreak expansion
 Rscript peste_inla.pred.R # Predict new locations of black death outbreak expansion
 ```
 
-The scripts are designed to be run from the root directory of the project but you use RStudio. If you're using RStudio, you can also execute the scripts by opening them in RStudio and clicking the "Source" button.
+The scripts are designed to be run from the root directory of the project, but you use RStudio. If you're using RStudio, you can also execute the scripts by opening them in RStudio and clicking the "Source" button.
 
-| Observed cases by provinces | Observed cases by municipalities |
-|----------|----------|
-| ![Text alternatiu](img/observed_cases_august.png) | ![Text alternatiu](img/predicted_cases_august.png) |
+| Observed cases by provinces                |
+|--------------------------------------------|
+| ![Imatge 1](img/observed_cases_august.png) |
+
+| Observed cases by municipalities            |
+|---------------------------------------------|
+| ![Imatge 2](img/predicted_cases_august.png) |
 
 ## References
 
