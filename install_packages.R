@@ -1,7 +1,7 @@
 # define package names and versions
 package_versions <- list(
   ggplot2 = NULL,
-  readxl = "1.4.2",
+  readxl = NULL,
   dplyr = "1.1.2",
   tidyr = "1.3.0",
   lubridate = "1.9.2",
@@ -15,7 +15,7 @@ package_versions <- list(
   Dict = "0.1.0",
   sp = "1.6-0",
   sf = "1.0-12",
-  terra = "1.7-23",
+  terra = NULL,
   spdep = "1.2-8",
   sfdep = "0.2.3",
   stringi = "1.7.12",

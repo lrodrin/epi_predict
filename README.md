@@ -14,8 +14,8 @@ This project focuses on analyzing historical data related to the black death and
 - **colera_stp.R**: R script for analyzing spatial and temporal patterns of cholera outbreak data using `local Moran's I` and `Getis-Ord Gi*` approaches.
 - **covariates.R**: R script for processing covariates data.
 - **peste_data.R**: R script for processing black death outbreak data.
-- **peste_inla.dist.R**: R script for modelling the risk of black death outbreak expansion using R-INLA.
-- **peste_inla.pred.R**: R script for predicting new locations of black death outbreak expansion using R-INLA.
+- **peste_inla.dist.R**: R script for modelling and predict the risk of black death outbreak expansion using R-INLA.
+- ***peste_inla.pred.R (beta)***: R script for predicting new locations of black death outbreak expansion using R-INLA.
 
 ## Usage
 
@@ -39,7 +39,7 @@ Once the data preprocessing is complete, you can execute the modelling and analy
 ```bash
 Rscript colera_inla.dist.R # Process risk of cholera outbreak expansion
 Rscript colera_stp.R # Analyze spatial and temporal patterns of cholera outbreak
-Rscript peste_inla.dist.R # Process risk of black death outbreak expansion
+Rscript peste_inla.dist.R # Process risk and prediction of black death outbreak expansion
 Rscript peste_inla.pred.R # Predict new locations of black death outbreak expansion
 ```
 

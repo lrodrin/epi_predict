@@ -33,6 +33,14 @@ ui <- fluidPage(
         label = "1. Upload data. Choose csv file",
         accept = c(".csv")
       ),
+      column(
+        align = "center",
+        width = 12, 
+        actionButton("loadSampleData1", "Load Sample Data")
+      ),
+      br(),
+      br(),
+      br(),
       helpText("Upload all map files at once: shp, dbf, shx and prj."),
       fileInput(
         inputId = "filemap",
@@ -40,6 +48,14 @@ ui <- fluidPage(
         multiple = TRUE,
         accept = c(".shp", ".dbf", ".sbn", ".sbx", ".shx", ".prj")
       ),
+      column(
+        align = "center",
+        width = 12, 
+        actionButton("loadSampleData2", "Load Sample Map"),
+      ),
+      br(),
+      br(),
+      br(),
       selectizeInput(
         inputId = "countyselected",
         label = "Select county",
@@ -91,13 +107,28 @@ ui <- fluidPage(
 server <- function(input, output) {
 
   # read data
-  data <- reactive({
+  inputdata <- reactive({
     req(input$filedata)
     read.csv(input$filedata$datapath)
   })
+  
+  # read sample data
+  sampledata <- reactive({
+    req(input$loadSampleData1)
+    read.csv("data/sample_data.csv")
+  })
+
+  # using isolate to avoid reavaluating the reactive expression
+  data <- reactive({
+    if (!is.null(input$filedata)) {
+      isolate(inputdata())
+    } else if (!is.null(input$loadSampleData1)) {
+      isolate(sampledata())
+    }
+  })
 
   # read shapefile
-  map <- reactive({
+  inputmap <- reactive({
     req(input$filemap)
     shpdf <- input$filemap 
     
@@ -107,10 +138,27 @@ server <- function(input, output) {
     for (i in 1:nrow(shpdf)) { file.rename(shpdf$datapath[i], paste0(tempdirname, "/", shpdf$name[i])) }
     
     # use the "st_read" function from the "rgdal" package to read the shapefile
-    # concatenate the directory name and the file names with the ".shp" extension
-    # filter the file names to include only those ending with ".shp"
-    map <- st_read(paste(tempdirname, shpdf$name[grep(pattern = "*.shp$", shpdf$name)], sep = "/"), quiet = TRUE)
-    map
+    inputmap <- st_read(paste(tempdirname, shpdf$name[grep(pattern = "*.shp$", shpdf$name)], sep = "/"), quiet = TRUE)
+    inputmap
+  })
+
+  # read sample shapefile
+  samplemap <- reactive({
+    req(input$loadSampleData2)
+    shpdf <- c("data/Municipios_IGN.shp", "data/Municipios_IGN.dbf", "data/Municipios_IGN.shx", "data/Municipios_IGN.prj")
+
+    # use the "st_read" function from the "rgdal" package to read the local shapefile
+    samplemap <- st_read(shpdf[1], quiet = TRUE)
+    samplemap
+  })
+
+  # using isolate to avoid reavaluating the reactive expression
+  map <- reactive({
+    if (!is.null(input$filemap)) {
+      isolate(inputmap())
+    } else if (!is.null(input$loadSampleData2)) {
+      isolate(samplemap())
+    }
   })
 
   # filter data
