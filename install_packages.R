@@ -5,7 +5,6 @@ package_versions <- list(
   dplyr = "1.1.2",
   tidyr = "1.3.0",
   lubridate = "1.9.2",
-  tidyverse = "2.0.0",
   scales = "1.2.1",
   data.table = "1.14.8",
   zoo = "1.8-12",
