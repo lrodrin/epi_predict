@@ -12,7 +12,7 @@ This repository contains the source code for the EPI-PREDICT web application, a 
 
 To use the web application, follow these steps:
 
-1. Ensure you have R and the required packages installed (see Dependencies section below).
+1. Ensure you have R and the required packages installed (see **Dependencies** section below).
 2. Run the web application, and execute the `app.R` script in R or RStudio. The application will launch in your default web browser.
 3. Upload the necessary data files and shapefiles as instructed in the application.
 4. Interact with the application to explore spatio-temporal cholera data.
@@ -32,3 +32,7 @@ The web application requires the following R packages:
 - tmap
 
 Make sure these packages are installed before running the application.
+
+| [https://epipredict-project.shinyapps.io/webapp/](https://epipredict-project.shinyapps.io/webapp/) |
+|--------------------------------------------|
+| ![Imatge 3](www/webapp.jpg) |

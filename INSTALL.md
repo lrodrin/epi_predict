@@ -32,7 +32,7 @@ If you are using RStudio, you can also install the dependencies by opening the `
 
 ### Configure the Project
 
-Before running the project, you need to ensure that the necessary datasets are available. These datasets are stored in a private Google Drive folder accessible at [this link](https://drive.google.com/drive/folders/1PQ_0qZRyXoPgn_hAAbbpCNcjmfXLsH69?usp=sharing). Permission to access the folder must be requested from [jpujadasmo@uoc.edu](mailto:jpujadasmo@uoc.edu).
+Before running the project, you need to ensure that the necessary datasets are available. These datasets are stored in a private Google Drive folder accessible at [this link](https://drive.google.com/drive/folders/1PQ_0qZRyXoPgn_hAAbbpCNcjmfXLsH69?usp=sharing). Permission to access the folder must be requested from [jpujadasmo@uoc.edu](mailto:jpujadasmo@uoc.edu) or [mvalls@ced.uab.es](mailto:mvalls@ced.uab.es).
 
 Once you have access to the datasets, follow these steps:
 
@@ -44,4 +44,4 @@ With the datasets properly configured, the project will be ready for execution.
 
 ## Support
 
-If you encounter any issues during the installation of the project, please open an issue in this repository or contact us via email at [lrodrin@gmail.com](mailto:lrodrin@gmail.com) or [jpujadasmo@uoc.edu](mailto:jpujadasmo@uoc.edu).
+If you encounter any issues during the installation of the project, please open an issue in this repository or contact us via email at [lrodrin@gmail.com](mailto:lrodrin@gmail.com), [jpujadasmo@uoc.edu](mailto:jpujadasmo@uoc.edu) or [mvalls@ced.uab.es](mailto:mvalls@ced.uab.es).

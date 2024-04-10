@@ -62,7 +62,7 @@ Codes in this repository have been adapted from the following useful guides:
 
 ## Support
 
-For any questions, issues, or feedback regarding this project, please open an issue in this repository or contact us via email at [lrodrin@gmail.com](mailto:lrodrin@gmail.com) or [jpujadasmo@uoc.edu](mailto:jpujadasmo@uoc.edu).
+For any questions, issues, or feedback regarding this project, please open an issue in this repository or contact us via email at [lrodrin@gmail.com](mailto:lrodrin@gmail.com), [jpujadasmo@uoc.edu](mailto:jpujadasmo@uoc.edu) or [mvalls@ced.uab.es](mailto:mvalls@ced.uab.es).
 
 ## License
 
